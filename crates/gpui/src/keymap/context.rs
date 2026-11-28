@@ -17,9 +17,9 @@ pub struct KeyContext(Vec<ContextEntry>);
 /// An entry in a KeyContext.
 pub struct ContextEntry {
     /// The key (or name if no value).
-    pub key: SharedString,
+    key: SharedString,
     /// The value.
-    pub value: Option<SharedString>,
+    value: Option<SharedString>,
 }
 
 impl<'a> TryFrom<&'a str> for KeyContext {
@@ -40,7 +40,7 @@ impl KeyContext {
     }
 
     /// Returns the primary context entry (usually the name of the component).
-    pub fn primary(&self) -> Option<&ContextEntry> {
+    fn primary(&self) -> Option<&ContextEntry> {
         self.0.iter().find(|p| p.value.is_none())
     }
 
@@ -118,12 +118,12 @@ impl KeyContext {
     }
 
     /// Check if this context contains a given identifier or key.
-    pub fn contains(&self, key: &str) -> bool {
+    fn contains(&self, key: &str) -> bool {
         self.0.iter().any(|entry| entry.key.as_ref() == key)
     }
 
     /// Get the associated value for a given identifier or key.
-    pub fn get(&self, key: &str) -> Option<&SharedString> {
+    fn get(&self, key: &str) -> Option<&SharedString> {
         self.0.iter().find(|entry| entry.key.as_ref() == key)?.value.as_ref()
     }
 }
@@ -176,6 +176,7 @@ impl fmt::Display for KeyBindingContextPredicate {
             Self::Descendant(parent, child) => write!(f, "{parent} > {child}"),
             Self::Not(pred) => match pred.as_ref() {
                 Self::Identifier(name) => write!(f, "!{name}"),
+                // lint: expect(wildcard_match) only a few variants of `KeyBindingContextPredicate` matter here
                 _ => write!(f, "!({pred})"),
             },
             Self::And(..) => self.fmt_joined(f, " && ", LogicalOperator::And, |node| matches!(node, Self::Or(..))),
@@ -239,7 +240,7 @@ impl KeyBindingContextPredicate {
     }
 
     /// Eval a predicate against a set of contexts, arranged from lowest to highest.
-    pub fn eval_inner(&self, contexts: &[KeyContext], all_contexts: &[KeyContext]) -> bool {
+    fn eval_inner(&self, contexts: &[KeyContext], all_contexts: &[KeyContext]) -> bool {
         let Some(context) = contexts.last() else {
             return false;
         };
@@ -284,7 +285,7 @@ impl KeyBindingContextPredicate {
 
     /// Returns whether or not this predicate matches all possible contexts matched by
     /// the other predicate.
-    pub fn is_superset(&self, other: &Self) -> bool {
+    pub(crate) fn is_superset(&self, other: &Self) -> bool {
         if self == other {
             return true;
         }

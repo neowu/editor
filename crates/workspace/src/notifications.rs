@@ -73,7 +73,7 @@ use crate::Workspace;
 use crate::workspace_error::WorkspaceError;
 
 #[derive(Default)]
-pub struct Notifications {
+pub(crate) struct Notifications {
     notifications: Vec<(NotificationId, AnyView)>,
 }
 
@@ -106,12 +106,12 @@ impl NotificationId {
 
     /// Returns a [`NotificationId`] for the given type that is also identified
     /// by the provided ID.
-    pub fn composite<T: 'static>(id: impl Into<ElementId>) -> Self {
+    fn composite<T: 'static>(id: impl Into<ElementId>) -> Self {
         Self::Composite(TypeId::of::<T>(), id.into())
     }
 
     /// Builds a `NotificationId` out of the given string.
-    pub const fn named(id: SharedString) -> Self {
+    pub(crate) const fn named(id: SharedString) -> Self {
         Self::Named(id)
     }
 }
@@ -153,7 +153,7 @@ impl Workspace {
     /// This exists so that the `build_notification` closures stored for app notifications can
     /// return `AnyView`. Subscribing to events from an `AnyView` is not supported, so instead that
     /// responsibility is pushed to the caller where the `V` type is known.
-    pub(crate) fn show_notification_without_handling_dismiss_events(
+    fn show_notification_without_handling_dismiss_events(
         &mut self,
         id: &NotificationId,
         cx: &mut Context<Self>,
@@ -193,7 +193,7 @@ impl Workspace {
         });
     }
 
-    pub fn dismiss_notification(&mut self, id: &NotificationId, cx: &mut Context<Self>) {
+    pub(crate) fn dismiss_notification(&mut self, id: &NotificationId, cx: &mut Context<Self>) {
         self.notifications.retain(|(existing_id, _)| {
             if existing_id == id {
                 cx.notify();
@@ -226,22 +226,22 @@ impl Workspace {
         }
     }
 
-    pub fn dismiss_toast(&mut self, id: &NotificationId, cx: &mut Context<Self>) {
+    fn dismiss_toast(&mut self, id: &NotificationId, cx: &mut Context<Self>) {
         self.dismiss_notification(id, cx);
     }
 
-    pub fn clear_all_notifications(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn clear_all_notifications(&mut self, cx: &mut Context<Self>) {
         self.notifications.clear();
         cx.notify();
     }
 
     /// Hide all notifications matching the given ID.
-    pub fn suppress_notification(&mut self, id: &NotificationId, cx: &mut Context<Self>) {
+    pub(crate) fn suppress_notification(&mut self, id: &NotificationId, cx: &mut Context<Self>) {
         self.dismiss_notification(id, cx);
         self.suppressed_notifications.insert(id.clone());
     }
 
-    pub fn show_initial_notifications(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn show_initial_notifications(&mut self, cx: &mut Context<Self>) {
         // Allow absence of the global so that tests don't need to initialize it.
         let app_notifications = GLOBAL_APP_NOTIFICATIONS.lock().app_notifications.iter().cloned().collect::<Vec<_>>();
         for (id, build_notification) in app_notifications {
@@ -250,7 +250,7 @@ impl Workspace {
     }
 }
 
-pub struct LanguageServerPrompt {
+struct LanguageServerPrompt {
     focus_handle: FocusHandle,
     request: Option<project::LanguageServerPromptRequest>,
     scroll_handle: ScrollHandle,
@@ -267,7 +267,7 @@ impl Focusable for LanguageServerPrompt {
 impl Notification for LanguageServerPrompt {}
 
 impl LanguageServerPrompt {
-    pub fn new(request: project::LanguageServerPromptRequest, cx: &mut Context<Self>) -> Self {
+    fn new(request: project::LanguageServerPromptRequest, cx: &mut Context<Self>) -> Self {
         let markdown = cx.new(|cx| Markdown::new(request.message.clone().into(), None, None, cx));
         let dismiss_task = request.actions.is_empty().then(|| {
             cx.spawn(async move |prompt, cx| {
@@ -499,7 +499,7 @@ pub mod simple_message_notification {
     const FADE_OUT_DURATION: Duration = Duration::from_secs(2);
     const FADE_TO_FULL_OPACITY_DURATION: Duration = Duration::from_millis(200);
 
-    pub(super) struct AutoHideState {
+    struct AutoHideState {
         remaining_dismiss_duration: Duration,
         timer_started: Option<Instant>,
         hovered: bool,
@@ -691,12 +691,12 @@ pub mod simple_message_notification {
             }
         }
 
-        pub const fn button_style(mut self, style: ButtonStyle) -> Self {
+        const fn button_style(mut self, style: ButtonStyle) -> Self {
             self.button_style = Some(style);
             self
         }
 
-        pub fn primary_message<S>(mut self, message: S) -> Self
+        pub(crate) fn primary_message<S>(mut self, message: S) -> Self
         where
             S: Into<SharedString>,
         {
@@ -704,7 +704,7 @@ pub mod simple_message_notification {
             self
         }
 
-        pub fn primary_on_click<F>(mut self, on_click: F) -> Self
+        pub(crate) fn primary_on_click<F>(mut self, on_click: F) -> Self
         where
             F: 'static + Fn(&mut Window, &mut Context<Self>),
         {
@@ -712,7 +712,7 @@ pub mod simple_message_notification {
             self
         }
 
-        pub fn more_info_message<S>(mut self, message: S) -> Self
+        pub(crate) fn more_info_message<S>(mut self, message: S) -> Self
         where
             S: Into<SharedString>,
         {
@@ -720,7 +720,7 @@ pub mod simple_message_notification {
             self
         }
 
-        pub fn more_info_url<S>(mut self, url: S) -> Self
+        pub(crate) fn more_info_url<S>(mut self, url: S) -> Self
         where
             S: Into<Arc<str>>,
         {
@@ -728,13 +728,13 @@ pub mod simple_message_notification {
             self
         }
 
-        pub fn dismiss(&mut self, cx: &mut Context<Self>) {
+        fn dismiss(&self, cx: &mut Context<Self>) {
             cx.emit(DismissEvent);
         }
 
         /// Determines whether the given notification ID should be suppressible
         /// Suppressed notifications will not be shown anymor.
-        pub const fn show_suppress_button(mut self, show: bool) -> Self {
+        const fn show_suppress_button(mut self, show: bool) -> Self {
             self.show_suppress_button = show;
             self
         }
@@ -747,18 +747,18 @@ pub mod simple_message_notification {
             self
         }
 
-        pub const fn content_icon(mut self, icon: IconName, color: Color) -> Self {
+        const fn content_icon(mut self, icon: IconName, color: Color) -> Self {
             self.content_icon = Some(icon);
             self.content_icon_color = Some(color);
             self
         }
 
-        pub fn secondary_content<S: Into<SharedString>>(mut self, text: S) -> Self {
+        fn secondary_content<S: Into<SharedString>>(mut self, text: S) -> Self {
             self.secondary_content = Some(text.into());
             self
         }
 
-        pub fn copy_text<S: Into<SharedString>>(mut self, text: S) -> Self {
+        fn copy_text<S: Into<SharedString>>(mut self, text: S) -> Self {
             self.copy_text = Some(text.into());
             self
         }
@@ -770,7 +770,7 @@ pub mod simple_message_notification {
             self
         }
 
-        pub fn from_workspace_error<E: WorkspaceError>(error: E, cx: &mut Context<Self>) -> Self {
+        pub(crate) fn from_workspace_error<E: WorkspaceError>(error: E, cx: &mut Context<Self>) -> Self {
             let primary_message = error.primary_message();
             let severity = error.severity();
             Self::new(primary_message.clone(), cx)
@@ -961,12 +961,12 @@ struct AppNotifications {
 }
 
 impl AppNotifications {
-    pub(crate) fn remove(&mut self, id: &NotificationId) {
+    fn remove(&mut self, id: &NotificationId) {
         self.app_notifications.retain(|(existing_id, _)| existing_id != id);
     }
 }
 
-pub fn dismiss_app_notification(id: &NotificationId, cx: &mut App) {
+pub(crate) fn dismiss_app_notification(id: &NotificationId, cx: &mut App) {
     let id = id.clone();
     // Defer notification dismissal so that windows on the stack can be returned to GPUI
     cx.defer(move |cx| {

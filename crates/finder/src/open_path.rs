@@ -38,7 +38,7 @@ use workspace::Workspace;
 
 pub(crate) struct OpenPathPrompt;
 
-pub(crate) struct OpenPathDelegate {
+struct OpenPathDelegate {
     tx: Option<oneshot::Sender<Option<Vec<PathBuf>>>>,
     lister: DirectoryLister,
     selected_index: usize,

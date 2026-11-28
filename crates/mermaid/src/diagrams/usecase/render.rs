@@ -120,6 +120,7 @@ struct View {
 fn property<'v>(value: &'v Value, key: &str) -> Option<&'v Value> {
     match value {
         Value::Object(entries) => entries.iter().find(|(own, _)| own == key).map(|(_, v)| v),
+        // lint: expect(wildcard_match) only a few variants of `Value` matter here
         _ => None,
     }
 }
@@ -335,6 +336,7 @@ fn figure(view: &View, node: &GraphNode<'_>) -> String {
             out.push_str(&esc_text(node.icon.unwrap_or("")));
             out.push_str("\" x=\"-14\" y=\"-18\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"></svg>");
         }
+        // lint: expect(wildcard_match) only a few variants of `NodeShape` matter here
         _ => {
             out.push_str("<circle cy=\"-21\" r=\"9\"");
             out.push_str(SHAPE_ATTRS);
@@ -461,6 +463,7 @@ fn measure(node: &GraphNode<'_>, size: f64, small: f64, tiny: f64) -> View {
             view.w = tw + 2.0 * node.padding + 6.0;
             view.h = th + 18.0;
         }
+        // lint: expect(wildcard_match) only a few variants of `NodeShape` matter here
         _ => {
             view.w = (tw + 2.0 * node.padding + 12.0).max(80.0);
             view.h = (th + 24.0).max(44.0);
@@ -737,7 +740,7 @@ pub(crate) fn render(model: &UsecaseModel, config: &Value, options: &Options) ->
                 body.push_str("</g>");
                 "ondine-json"
             }
-            _ => {
+            Kind::Boundary | Kind::Box | Kind::Ellipse => {
                 let label_y = view.stereotype.height / 2.0;
                 let note = node.shape == NodeShape::Note;
                 let kind = if view.kind == Kind::Ellipse {

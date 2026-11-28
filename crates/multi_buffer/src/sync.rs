@@ -456,6 +456,7 @@ impl MultiBuffer {
                                     !intersects && (was_previously_expanded || all_diff_hunks_expanded)
                                 }
                             }
+                            // lint: expect(wildcard_match) only some variants matter here
                             _ => was_previously_expanded || all_diff_hunks_expanded,
                         };
 

@@ -46,7 +46,7 @@ fn word(c: char) -> bool {
 }
 
 /// Removes comment lines (`%%` not followed by `{`) and leading whitespace.
-pub(crate) fn cleanup_comments(text: &str) -> String {
+fn cleanup_comments(text: &str) -> String {
     let stripped = if has(text, "%%") { Cow::Owned(remove_comments(text)) } else { Cow::Borrowed(text) };
     stripped.trim_start_matches(space).to_owned()
 }

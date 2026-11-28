@@ -71,7 +71,7 @@ where
     T: Item,
     D: Dimension<'a, T::Summary>,
 {
-    pub fn new(tree: &'a SumTree<T>, cx: <T::Summary as Summary>::Context<'b>) -> Self {
+    pub(crate) fn new(tree: &'a SumTree<T>, cx: <T::Summary as Summary>::Context<'b>) -> Self {
         Self { tree, stack: ArrayVec::new(), position: D::zero(cx), did_seek: false, at_end: tree.is_empty(), cx }
     }
 
@@ -118,7 +118,7 @@ where
     }
 
     #[track_caller]
-    pub fn item_summary(&self) -> Option<&'a T::Summary> {
+    fn item_summary(&self) -> Option<&'a T::Summary> {
         self.assert_did_seek();
         if let Some(entry) = self.stack.last() {
             match *entry.tree.0 {
@@ -613,7 +613,7 @@ where
     T: Item,
     D: Dimension<'a, T::Summary>,
 {
-    pub fn new(tree: &'a SumTree<T>, cx: <T::Summary as Summary>::Context<'b>, filter_node: F) -> Self {
+    pub(crate) fn new(tree: &'a SumTree<T>, cx: <T::Summary as Summary>::Context<'b>, filter_node: F) -> Self {
         let cursor = tree.cursor::<D>(cx);
         Self { cursor, filter_node }
     }

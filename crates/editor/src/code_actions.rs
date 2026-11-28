@@ -9,7 +9,6 @@ use super::ActionFetchReady;
 use super::AnyElement;
 use super::App;
 use super::AppContext as _;
-use super::Arc;
 use super::AvailableCodeAction;
 use super::Buffer;
 use super::BufferId;
@@ -57,7 +56,12 @@ impl Editor {
     /// Toggles an action selection menu for the latest selection.
     /// May show LSP code actions, code lens' command, runnables and potentially more entities applicable as actions.
     /// Previous menu toggled with this method will be closed.
-    pub fn toggle_code_actions(&mut self, action: &ToggleCodeActions, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_code_actions(
+        &mut self,
+        action: &ToggleCodeActions,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let quick_launch = action.quick_launch;
         let mut context_menu = self.context_menu.borrow_mut();
         if let Some(CodeContextMenu::CodeActions(code_actions)) = context_menu.as_ref() {
@@ -168,7 +172,7 @@ impl Editor {
         });
     }
 
-    pub fn confirm_code_action(
+    pub(crate) fn confirm_code_action(
         &mut self,
         action: &ConfirmCodeAction,
         window: &mut Window,
@@ -254,7 +258,7 @@ impl Editor {
         Some((buffer_snapshot.buffer_id(), range.start.row))
     }
 
-    pub fn has_available_code_actions_for_selection(&self) -> bool {
+    pub(crate) fn has_available_code_actions_for_selection(&self) -> bool {
         if let CodeActionsForSelection::Ready(ready) = &self.code_actions_for_selection {
             !ready.actions.is_empty()
         } else {
@@ -262,7 +266,7 @@ impl Editor {
         }
     }
 
-    pub const fn context_menu(&self) -> &RefCell<Option<CodeContextMenu>> {
+    pub(crate) const fn context_menu(&self) -> &RefCell<Option<CodeContextMenu>> {
         &self.context_menu
     }
 
@@ -378,9 +382,7 @@ impl Editor {
     }
 }
 
-pub trait CodeActionProvider {
-    fn id(&self) -> Arc<str>;
-
+pub(crate) trait CodeActionProvider {
     fn code_actions(
         &self,
         buffer: &Entity<Buffer>,
@@ -400,10 +402,6 @@ pub trait CodeActionProvider {
 }
 
 impl CodeActionProvider for Entity<Project> {
-    fn id(&self) -> Arc<str> {
-        "project".into()
-    }
-
     fn code_actions(
         &self,
         buffer: &Entity<Buffer>,

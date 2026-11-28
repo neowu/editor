@@ -20,7 +20,7 @@ pub mod pane;
 pub mod pane_group;
 mod pane_management;
 mod pane_motion;
-pub mod path_list {
+mod path_list {
     pub use util::path_list::PathList;
     pub use util::path_list::SerializedPathList;
 }
@@ -35,7 +35,7 @@ pub mod tasks;
 mod toast_layer;
 mod toolbar;
 mod window_header;
-pub mod workspace_error;
+mod workspace_error;
 
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -104,7 +104,7 @@ pub use item_registry::register_project_item;
 pub use item_registry::register_serializable_item;
 use language::LanguageRegistry;
 pub use modal_layer::DismissDecision;
-pub use modal_layer::ModalLayer;
+pub(crate) use modal_layer::ModalLayer;
 pub use modal_layer::ModalView;
 pub use modal_layer::deregister_reopenable_picker;
 pub use modal_layer::register_reopenable_picker;
@@ -115,7 +115,6 @@ use notifications::simple_message_notification::MessageNotification;
 pub use open::OpenOptions;
 pub use open::OpenResult;
 pub use open::WorkspaceMatching;
-pub use open::find_existing_workspace;
 pub use open::open_new;
 pub use open::open_paths;
 pub use open::prompt_for_open_path_and_open;
@@ -124,24 +123,20 @@ pub use pane::ActivateLastItem;
 pub use pane::ActivateNextItem;
 pub use pane::ActivatePreviousItem;
 pub use pane::CloseActiveItem;
-pub use pane::CloseAllItems;
+pub(crate) use pane::CloseAllItems;
 pub use pane::CloseOtherItems;
 pub use pane::DeploySearch;
 pub use pane::DraggedSelection;
 pub use pane::DraggedTab;
-pub use pane::EmptyPaneHints;
 pub use pane::ItemNavHistory;
-pub use pane::JoinAll;
-pub use pane::JoinIntoNext;
 pub use pane::NavHistory;
 pub use pane::NavigationEntry;
-pub use pane::NavigationMode;
+pub(crate) use pane::NavigationMode;
 pub use pane::Pane;
 pub use pane::ReopenClosedItem;
 pub use pane::RevealInProjectPanel;
 pub use pane::SaveIntent;
 pub use pane::SelectedEntry;
-pub use pane::Side;
 pub use pane::SplitDown;
 pub use pane::SplitLeft;
 pub use pane::SplitMode;
@@ -150,15 +145,14 @@ pub use pane::SplitUp;
 pub use pane::SwapItemLeft;
 pub use pane::SwapItemRight;
 pub use pane::TOP_ROW_BUTTON_SIZE;
-pub use pane::TagNavigationMode;
+pub(crate) use pane::TagNavigationMode;
 pub use pane::render_item_indicator;
 pub use pane::render_tab_bar_pane_buttons;
-pub use pane::set_editor_tab_bar_buttons;
+pub(crate) use pane::set_editor_tab_bar_buttons;
 pub use pane::tab_details;
 pub use pane::top_row_icon_button;
-pub use pane_group::HANDLE_HITBOX_SIZE;
-pub use pane_group::Member;
-pub use pane_group::PaneAxis;
+pub(crate) use pane_group::Member;
+pub(crate) use pane_group::PaneAxis;
 pub use pane_group::PaneGroup;
 pub use pane_group::PaneRenderContext;
 pub use pane_group::SplitDirection;
@@ -171,7 +165,6 @@ pub use persistence::ProjectsStore;
 pub use persistence::RecentWorkspace;
 pub use persistence::delete_recent_workspace_group;
 pub use persistence::last_session_workspaces;
-pub use persistence::model::DockData;
 pub use persistence::model::DockStructure;
 pub use persistence::model::SessionWorkspace;
 pub use persistence::recent_project_workspaces;
@@ -181,7 +174,7 @@ use project::ProjectPath;
 use project::Worktree;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-pub use serialization::flush_windows_serialization;
+pub(crate) use serialization::flush_windows_serialization;
 pub use serialization::last_opened_workspace_location;
 pub use serialization::restore_workspace;
 use status_bar::StatusBar;
@@ -189,7 +182,7 @@ pub use status_bar::StatusItemView;
 pub use status_bar::status_item_color;
 use task::SpawnInTerminal;
 pub use toast_layer::ToastAction;
-pub use toast_layer::ToastLayer;
+pub(crate) use toast_layer::ToastLayer;
 pub use toast_layer::ToastView;
 pub use toolbar::PaneSearchBarCallbacks;
 pub use toolbar::Toolbar;
@@ -228,7 +221,7 @@ use crate::open::prompt_and_open_paths;
 use crate::serialization::flush_windows_serialization_on_quit;
 use crate::serialization::open_items;
 
-pub const SERIALIZATION_THROTTLE_TIME: Duration = Duration::from_millis(200);
+const SERIALIZATION_THROTTLE_TIME: Duration = Duration::from_millis(200);
 pub const MAX_RECENT_SELECTIONS: usize = 20;
 
 /// Space between the floating pane cards, and between them and the surrounding chrome.
@@ -237,7 +230,7 @@ pub use ui::utils::CARD_GAP;
 pub const CARD_RADIUS: Pixels = px(10.);
 /// GPUI clips children to rectangles only, so the card's content is inset just enough
 /// (inset >= radius * (1 - 1/sqrt 2)) for square child corners to stay inside the rounded edge.
-pub const CARD_INSET: Pixels = px(3.);
+const CARD_INSET: Pixels = px(3.);
 
 const WINDOW_TITLE_SEPARATOR: &str = " — ";
 /// The macOS window corner radius, which the window's coloured border follows.
@@ -265,7 +258,7 @@ pub struct Open {
 }
 
 impl Open {
-    pub const DEFAULT: Self = Self { create_new_window: None };
+    const DEFAULT: Self = Self { create_new_window: None };
 }
 
 impl Default for Open {
@@ -281,7 +274,7 @@ pub mod toast {
         toast,
         [
             /// Runs the action associated with a toast notification.
-            RunAction
+            pub RunAction
         ]
     );
 }
@@ -289,97 +282,97 @@ pub mod toast {
 actions!(
     workspace,
     [
-        CopyPath,
-        CopyRelativePath,
+        pub CopyPath,
+        pub CopyRelativePath,
         /// Opens the selected file with the system's default application.
-        OpenWithSystem,
+        pub OpenWithSystem,
         /// Activates the next pane in the workspace.
-        ActivateNextPane,
+        pub ActivateNextPane,
         /// Activates the previous pane in the workspace.
-        ActivatePreviousPane,
+        pub ActivatePreviousPane,
         /// Activates the last pane in the workspace.
-        ActivateLastPane,
+        pub(crate) ActivateLastPane,
         /// Moves focus to the next major region of the window (editor, open
         /// panels, status bar), cycling and wrapping around. Intended as a
         /// discoverable, screen-reader-friendly way to navigate the window.
-        FocusNextPart,
+        pub FocusNextPart,
         /// Moves focus to the previous major region of the window. See
         /// [`FocusNextPart`].
-        FocusPreviousPart,
+        pub FocusPreviousPart,
         /// Switches to the next window.
-        ActivateNextWindow,
+        pub(crate) ActivateNextWindow,
         /// Switches to the previous window.
-        ActivatePreviousWindow,
+        pub(crate) ActivatePreviousWindow,
         /// Adds a folder to the current project.
-        AddFolderToProject,
+        pub AddFolderToProject,
         /// Clears all notifications.
-        ClearAllNotifications,
+        pub(crate) ClearAllNotifications,
         /// Rotates the left dock through its panels, then closes it.
-        CycleLeftDock,
+        pub CycleLeftDock,
         /// Rotates the right dock through its panels, then closes it.
-        CycleRightDock,
+        pub CycleRightDock,
         /// Clears all navigation history, including forward/backward navigation, recently opened files, and recently closed tabs. **This action is irreversible**.
-        ClearNavigationHistory,
+        pub(crate) ClearNavigationHistory,
         /// Closes the active dock.
-        CloseActiveDock,
+        pub CloseActiveDock,
         /// Closes all docks.
-        CloseAllDocks,
+        pub(crate) CloseAllDocks,
         /// Closes the current window.
-        CloseWindow,
+        pub CloseWindow,
         /// Closes the current project.
-        CloseProject,
+        pub CloseProject,
         /// Navigates back in the workspace's shared history.
-        GoBack,
+        pub GoBack,
         /// Navigates forward in the workspace's shared history.
-        GoForward,
+        pub GoForward,
         /// Creates a new file.
-        NewFile,
+        pub NewFile,
         /// Creates a new file in a vertical split.
-        NewFileSplitVertical,
+        pub NewFileSplitVertical,
         /// Creates a new file in a horizontal split.
-        NewFileSplitHorizontal,
+        pub NewFileSplitHorizontal,
         /// Opens a new search.
-        NewSearch,
+        pub NewSearch,
         /// Opens a new window.
-        NewWindow,
+        pub NewWindow,
         /// Opens multiple files.
-        OpenFiles,
+        pub OpenFiles,
         /// Opens the current location in terminal.
-        OpenInTerminal,
+        pub OpenInTerminal,
         /// Rescans all project files and reloads git state, for changes the file
         /// watcher missed (e.g. made by the host of a VM-mounted folder).
-        ReloadProjectFiles,
+        pub(crate) ReloadProjectFiles,
         /// Reopens the most recently dismissed picker in the current window.
-        ReopenLastPicker,
+        pub(crate) ReopenLastPicker,
         /// Resets the active dock to its default size.
-        ResetActiveDockSize,
+        pub ResetActiveDockSize,
         /// Resets all open docks to their default sizes.
-        ResetOpenDocksSize,
+        pub ResetOpenDocksSize,
         /// Resets all panes in the center group to equal sizes, preserving the split layout.
-        ResetPaneSizes,
+        pub(crate) ResetPaneSizes,
         /// Formats and saves the current file, regardless of the format_on_save setting.
-        FormatAndSave,
+        pub(crate) FormatAndSave,
         /// Saves the current file with a new name.
-        SaveAs,
+        pub SaveAs,
         /// Saves without formatting.
-        SaveWithoutFormat,
+        pub(crate) SaveWithoutFormat,
         /// Suppresses the current notification.
-        SuppressNotification,
+        pub(crate) SuppressNotification,
         /// Toggles the bottom dock.
-        ToggleBottomDock,
+        pub ToggleBottomDock,
         /// Toggles the left dock.
-        ToggleLeftDock,
+        pub(crate) ToggleLeftDock,
         /// Toggles the right dock.
-        ToggleRightDock,
+        pub(crate) ToggleRightDock,
         /// Toggles zoom on the active pane.
-        ToggleZoom,
+        pub ToggleZoom,
         /// Toggles maximizing the active editor pane within the center area,
         /// hiding other split panes but leaving docks/panels unaffected.
-        ToggleEditorZoom,
+        pub(crate) ToggleEditorZoom,
         /// Zooms in on the active pane.
-        ZoomIn,
+        pub(crate) ZoomIn,
         /// Zooms out of the active pane.
-        ZoomOut,
+        pub(crate) ZoomOut,
     ]
 );
 
@@ -438,34 +431,34 @@ pub struct Save {
 /// Moves Focus to the central panes in the workspace.
 #[derive(Clone, Debug, PartialEq, Eq, Action)]
 #[action(namespace = workspace)]
-pub struct FocusCenterPane;
+struct FocusCenterPane;
 
 ///  Closes all items and panes in the workspace.
 #[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = workspace)]
-pub struct CloseAllItemsAndPanes {
-    pub save_intent: Option<SaveIntent>,
+struct CloseAllItemsAndPanes {
+    save_intent: Option<SaveIntent>,
 }
 
 /// Closes all inactive tabs and panes in the workspace.
 #[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = workspace)]
 pub struct CloseInactiveTabsAndPanes {
-    pub save_intent: Option<SaveIntent>,
+    save_intent: Option<SaveIntent>,
 }
 
 /// Closes the active item across all panes.
 #[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = workspace)]
-pub struct CloseItemInAllPanes {
-    pub save_intent: Option<SaveIntent>,
-    pub close_pinned: bool,
+struct CloseItemInAllPanes {
+    save_intent: Option<SaveIntent>,
+    close_pinned: bool,
 }
 
 /// Sends a sequence of keystrokes to the active element.
 #[derive(Clone, PartialEq, Eq, Action)]
 #[action(namespace = workspace, no_build)]
-pub struct SendKeystrokes(pub String);
+struct SendKeystrokes(String);
 
 /// Toggles the finder.
 #[derive(Default, PartialEq, Eq, Clone, Action)]
@@ -516,31 +509,31 @@ actions!(
     workspace,
     [
         /// Activates the pane to the left.
-        ActivatePaneLeft,
+        pub ActivatePaneLeft,
         /// Activates the pane to the right.
-        ActivatePaneRight,
+        pub ActivatePaneRight,
         /// Activates the pane above.
-        ActivatePaneUp,
+        pub ActivatePaneUp,
         /// Activates the pane below.
-        ActivatePaneDown,
+        pub ActivatePaneDown,
         /// Swaps the current pane with the one to the left.
-        SwapPaneLeft,
+        pub SwapPaneLeft,
         /// Swaps the current pane with the one to the right.
-        SwapPaneRight,
+        pub SwapPaneRight,
         /// Swaps the current pane with the one above.
-        SwapPaneUp,
+        pub SwapPaneUp,
         /// Swaps the current pane with the one below.
-        SwapPaneDown,
+        pub SwapPaneDown,
         // Swaps the current pane with the first available adjacent pane (searching in order: below, above, right, left) and activates that pane.
-        SwapPaneAdjacent,
+        pub(crate) SwapPaneAdjacent,
         /// Move the current pane to be at the far left.
-        MovePaneLeft,
+        pub MovePaneLeft,
         /// Move the current pane to be at the far right.
-        MovePaneRight,
+        pub MovePaneRight,
         /// Move the current pane to be at the very top.
-        MovePaneUp,
+        pub MovePaneUp,
         /// Move the current pane to be at the very bottom.
-        MovePaneDown,
+        pub MovePaneDown,
     ]
 );
 
@@ -877,7 +870,7 @@ pub enum OpenMode {
 }
 
 impl Workspace {
-    pub fn new(project: Entity<Project>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn new(project: Entity<Project>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         cx.subscribe_in(&project, window, move |this, _, event, window, cx| {
             match event {
                 &project::Event::WorktreeRemoved(_) => {
@@ -934,6 +927,7 @@ impl Workspace {
                     this.show_language_server_prompt(request, cx);
                 }
 
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             }
             cx.notify();
@@ -1238,7 +1232,7 @@ impl Workspace {
         PreviousWorkspaceState { dock_structure, open_file_paths, active_file_path, focused_dock }
     }
 
-    pub fn open_item_abs_paths(&self, cx: &App) -> Vec<PathBuf> {
+    fn open_item_abs_paths(&self, cx: &App) -> Vec<PathBuf> {
         self.items(cx)
             .filter_map(|item| {
                 let project_path = item.project_path(cx)?;
@@ -1253,7 +1247,7 @@ impl Workspace {
 
     /// The status bar is shown only in Editor mode, and hidden there while
     /// something is zoomed, so the zoomed view extends down to the window edge.
-    pub fn status_bar_visible(&self, cx: &App) -> bool {
+    fn status_bar_visible(&self, cx: &App) -> bool {
         status_bar_shown(self.mode, self.has_zoomed(self.mode, cx))
     }
 
@@ -1349,7 +1343,7 @@ impl Workspace {
         self.project.read(cx).visible_worktrees(cx)
     }
 
-    pub fn close_global(cx: &mut App) {
+    fn close_global(cx: &mut App) {
         cx.defer(|cx| {
             cx.windows().iter().find(|window| {
                 window
@@ -1399,10 +1393,10 @@ impl Workspace {
         drop(self.send_keystrokes_impl(keystrokes, window, cx));
     }
 
-    pub fn send_keystrokes_impl(
-        &mut self,
+    fn send_keystrokes_impl(
+        &self,
         keystrokes: Vec<Keystroke>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Shared<Task<()>> {
         let mut state = self.dispatching_keystrokes.borrow_mut();
@@ -1569,7 +1563,7 @@ impl Workspace {
         item.project_path(cx)
     }
 
-    pub fn most_recent_active_path(&self, cx: &App) -> Option<PathBuf> {
+    fn most_recent_active_path(&self, cx: &App) -> Option<PathBuf> {
         self.recent_navigation_history_iter(cx).find_map(|(path, abs_path)| {
             let worktree = self.project.read(cx).worktree_for_id(path.worktree_id, cx)?;
             if !worktree.read(cx).is_visible() {
@@ -1579,7 +1573,7 @@ impl Workspace {
         })
     }
 
-    pub fn save_active_item(&mut self, save_intent: SaveIntent, window: &mut Window, cx: &mut App) -> Task<Result<()>> {
+    fn save_active_item(&self, save_intent: SaveIntent, window: &Window, cx: &App) -> Task<Result<()>> {
         let project = self.project.clone();
         let pane = self.active_pane().clone();
         let item = pane.read(cx).active_item();
@@ -1593,7 +1587,7 @@ impl Workspace {
         })
     }
 
-    pub fn close_inactive_items_and_panes(
+    fn close_inactive_items_and_panes(
         &mut self,
         action: &CloseInactiveTabsAndPanes,
         window: &mut Window,
@@ -1604,7 +1598,7 @@ impl Workspace {
         }
     }
 
-    pub fn close_all_items_and_panes(
+    fn close_all_items_and_panes(
         &mut self,
         action: &CloseAllItemsAndPanes,
         window: &mut Window,
@@ -1618,12 +1612,7 @@ impl Workspace {
 
     /// Closes the active item and every other item for the same file across
     /// all panes. A multibuffer is closed on its own, in the active pane.
-    pub fn close_item_in_all_panes(
-        &mut self,
-        action: &CloseItemInAllPanes,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn close_item_in_all_panes(&mut self, action: &CloseItemInAllPanes, window: &mut Window, cx: &mut Context<Self>) {
         let Some(active_item) = self.active_pane().read(cx).active_item() else {
             return;
         };
@@ -1642,12 +1631,12 @@ impl Workspace {
     }
 
     /// Closes all items with the given project path across all panes.
-    pub fn close_items_with_project_path(
-        &mut self,
+    fn close_items_with_project_path(
+        &self,
         project_path: &ProjectPath,
         save_intent: SaveIntent,
         close_pinned: bool,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) {
         let panes = self.panes().to_vec();
@@ -1663,7 +1652,7 @@ impl Workspace {
         &self,
         retain_active_pane: bool,
         save_intent: SaveIntent,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Option<Task<Result<()>>> {
         let current_pane = self.active_pane();
@@ -1705,7 +1694,7 @@ impl Workspace {
     // If a dock panel is zoomed, focus it instead of the center pane.
     // Otherwise, focusing the center pane triggers dismiss_zoomed_items_to_reveal
     // which closes the zoomed dock. Docks are hidden in Git History mode.
-    pub fn fallback_focus_handle(&self, window: &Window, cx: &App) -> FocusHandle {
+    fn fallback_focus_handle(&self, window: &Window, cx: &App) -> FocusHandle {
         self.all_docks()
             .into_iter()
             .filter(|_| self.mode == WorkspaceMode::Editor)
@@ -1840,7 +1829,7 @@ impl Workspace {
     /// suppress the write when this workspace's computed title/edited state
     /// matches what *it* last set (even though the shared window currently
     /// shows a different workspace's state).
-    pub fn refresh_window_state(&mut self, window: &mut Window, cx: &mut App) {
+    fn refresh_window_state(&mut self, window: &mut Window, cx: &App) {
         self.last_window_title = None;
         self.apply_window_title(window, cx);
 
@@ -1907,7 +1896,7 @@ impl Workspace {
 
     // RPC handlers
 
-    pub fn on_window_activation_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn on_window_activation_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if window.is_window_active() {
             self.update_history(cx);
         } else {
@@ -1926,7 +1915,7 @@ impl Workspace {
         }
     }
 
-    pub fn key_context(&self, cx: &App) -> KeyContext {
+    fn key_context(&self, cx: &App) -> KeyContext {
         let mut context = KeyContext::new_with_defaults();
         context.add("Workspace");
         if self.left_dock.read(cx).is_open()
@@ -2296,7 +2285,7 @@ impl Workspace {
         self.toast_layer.update(cx, |toast_layer, cx| toast_layer.toggle_toast(cx, entity));
     }
 
-    pub fn toggle_editor_zoom(&mut self, _: &ToggleEditorZoom, window: &mut Window, cx: &mut Context<Self>) {
+    fn toggle_editor_zoom(&mut self, _: &ToggleEditorZoom, window: &mut Window, cx: &mut Context<Self>) {
         if self.zoomed.is_some() {
             self.active_pane.update(cx, |pane, cx| {
                 pane.set_zoomed(false, cx);
@@ -2448,7 +2437,7 @@ impl Workspace {
         self.zoomed.as_ref()
     }
 
-    pub fn activate_next_window(&mut self, cx: &mut Context<Self>) {
+    fn activate_next_window(&self, cx: &mut Context<Self>) {
         let Some(current_window_id) = cx.active_window().map(|a| a.window_id()) else {
             return;
         };
@@ -2460,7 +2449,7 @@ impl Workspace {
         }
     }
 
-    pub fn activate_previous_window(&mut self, cx: &mut Context<Self>) {
+    fn activate_previous_window(&self, cx: &mut Context<Self>) {
         let Some(current_window_id) = cx.active_window().map(|a| a.window_id()) else {
             return;
         };
@@ -2473,7 +2462,7 @@ impl Workspace {
         }
     }
 
-    pub fn cancel(&mut self, _: &menu::Cancel, window: &mut Window, cx: &mut Context<Self>) {
+    fn cancel(&mut self, _: &menu::Cancel, window: &mut Window, cx: &mut Context<Self>) {
         if cx.stop_active_drag(window) {
         } else if let Some((notification_id, _)) = self.notifications.pop() {
             dismiss_app_notification(&notification_id, cx);
@@ -2536,7 +2525,7 @@ impl FocusablePart {
 
 /// Makes the workspace built by `build` the root of `window`. Returns the new
 /// workspace.
-pub fn replace_window_workspace(
+fn replace_window_workspace(
     window: &mut Window,
     cx: &mut App,
     build: impl FnOnce(&mut Window, &mut Context<Workspace>) -> Workspace,
@@ -2691,11 +2680,11 @@ actions!(
     ed,
     [
         /// Opens the ed log file.
-        OpenLog
+        pub OpenLog
     ]
 );
 
-pub fn workspace_windows(cx: &App) -> Vec<WindowHandle<Workspace>> {
+fn workspace_windows(cx: &App) -> Vec<WindowHandle<Workspace>> {
     cx.windows().into_iter().filter_map(|window| window.downcast::<Workspace>()).collect()
 }
 

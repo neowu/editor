@@ -30,7 +30,7 @@ pub enum DynamicSpacing {
 
 impl DynamicSpacing {
     /// Returns the spacing value in pixels at the default rem size.
-    pub const fn base_px(self) -> f32 {
+    pub(crate) const fn base_px(self) -> f32 {
         match self {
             DynamicSpacing::Base00 => 0.0,
             DynamicSpacing::Base01 => 1.0,

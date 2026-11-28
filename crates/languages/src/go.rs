@@ -46,7 +46,7 @@ fn server_binary_arguments() -> Vec<OsString> {
 }
 
 #[derive(Copy, Clone)]
-pub(crate) struct GoLspAdapter;
+struct GoLspAdapter;
 
 impl GoLspAdapter {
     const SERVER_NAME: LanguageServerName = LanguageServerName::new_static("gopls");
@@ -236,6 +236,7 @@ impl LspAdapter for GoLspAdapter {
                 let display_range = 0..filter_range.end;
                 (text, filter_range, display_range)
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => return None,
         };
 
@@ -259,9 +260,9 @@ fn adjust_runs(
     runs.map(|(range, highlight_id)| (range.start + delta..range.end + delta, highlight_id)).collect()
 }
 
-pub(crate) struct GoContextProvider;
+struct GoContextProvider;
 
-pub(crate) struct GoRunnableResolver;
+struct GoRunnableResolver;
 
 impl RunnableResolver for GoRunnableResolver {
     fn resolve(

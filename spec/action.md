@@ -166,3 +166,7 @@ Actions that work wherever focus is in a window.
 See "Crate layering" in `model.md`: a type is declared in the crate that owns
 its behaviour when every crate naming it can depend on that crate, otherwise
 in the `actions` crate.
+
+`actions!` writes no visibility of its own: each name carries the one it
+needs (`pub Copy`, `pub(crate) Fold`, or none), so an action is no wider than
+its users.

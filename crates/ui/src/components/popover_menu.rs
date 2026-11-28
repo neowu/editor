@@ -329,7 +329,7 @@ fn show_menu<M: ManagedView>(
     }
 }
 
-pub(super) struct PopoverMenuElementState<M> {
+struct PopoverMenuElementState<M> {
     menu: Rc<RefCell<Option<Entity<M>>>>,
     child_bounds: Option<Bounds<Pixels>>,
 }

@@ -36,7 +36,7 @@ pub enum ProjectEnvironmentEvent {
 impl EventEmitter<ProjectEnvironmentEvent> for ProjectEnvironment {}
 
 impl ProjectEnvironment {
-    pub fn new(cx: &mut Context<Self>) -> Self {
+    pub(crate) fn new(cx: &mut Context<Self>) -> Self {
         let (tx, mut rx) = mpsc::unbounded();
         let task = cx.spawn(async move |this, cx| {
             while let Some(message) = rx.next().await {
@@ -55,11 +55,11 @@ impl ProjectEnvironment {
         }
     }
 
-    pub fn buffer_environment(
+    pub(crate) fn buffer_environment(
         &mut self,
         buffer: &Entity<Buffer>,
         worktree_store: &Entity<WorktreeStore>,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Shared<Task<Option<FxHashMap<String, String>>>> {
         let Some(worktree) = buffer
             .read(cx)
@@ -72,10 +72,10 @@ impl ProjectEnvironment {
         self.worktree_environment(worktree, cx)
     }
 
-    pub fn worktree_environment(
+    pub(crate) fn worktree_environment(
         &mut self,
         worktree: Entity<Worktree>,
-        cx: &mut App,
+        cx: &App,
     ) -> Shared<Task<Option<FxHashMap<String, String>>>> {
         let worktree = worktree.read(cx);
         let mut abs_path = worktree.abs_path();
@@ -91,11 +91,11 @@ impl ProjectEnvironment {
 
     /// Returns the project environment by spawning a shell in `abs_path`, to get environment
     /// variables as if the user has `cd`'d there.
-    pub fn local_directory_environment(
+    pub(crate) fn local_directory_environment(
         &mut self,
         shell: &Shell,
         abs_path: Arc<Path>,
-        cx: &mut App,
+        cx: &App,
     ) -> Shared<Task<Option<FxHashMap<String, String>>>> {
         self.local_environments
             .entry((shell.clone(), Arc::clone(&abs_path)))
@@ -128,11 +128,11 @@ impl ProjectEnvironment {
             .clone()
     }
 
-    pub fn peek_environment_error(&self) -> Option<&String> {
+    pub(crate) fn peek_environment_error(&self) -> Option<&String> {
         self.environment_error_messages.front()
     }
 
-    pub fn pop_environment_error(&mut self) -> Option<String> {
+    pub(crate) fn pop_environment_error(&mut self) -> Option<String> {
         self.environment_error_messages.pop_front()
     }
 }

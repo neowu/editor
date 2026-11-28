@@ -105,6 +105,7 @@ impl From<trash::TrashError> for TrashRestoreError {
             trash::TrashError::RestoreCollision { path } => TrashRestoreError::Collision { path },
             trash::TrashError::NoLongerInTrash { path } => TrashRestoreError::NotFound { path },
             trash::TrashError::Unknown { description } => TrashRestoreError::Unknown { description },
+            // lint: expect(wildcard_match) only some variants matter here
             other => TrashRestoreError::Unknown { description: other.to_string() },
         }
     }
@@ -178,7 +179,7 @@ pub enum JobEvent {
     Completed { id: JobId },
 }
 
-pub type JobEventSender = UnboundedSender<JobEvent>;
+type JobEventSender = UnboundedSender<JobEvent>;
 pub type JobEventReceiver = UnboundedReceiver<JobEvent>;
 
 struct JobTracker {
@@ -351,7 +352,7 @@ impl Fs {
         Ok(())
     }
 
-    pub async fn copy_file(&self, source: &Path, target: &Path, options: CopyOptions) -> Result<()> {
+    async fn copy_file(&self, source: &Path, target: &Path, options: CopyOptions) -> Result<()> {
         if !options.overwrite && async_macos::fs::metadata(target).await.is_ok() {
             if options.ignore_if_exists {
                 return Ok(());
@@ -610,11 +611,11 @@ impl Fs {
         Ok(Box::pin(iter(entries)))
     }
 
-    pub fn path_exists(&self, path: &Path) -> bool {
+    fn path_exists(&self, path: &Path) -> bool {
         fs::symlink_metadata(path).is_ok()
     }
 
-    pub fn is_path_case_sensitive(&self, path: &Path) -> bool {
+    fn is_path_case_sensitive(&self, path: &Path) -> bool {
         !fs_watcher::case_insensitive_path(path)
     }
 
@@ -817,7 +818,7 @@ pub async fn copy_recursive<'a>(fs: &'a Fs, source: &'a Path, target: &'a Path, 
 /// Recursively reads all of the paths in the given directory.
 ///
 /// Returns a vector of tuples of (path, is_dir).
-pub async fn read_dir_items<'a>(fs: &'a Fs, source: &'a Path) -> Result<Vec<(PathBuf, bool)>> {
+async fn read_dir_items<'a>(fs: &'a Fs, source: &'a Path) -> Result<Vec<(PathBuf, bool)>> {
     let mut items = Vec::new();
     read_recursive(fs, source, &mut items).await?;
     Ok(items)

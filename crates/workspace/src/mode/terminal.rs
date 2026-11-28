@@ -202,13 +202,13 @@ impl Workspace {
 
     /// Whether this window can show terminal mode: the terminal crate is
     /// loaded and the project can run terminals.
-    pub fn supports_terminal_mode(&self, cx: &App) -> bool {
+    pub(crate) fn supports_terminal_mode(&self, cx: &App) -> bool {
         terminal_mode_delegate(cx).is_some()
     }
 
     /// Switches to terminal mode, restoring the saved layout the first time.
     /// With `start_shell`, a shell starts when the mode has no terminals.
-    pub fn show_terminal_mode(&mut self, start_shell: bool, window: &mut Window, cx: &mut Context<Workspace>) {
+    pub(crate) fn show_terminal_mode(&mut self, start_shell: bool, window: &mut Window, cx: &mut Context<Workspace>) {
         if !self.supports_terminal_mode(cx) {
             return;
         }
@@ -307,13 +307,13 @@ impl Workspace {
         pane
     }
 
-    pub(crate) fn add_terminal_pane(&self, window: &mut Window, cx: &mut Context<Workspace>) -> Entity<Pane> {
+    fn add_terminal_pane(&self, window: &mut Window, cx: &mut Context<Workspace>) -> Entity<Pane> {
         Workspace::new_terminal_pane(self.weak_handle(), self.project.clone(), window, cx)
     }
 
     /// Splits `pane`. Moving a tab needs another left behind; otherwise the
     /// new pane gets a new shell in the directory of `pane`'s active terminal.
-    pub(crate) fn split_terminal_pane(
+    fn split_terminal_pane(
         &mut self,
         pane: Entity<Pane>,
         direction: SplitDirection,
@@ -474,6 +474,7 @@ impl Workspace {
                 self.refresh_terminal_running_process(cx);
                 self.notify_mode(WorkspaceMode::Terminal, cx);
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }

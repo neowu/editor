@@ -51,7 +51,7 @@ pub struct CodeLens {
     /// A data entry field that is preserved on a code lens item between
     /// a code lens and a code lens resolve request.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<Value>,
+    data: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

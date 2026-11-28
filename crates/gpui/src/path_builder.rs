@@ -31,7 +31,7 @@ use crate::point;
 use crate::px;
 
 /// Style of the PathBuilder.
-pub enum PathStyle {
+enum PathStyle {
     /// Stroke style.
     Stroke(StrokeOptions),
     /// Fill style.
@@ -43,7 +43,7 @@ pub struct PathBuilder {
     raw: WithSvg<BuilderImpl>,
     transform: Option<Transform>,
     /// PathStyle of the PathBuilder.
-    pub style: PathStyle,
+    style: PathStyle,
     dash_array: Option<Vec<Pixels>>,
 }
 
@@ -280,7 +280,7 @@ impl PathBuilder {
     }
 
     /// Builds a [`Path`] from a [`lyon::tessellation::VertexBuffers`].
-    pub fn build_path(buf: VertexBuffers<math::Point, u16>) -> Path<Pixels> {
+    fn build_path(buf: VertexBuffers<math::Point, u16>) -> Path<Pixels> {
         if buf.vertices.is_empty() {
             return Path::new(Point::default());
         }

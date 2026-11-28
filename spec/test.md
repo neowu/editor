@@ -19,6 +19,9 @@
   test. If the code under test is private (e.g. inside the `ed` binary), move
   the dependency-free core into the library crate that fits, so the e2e
   package can call it, and keep the caller as a thin adapter.
+- `cargo lint` treats the tests under `test/` as real callers (`api_tests` in
+  `xtask`): a `pub` item only they use counts as used. An item used only by
+  unit tests is reported as unused and is removed with its tests.
 
 ## Packages
 

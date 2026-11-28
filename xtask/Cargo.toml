@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-framework_lint = { git = "https://github.com/neowu/core_rs_workspace.git" }
+lint = { git = "https://github.com/neowu/core_rs_workspace.git" }
 
 [lints]
 workspace = true

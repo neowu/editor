@@ -5,7 +5,9 @@ use std::collections::BTreeMap;
 
 use super::json::JsonDoc;
 use super::lexer::error;
-use super::lexer::location_text;
+use super::lexer::line_column;
+use super::lexer::push_usize;
+use super::lexer::utf16;
 use super::types::Actor;
 use super::types::ActorType;
 use super::types::ClassDef;
@@ -19,6 +21,7 @@ use super::types::UseCase;
 use super::types::UsecaseModel;
 use crate::error::Code;
 use crate::error::Error;
+use crate::error::push_u32;
 use crate::util::chars::is_space;
 
 /// Start and end byte offsets in the source, end exclusive.
@@ -396,6 +399,21 @@ fn drop_indentation(text: &str) -> String {
             while chars.next_if(|&c| is_space(u32::from(c))).is_some() {}
         }
     }
+    out
+}
+
+/// `line L, column C [start,end)`, with UTF-16 offsets.
+fn location_text(src: &str, start: usize, end: usize) -> String {
+    let (line, column) = line_column(src, start);
+    let mut out = String::from("line ");
+    push_u32(&mut out, line);
+    out.push_str(", column ");
+    push_u32(&mut out, column);
+    out.push_str(" [");
+    push_usize(&mut out, utf16(src, start));
+    out.push(',');
+    push_usize(&mut out, utf16(src, end));
+    out.push(')');
     out
 }
 
@@ -844,7 +862,7 @@ pub(crate) fn resolve_usecase(src: &str, drafts: Drafts, title: Option<&str>) ->
             id.clone()
         } else {
             let mut id = String::from("edge-");
-            super::lexer::push_usize(&mut id, anonymous);
+            push_usize(&mut id, anonymous);
             anonymous += 1;
             id
         };
@@ -1044,7 +1062,7 @@ pub(crate) fn resolve_usecase(src: &str, drafts: Drafts, title: Option<&str>) ->
             ));
         }
         let mut id = String::from("note-");
-        super::lexer::push_usize(&mut id, count);
+        push_usize(&mut id, count);
         model.notes.push(Note {
             id,
             label: draft.label.text.clone(),

@@ -15,7 +15,6 @@ use crate::prelude::StatefulInteractiveElement as _;
 use crate::prelude::Styled as _;
 use crate::prelude::Window;
 use crate::prelude::h_flex;
-use crate::utils::format_number_with_commas;
 
 #[derive(IntoElement)]
 pub struct DiffStat {
@@ -40,6 +39,18 @@ impl DiffStat {
         self.tooltip = Some(tooltip.into());
         self
     }
+}
+
+fn format_number_with_commas(value: u128) -> String {
+    let digits = value.to_string();
+    let mut formatted = String::with_capacity(digits.len() + (digits.len() - 1) / 3);
+    for (index, digit) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
+            formatted.push(',');
+        }
+        formatted.push(digit);
+    }
+    formatted
 }
 
 impl RenderOnce for DiffStat {

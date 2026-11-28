@@ -133,7 +133,7 @@ fn scalar(out: &mut String, value: &JsonValue) {
 /// One row for each leaf of a JSON object, depth first in the order the keys were written.
 /// Nesting is kept on a stack of its own, so depth is limited by memory and not by the call
 /// stack.
-pub(crate) fn flatten_json_rows(json: &JsonDoc) -> Vec<JsonRow> {
+fn flatten_json_rows(json: &JsonDoc) -> Vec<JsonRow> {
     let mut rows = Vec::new();
     let mut stack: Vec<(usize, String)> = vec![(0, String::new())];
     let mut children: Vec<(usize, String)> = Vec::new();

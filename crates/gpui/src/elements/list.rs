@@ -155,7 +155,7 @@ pub enum ListSizingBehavior {
 
 /// The measuring behavior to apply during layout.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(super) enum ListMeasuringBehavior {
+enum ListMeasuringBehavior {
     /// Measure all items in the list.
     /// Note: This can be expensive for the first frame in a large list.
     Measure(bool),
@@ -412,11 +412,7 @@ impl ListState {
     /// by new items. As opposed to [`Self::splice`], this method allows an iterator of optional focus handles
     /// to be supplied to properly integrate with items in the list that can be focused. If a focused item
     /// is scrolled out of view, the list will continue to render it to allow keyboard interaction.
-    pub fn splice_focusable(
-        &self,
-        old_range: Range<usize>,
-        focus_handles: impl IntoIterator<Item = Option<FocusHandle>>,
-    ) {
+    fn splice_focusable(&self, old_range: Range<usize>, focus_handles: impl IntoIterator<Item = Option<FocusHandle>>) {
         let state = &mut *self.0.borrow_mut();
 
         let mut old_items = state.items.cursor::<Count>(());
@@ -835,7 +831,7 @@ impl StateInner {
                             scroll_top.offset_in_item = Pixels(pending_scroll.fraction * element_size.height.0);
                             self.logical_scroll_top = Some(scroll_top);
                         }
-                        _ => {}
+                        PendingScroll::Absolute { .. } | PendingScroll::Proportional(_) => {}
                     }
                 }
 
@@ -956,6 +952,7 @@ impl StateInner {
                 ListMeasuringBehavior::Measure(has_measured) if !has_measured => {
                     self.layout_all_items(item_width, render_item, window, cx);
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             }
 

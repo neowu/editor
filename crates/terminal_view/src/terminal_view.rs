@@ -1,17 +1,16 @@
 use actions::menu;
 use workspace::item::ItemBufferKind;
-pub mod terminal_element;
+mod terminal_element;
 mod terminal_mode;
 pub mod terminal_panel;
 mod terminal_path_like_target;
-pub mod terminal_scrollbar;
+mod terminal_scrollbar;
 
 use std::any::Any;
 use std::cmp;
 use std::ops::Range as StdRange;
 use std::path::Path;
 use std::path::PathBuf;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -57,7 +56,6 @@ use terminal::MaybeNavigationTarget;
 use terminal::Modes;
 use terminal::Paste;
 use terminal::PasteText;
-use terminal::Point;
 use terminal::Range;
 use terminal::ScrollLineDown;
 use terminal::ScrollLineUp;
@@ -106,7 +104,6 @@ use ui::prelude::SharedString;
 use ui::prelude::VisibleOnHover as _;
 use ui::prelude::Window;
 use ui::prelude::h_flex;
-use ui::prelude::px;
 use ui::prelude::v_flex;
 use util::ResultExt as _;
 use workspace::CloseActiveItem;
@@ -132,12 +129,6 @@ struct ImeState {
     marked_text: String,
 }
 
-fn viewport_line_for_point(point: Point, display_offset: usize) -> Option<usize> {
-    let display_offset = i32::try_from(display_offset).unwrap_or(i32::MAX);
-    let line = point.line.saturating_add(display_offset);
-    if line < 0 { None } else { usize::try_from(line).ok() }
-}
-
 const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(500);
 
 /// Sends the specified text directly to the terminal.
@@ -154,33 +145,22 @@ actions!(
     terminal,
     [
         /// Reruns this terminal's task in place.
-        RerunTask,
+        pub RerunTask,
     ]
 );
 
 /// Renames the terminal tab.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Action)]
 #[action(namespace = terminal)]
-pub struct RenameTerminal;
+struct RenameTerminal;
 
 pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     terminal_panel::init(workspace_actions);
     terminal_mode::init(cx);
 }
 
-pub struct BlockProperties {
-    pub height: u8,
-    pub render: Box<dyn Send + Fn(&mut BlockContext) -> AnyElement>,
-}
-
-pub struct BlockContext<'a, 'b> {
-    pub window: &'a mut Window,
-    pub context: &'b mut App,
-    pub dimensions: TerminalBounds,
-}
-
 ///A terminal view, maintains the PTY's file handles and communicates with the terminal.
-pub struct TerminalView {
+pub(crate) struct TerminalView {
     terminal: Entity<Terminal>,
     workspace: WeakEntity<Workspace>,
     project: WeakEntity<Project>,
@@ -193,8 +173,6 @@ pub struct TerminalView {
     custom_title: Option<String>,
     hover: Option<HoverTarget>,
     hover_tooltip_update: Task<()>,
-    block_below_cursor: Option<Rc<BlockProperties>>,
-    scroll_top: Pixels,
     scroll_handle: TerminalScrollHandle,
     ime_state: Option<ImeState>,
     self_handle: WeakEntity<Self>,
@@ -222,7 +200,7 @@ impl Focusable for TerminalView {
 }
 
 impl TerminalView {
-    pub fn new(
+    fn new(
         terminal: Entity<Terminal>,
         workspace: WeakEntity<Workspace>,
         project: WeakEntity<Project>,
@@ -258,8 +236,6 @@ impl TerminalView {
             blink_manager,
             hover: None,
             hover_tooltip_update: Task::ready(()),
-            block_below_cursor: None,
-            scroll_top: Pixels::ZERO,
             scroll_handle,
             custom_title: None,
             ime_state: None,
@@ -306,15 +282,11 @@ impl TerminalView {
         self.terminal.read(cx).last_content().terminal_bounds
     }
 
-    pub const fn entity(&self) -> &Entity<Terminal> {
-        &self.terminal
-    }
-
-    pub const fn has_bell(&self) -> bool {
+    const fn has_bell(&self) -> bool {
         self.has_bell
     }
 
-    pub fn set_custom_title(&mut self, label: Option<String>, cx: &mut Context<Self>) {
+    fn set_custom_title(&mut self, label: Option<String>, cx: &mut Context<Self>) {
         let label = label.filter(|l| !l.trim().is_empty());
         if self.custom_title != label {
             self.custom_title = label;
@@ -323,11 +295,11 @@ impl TerminalView {
         }
     }
 
-    pub const fn is_renaming(&self) -> bool {
+    const fn is_renaming(&self) -> bool {
         self.rename_editor.is_some()
     }
 
-    pub fn rename_editor_is_focused(&self, window: &Window, cx: &App) -> bool {
+    fn rename_editor_is_focused(&self, window: &Window, cx: &App) -> bool {
         self.rename_editor.as_ref().is_some_and(|editor| editor.focus_handle(cx).is_focused(window))
     }
 
@@ -352,7 +324,7 @@ impl TerminalView {
         self.focus_handle.focus(window, cx);
     }
 
-    pub fn rename_terminal(&mut self, _: &RenameTerminal, window: &mut Window, cx: &mut Context<Self>) {
+    fn rename_terminal(&mut self, _: &RenameTerminal, window: &mut Window, cx: &mut Context<Self>) {
         if self.terminal.read(cx).task().is_some() {
             return;
         }
@@ -388,12 +360,12 @@ impl TerminalView {
         cx.notify();
     }
 
-    pub fn clear_bell(&mut self, cx: &mut Context<TerminalView>) {
+    fn clear_bell(&mut self, cx: &mut Context<TerminalView>) {
         self.has_bell = false;
         cx.emit(Event::Wakeup);
     }
 
-    pub fn deploy_context_menu(
+    fn deploy_context_menu(
         &mut self,
         position: GpuiPoint<Pixels>,
         _has_selection: bool,
@@ -454,41 +426,11 @@ impl TerminalView {
     }
 
     fn clear(&mut self, _: &Clear, _: &mut Window, cx: &mut Context<Self>) {
-        self.scroll_top = px(0.);
         self.terminal.update(cx, |term, _| term.clear());
         cx.notify();
     }
 
-    fn max_scroll_top(&self, cx: &App) -> Pixels {
-        let terminal = self.terminal.read(cx);
-
-        let Some(block) = self.block_below_cursor.as_ref() else {
-            return Pixels::ZERO;
-        };
-
-        let line_height = terminal.last_content().terminal_bounds.line_height;
-        let viewport_lines = terminal.viewport_lines();
-        let cursor_line =
-            viewport_line_for_point(terminal.last_content.cursor.point, terminal.last_content.display_offset)
-                .unwrap_or_default();
-        let max_scroll_top_in_lines =
-            (block.height as usize).saturating_sub(viewport_lines.saturating_sub(cursor_line + 1));
-
-        max_scroll_top_in_lines as f32 * line_height
-    }
-
-    fn scroll_wheel(&mut self, event: &ScrollWheelEvent, cx: &mut Context<Self>) {
-        let terminal_content = self.terminal.read(cx).last_content();
-
-        if self.block_below_cursor.is_some() && terminal_content.display_offset == 0 {
-            let line_height = terminal_content.terminal_bounds.line_height;
-            let y_delta = event.delta.pixel_delta(line_height).y;
-            if y_delta < Pixels::ZERO || self.scroll_top > Pixels::ZERO {
-                self.scroll_top = cmp::max(Pixels::ZERO, cmp::min(self.scroll_top - y_delta, self.max_scroll_top(cx)));
-                cx.notify();
-                return;
-            }
-        }
+    fn scroll_wheel(&self, event: &ScrollWheelEvent, cx: &mut Context<Self>) {
         self.terminal
             .update(cx, |term, _| term.scroll_wheel(event, TerminalSettings::get().scroll_multiplier.max(0.01)));
     }
@@ -503,13 +445,6 @@ impl TerminalView {
             return;
         }
 
-        let terminal_content = self.terminal.read(cx).last_content();
-        if self.block_below_cursor.is_some() && terminal_content.display_offset == 0 && self.scroll_top > Pixels::ZERO {
-            let line_height = terminal_content.terminal_bounds.line_height;
-            self.scroll_top = cmp::max(self.scroll_top - line_height, Pixels::ZERO);
-            return;
-        }
-
         self.terminal.update(cx, |term, _| term.scroll_line_up());
         cx.notify();
     }
@@ -517,16 +452,6 @@ impl TerminalView {
     fn scroll_line_down(&mut self, _: &ScrollLineDown, _: &mut Window, cx: &mut Context<Self>) {
         if self.is_alt_screen(cx) {
             cx.propagate();
-            return;
-        }
-
-        let terminal_content = self.terminal.read(cx).last_content();
-        if self.block_below_cursor.is_some() && terminal_content.display_offset == 0 {
-            let max_scroll_top = self.max_scroll_top(cx);
-            if self.scroll_top < max_scroll_top {
-                let line_height = terminal_content.terminal_bounds.line_height;
-                self.scroll_top = cmp::min(self.scroll_top + line_height, max_scroll_top);
-            }
             return;
         }
 
@@ -540,21 +465,7 @@ impl TerminalView {
             return;
         }
 
-        if self.scroll_top == Pixels::ZERO {
-            self.terminal.update(cx, |term, _| term.scroll_page_up());
-        } else {
-            let line_height = self.terminal.read(cx).last_content.terminal_bounds.line_height();
-            let visible_block_lines = (self.scroll_top / line_height) as usize;
-            let viewport_lines = self.terminal.read(cx).viewport_lines();
-            let visible_content_lines = viewport_lines - visible_block_lines;
-
-            if visible_block_lines >= viewport_lines {
-                self.scroll_top = ((visible_block_lines - viewport_lines) as f32) * line_height;
-            } else {
-                self.scroll_top = px(0.);
-                self.terminal.update(cx, |term, _| term.scroll_up_by(visible_content_lines));
-            }
-        }
+        self.terminal.update(cx, |term, _| term.scroll_page_up());
         cx.notify();
     }
 
@@ -565,10 +476,6 @@ impl TerminalView {
         }
 
         self.terminal.update(cx, |term, _| term.scroll_page_down());
-        let terminal = self.terminal.read(cx);
-        if terminal.last_content().display_offset < terminal.viewport_lines() {
-            self.scroll_top = self.max_scroll_top(cx);
-        }
         cx.notify();
     }
 
@@ -589,9 +496,6 @@ impl TerminalView {
         }
 
         self.terminal.update(cx, |term, _| term.scroll_to_bottom());
-        if self.block_below_cursor.is_some() {
-            self.scroll_top = self.max_scroll_top(cx);
-        }
         cx.notify();
     }
 
@@ -600,7 +504,7 @@ impl TerminalView {
         cx.notify();
     }
 
-    pub fn should_show_cursor(&self, focused: bool, cx: &mut Context<Self>) -> bool {
+    fn should_show_cursor(&self, focused: bool, cx: &Context<Self>) -> bool {
         // Always show cursor when not focused or in special modes
         if !focused || self.terminal.read(cx).last_content.mode.contains(Modes::ALT_SCREEN) {
             return true;
@@ -609,11 +513,11 @@ impl TerminalView {
         self.blink_manager.read(cx).visible()
     }
 
-    pub fn pause_cursor_blinking(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+    fn pause_cursor_blinking(&self, _window: &mut Window, cx: &mut Context<Self>) {
         self.blink_manager.update(cx, BlinkManager::pause_blinking);
     }
 
-    pub const fn terminal(&self) -> &Entity<Terminal> {
+    const fn terminal(&self) -> &Entity<Terminal> {
         &self.terminal
     }
 
@@ -677,7 +581,7 @@ impl TerminalView {
         });
     }
 
-    pub fn add_paths_to_terminal(&self, paths: &[PathBuf], window: &mut Window, cx: &mut App) {
+    fn add_paths_to_terminal(&self, paths: &[PathBuf], window: &mut Window, cx: &mut App) {
         let mut text = paths
             .iter()
             .filter_map(|path| Some(format!(" {}", shlex::try_quote(path.to_str()?).ok()?)))
@@ -890,10 +794,8 @@ fn subscribe_for_terminal_events(
             Event::OutputReplaced => {
                 terminal_view.hover = None;
                 terminal_view.hover_tooltip_update = Task::ready(());
-                terminal_view.scroll_top = Pixels::ZERO;
                 terminal_view.scroll_handle.future_display_offset.set(None);
                 terminal_view.scroll_handle.update(terminal.read(cx));
-                terminal_view.block_below_cursor = None;
                 window.invalidate_character_coordinates();
                 cx.emit(SearchEvent::MatchesInvalidated);
                 cx.emit(SearchEvent::ActiveMatchChanged);
@@ -1070,7 +972,6 @@ impl Render for TerminalView {
                             self.focus_handle.clone(),
                             focused,
                             self.should_show_cursor(focused, cx),
-                            self.block_below_cursor.clone(),
                         ),
                     ))
                     .custom_scrollbars(
@@ -1488,7 +1389,7 @@ impl SearchableItem for TerminalView {
 
 /// Gets the working directory for the given workspace, respecting the user's settings.
 /// Falls back to home directory when no project directory is available.
-pub fn default_working_directory(workspace: &Workspace, cx: &App) -> Option<PathBuf> {
+fn default_working_directory(workspace: &Workspace, cx: &App) -> Option<PathBuf> {
     current_project_directory(workspace, cx).or_else(|| Some(util::paths::home_dir().clone()))
 }
 

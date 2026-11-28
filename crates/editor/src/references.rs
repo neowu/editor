@@ -77,11 +77,6 @@ fn clear_filter(files: &mut [ReferenceFile]) -> Vec<usize> {
     changed
 }
 
-/// The header menu entry that toggles test references.
-pub(crate) const fn test_references_label(hidden: bool) -> &'static str {
-    if hidden { "Show Test References" } else { "Hide Test References" }
-}
-
 /// The tab title, which says when test references are hidden. The marker leads, since
 /// tab titles are cut to `MAX_TAB_TITLE_LEN`.
 fn results_title(title: &str, tests_hidden: bool) -> String {
@@ -107,11 +102,11 @@ impl ReferenceResults {
 
 impl Editor {
     /// Whether test references are hidden; `None` unless this editor shows find-references results.
-    pub fn hides_test_references(&self) -> Option<bool> {
+    pub(crate) fn hides_test_references(&self) -> Option<bool> {
         self.reference_results.as_ref().map(|results| results.hide_tests)
     }
 
-    pub fn toggle_test_references(&mut self, _: &ToggleTestReferences, _: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_test_references(&mut self, _: &ToggleTestReferences, _: &mut Window, cx: &mut Context<Self>) {
         let Some(results) = self.reference_results.as_mut() else {
             return;
         };
@@ -211,12 +206,6 @@ mod tests {
         assert_eq!(without_tests(&[1, 2, 3, 4], &[false, true, false, true]), Some(vec![1, 3]));
         assert_eq!(without_tests(&[1], &[true]), Some(vec![]));
         assert_eq!(without_tests(&[1, 2], &[false, false]), None);
-    }
-
-    #[test]
-    fn references_label_names_the_next_state() {
-        assert_eq!(test_references_label(false), "Hide Test References");
-        assert_eq!(test_references_label(true), "Show Test References");
     }
 
     #[test]

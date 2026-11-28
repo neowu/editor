@@ -26,7 +26,7 @@ const ICON_DECORATION_SIZE: Pixels = px(11.);
 /// to sit on top of it, emulating a stroke/border.
 #[derive(Debug, PartialEq, Eq, Copy, Clone, EnumIter, EnumString, IntoStaticStr)]
 #[strum(serialize_all = "snake_case")]
-pub enum KnockoutIconName {
+enum KnockoutIconName {
     XFg,
     XBg,
     DotFg,
@@ -37,7 +37,7 @@ pub enum KnockoutIconName {
 
 impl KnockoutIconName {
     /// Returns the path to this icon.
-    pub fn path(self) -> Arc<str> {
+    fn path(self) -> Arc<str> {
         let file_stem: &'static str = self.into();
         format!("icons/knockouts/{file_stem}.svg").into()
     }

@@ -24,7 +24,7 @@ const PAD_Y: f64 = 12.0;
 const GAP_X: f64 = NARROW + LABEL_PAD + 3.0 * ARROW;
 const GAP_Y: f64 = 88.0;
 /// Room for a relation to run along the inside of a boundary.
-pub(crate) const GROUP_PAD: f64 = LANE + 8.0;
+const GROUP_PAD: f64 = LANE + 8.0;
 const GROUP_GAP: f64 = 48.0;
 /// Where a boundary's heading starts, from its top-left corner.
 pub(crate) const HEAD_LEFT: f64 = 16.0;
@@ -56,7 +56,7 @@ pub(crate) struct Group {
     /// Its box, in [`Layout::boxes`].
     pub(crate) id: usize,
     /// The groups inside it.
-    pub(crate) kids: Vec<usize>,
+    kids: Vec<usize>,
     /// Name, type, description. Empty for the top level.
     pub(crate) labels: Vec<Label>,
     /// The nodes inside it.
@@ -125,7 +125,7 @@ fn measure(shape: &C4Element, size: f64, small: f64, width: f64) -> (Box, [Label
     let cap_h = match form {
         Form::Person => HEAD,
         Form::Cyl => 24.0,
-        _ => 0.0,
+        Form::HCyl | Form::Rect => 0.0,
     };
     let inner = width - 2.0 * PAD_X - cap_w;
     let mut kind = String::from("«");

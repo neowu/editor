@@ -22,7 +22,7 @@ const CODE_BLOCK_ENV: &str = "CODE_BLOCK";
 const SHELL_BLOCKS: [(&str, &str); 4] =
     [("markdown-sh", "sh"), ("markdown-bash", "bash"), ("markdown-zsh", "zsh"), ("markdown-fish", "fish")];
 
-pub(crate) struct MarkdownContextProvider;
+struct MarkdownContextProvider;
 
 impl ContextProvider for MarkdownContextProvider {
     fn runnables(&self, cx: RunContext, _: &App) -> Task<Vec<SpawnInTerminal>> {

@@ -50,7 +50,7 @@ pub struct SearchInputs {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MatchPositionHint {
+pub(crate) enum MatchPositionHint {
     Line(u32),
     ByteOffset(usize),
 }
@@ -62,7 +62,7 @@ impl Default for MatchPositionHint {
 }
 
 impl SearchInputs {
-    pub fn as_str(&self) -> &str {
+    fn as_str(&self) -> &str {
         self.query.as_ref()
     }
     pub const fn files_to_include(&self) -> &PathMatcher {
@@ -172,7 +172,7 @@ impl SearchQuery {
     ///
     /// Unlike `regex`, the query stored on the resulting `SearchQuery` is the
     /// original unescaped text, so `as_str` returns what the user typed.
-    pub fn escaped_regex(
+    fn escaped_regex(
         query: impl ToString,
         whole_word: bool,
         case_sensitive: bool,
@@ -290,7 +290,7 @@ impl SearchQuery {
         self
     }
 
-    pub async fn detect(&self, reader: &mut (dyn Read + Send)) -> Result<Option<MatchPositionHint>> {
+    pub(crate) async fn detect(&self, reader: &mut (dyn Read + Send)) -> Result<Option<MatchPositionHint>> {
         let query_str = self.as_str();
         if query_str.is_empty() {
             return Ok(None);
@@ -450,33 +450,33 @@ impl SearchQuery {
         matches!(self, Self::Regex { escaped: false, .. })
     }
 
-    pub const fn files_to_include(&self) -> &PathMatcher {
+    pub(crate) const fn files_to_include(&self) -> &PathMatcher {
         self.as_inner().files_to_include()
     }
 
-    pub const fn files_to_exclude(&self) -> &PathMatcher {
+    pub(crate) const fn files_to_exclude(&self) -> &PathMatcher {
         self.as_inner().files_to_exclude()
     }
 
-    pub const fn buffers(&self) -> Option<&Vec<Entity<Buffer>>> {
+    pub(crate) const fn buffers(&self) -> Option<&Vec<Entity<Buffer>>> {
         self.as_inner().buffers.as_ref()
     }
 
-    pub const fn is_opened_only(&self) -> bool {
+    pub(crate) const fn is_opened_only(&self) -> bool {
         self.as_inner().buffers.is_some()
     }
 
-    pub fn filters_path(&self) -> bool {
+    pub(crate) fn filters_path(&self) -> bool {
         !(self.files_to_exclude().sources().next().is_none() && self.files_to_include().sources().next().is_none())
     }
 
-    pub const fn match_full_paths(&self) -> bool {
+    pub(crate) const fn match_full_paths(&self) -> bool {
         self.as_inner().match_full_paths
     }
 
     /// Check match full paths to determine whether you're required to pass a fully qualified
     /// project path (starts with a project root).
-    pub fn match_path(&self, file_path: &RelPath) -> bool {
+    pub(crate) fn match_path(&self, file_path: &RelPath) -> bool {
         let mut path = file_path.to_rel_path_buf();
         loop {
             if self.files_to_exclude().is_match(&path) {

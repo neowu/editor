@@ -94,7 +94,7 @@ impl<V: ToastView> ToastViewHandle for Entity<V> {
     }
 }
 
-pub(crate) struct ActiveToast {
+struct ActiveToast {
     id: EntityId,
     toast: Box<dyn ToastViewHandle>,
     action: Option<ToastAction>,
@@ -107,7 +107,7 @@ struct DismissTimer {
     _task: Task<()>,
 }
 
-pub struct ToastLayer {
+pub(crate) struct ToastLayer {
     active_toast: Option<ActiveToast>,
     duration_remaining: Option<Duration>,
     dismiss_timer: Option<DismissTimer>,
@@ -120,11 +120,11 @@ impl Default for ToastLayer {
 }
 
 impl ToastLayer {
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self { active_toast: None, duration_remaining: None, dismiss_timer: None }
     }
 
-    pub fn toggle_toast<V>(&mut self, cx: &mut Context<Self>, new_toast: Entity<V>)
+    pub(crate) fn toggle_toast<V>(&mut self, cx: &mut Context<Self>, new_toast: Entity<V>)
     where
         V: ToastView,
     {
@@ -138,7 +138,7 @@ impl ToastLayer {
         self.show_toast(new_toast, cx);
     }
 
-    pub fn show_toast<V>(&mut self, new_toast: Entity<V>, cx: &mut Context<Self>)
+    fn show_toast<V>(&mut self, new_toast: Entity<V>, cx: &mut Context<Self>)
     where
         V: ToastView,
     {
@@ -163,7 +163,7 @@ impl ToastLayer {
         cx.notify();
     }
 
-    pub fn hide_toast(&mut self, cx: &mut Context<Self>) {
+    fn hide_toast(&mut self, cx: &mut Context<Self>) {
         self.active_toast.take();
         cx.notify();
     }
@@ -182,7 +182,7 @@ impl ToastLayer {
     }
 
     /// Starts a timer to automatically dismiss the toast after the specified duration.
-    pub fn start_dismiss_timer(&mut self, duration: Duration, cx: &mut Context<Self>) {
+    fn start_dismiss_timer(&mut self, duration: Duration, cx: &mut Context<Self>) {
         self.clear_dismiss_timer(cx);
 
         let instant_started = Instant::now();
@@ -200,7 +200,7 @@ impl ToastLayer {
     }
 
     /// Restarts the dismiss timer with a new duration.
-    pub fn restart_dismiss_timer(&mut self, cx: &mut Context<Self>) {
+    fn restart_dismiss_timer(&mut self, cx: &mut Context<Self>) {
         let Some(duration) = self.duration_remaining else {
             return;
         };
@@ -208,7 +208,7 @@ impl ToastLayer {
     }
 
     /// Clears the dismiss timer if one exists.
-    pub fn clear_dismiss_timer(&mut self, cx: &mut Context<Self>) {
+    fn clear_dismiss_timer(&mut self, cx: &mut Context<Self>) {
         self.dismiss_timer.take();
         cx.notify();
     }

@@ -116,7 +116,7 @@ impl Editor {
     /// `change_selections` are applied at the end. This way these intermediate states aren't added
     /// to selection history and the state of popovers based on selection position aren't
     /// erroneously updated.
-    pub fn with_selection_effects_deferred<R>(
+    pub(crate) fn with_selection_effects_deferred<R>(
         &mut self,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -133,7 +133,7 @@ impl Editor {
         self.selections.all_adjusted(snapshot).iter().any(|selection| !selection.is_empty())
     }
 
-    pub fn has_pending_nonempty_selection(&self) -> bool {
+    pub(crate) fn has_pending_nonempty_selection(&self) -> bool {
         let pending_nonempty_selection = match self.selections.pending_anchor() {
             Some(Selection { start, end, .. }) => start != end,
             None => false,
@@ -143,11 +143,11 @@ impl Editor {
             || (self.columnar_selection_state.is_some() && self.selections.disjoint_anchors().len() > 1)
     }
 
-    pub fn has_pending_selection(&self) -> bool {
+    pub(crate) fn has_pending_selection(&self) -> bool {
         self.selections.pending_anchor().is_some() || self.columnar_selection_state.is_some()
     }
 
-    pub fn set_mark(&mut self, _: &actions::SetMark, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn set_mark(&mut self, _: &actions::SetMark, window: &mut Window, cx: &mut Context<Self>) {
         if self.selection_mark_mode {
             self.change_selections(SelectionEffects::no_scroll(), window, cx, |s| {
                 s.move_with(&mut |_, sel| {
@@ -159,7 +159,12 @@ impl Editor {
         cx.notify();
     }
 
-    pub fn swap_selection_ends(&mut self, _: &actions::SwapSelectionEnds, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn swap_selection_ends(
+        &mut self,
+        _: &actions::SwapSelectionEnds,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.change_selections(SelectionEffects::no_scroll(), window, cx, |s| {
             s.move_with(&mut |_, sel| {
                 if sel.start != sel.end {
@@ -170,7 +175,7 @@ impl Editor {
         self.request_autoscroll(Autoscroll::newest(), cx);
     }
 
-    pub fn select_to_end(&mut self, _: &SelectToEnd, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_to_end(&mut self, _: &SelectToEnd, window: &mut Window, cx: &mut Context<Self>) {
         let buffer = self.buffer.read(cx).snapshot(cx);
         let mut selection = self.selections.first::<MultiBufferOffset>(&self.display_snapshot(cx));
         selection.set_head(buffer.len(), SelectionGoal::None);
@@ -185,7 +190,7 @@ impl Editor {
         });
     }
 
-    pub fn select_line(&mut self, _: &SelectLine, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_line(&mut self, _: &SelectLine, window: &mut Window, cx: &mut Context<Self>) {
         let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
         let mut selections = self.selections.all::<Point>(&display_map);
         let max_point = display_map.buffer_snapshot().max_point();
@@ -200,7 +205,7 @@ impl Editor {
         });
     }
 
-    pub fn split_selection_into_lines(
+    pub(crate) fn split_selection_into_lines(
         &mut self,
         action: &SplitSelectionIntoLines,
         window: &mut Window,
@@ -255,15 +260,25 @@ impl Editor {
         });
     }
 
-    pub fn add_selection_above(&mut self, action: &AddSelectionAbove, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn add_selection_above(
+        &mut self,
+        action: &AddSelectionAbove,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.add_selection(true, action.skip_soft_wrap, window, cx);
     }
 
-    pub fn add_selection_below(&mut self, action: &AddSelectionBelow, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn add_selection_below(
+        &mut self,
+        action: &AddSelectionBelow,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.add_selection(false, action.skip_soft_wrap, window, cx);
     }
 
-    pub fn select_all_matches(
+    pub(crate) fn select_all_matches(
         &mut self,
         _action: &SelectAllMatches,
         window: &mut Window,
@@ -324,12 +339,17 @@ impl Editor {
         Ok(())
     }
 
-    pub fn select_next(&mut self, action: &SelectNext, window: &mut Window, cx: &mut Context<Self>) -> Result<()> {
+    pub(crate) fn select_next(
+        &mut self,
+        action: &SelectNext,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Result<()> {
         let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
         self.select_next_match_internal(&display_map, action.replace_newest, Some(Autoscroll::newest()), window, cx)
     }
 
-    pub fn select_previous(
+    pub(crate) fn select_previous(
         &mut self,
         action: &SelectPrevious,
         window: &mut Window,
@@ -455,7 +475,12 @@ impl Editor {
         Ok(())
     }
 
-    pub fn find_next_match(&mut self, _: &FindNextMatch, window: &mut Window, cx: &mut Context<Self>) -> Result<()> {
+    pub(crate) fn find_next_match(
+        &mut self,
+        _: &FindNextMatch,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Result<()> {
         let selections = self.selections.disjoint_anchors_arc();
         match selections.first() {
             Some(first) if selections.len() >= 2 => {
@@ -468,7 +493,7 @@ impl Editor {
         Ok(())
     }
 
-    pub fn find_previous_match(
+    pub(crate) fn find_previous_match(
         &mut self,
         _: &FindPreviousMatch,
         window: &mut Window,
@@ -486,7 +511,12 @@ impl Editor {
         Ok(())
     }
 
-    pub fn select_enclosing_symbol(&mut self, _: &SelectEnclosingSymbol, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_enclosing_symbol(
+        &mut self,
+        _: &SelectEnclosingSymbol,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let buffer = self.buffer.read(cx).snapshot(cx);
         let old_selections = self.selections.all::<MultiBufferOffset>(&self.display_snapshot(cx)).into_boxed_slice();
 
@@ -534,7 +564,7 @@ impl Editor {
         }
     }
 
-    pub fn select_larger_syntax_node(
+    pub(crate) fn select_larger_syntax_node(
         &mut self,
         _: &SelectLargerSyntaxNode,
         window: &mut Window,
@@ -645,7 +675,7 @@ impl Editor {
         self.select_syntax_node_history.push((old_selections, scroll_behavior, is_selection_reversed));
     }
 
-    pub fn select_smaller_syntax_node(
+    pub(crate) fn select_smaller_syntax_node(
         &mut self,
         _: &SelectSmallerSyntaxNode,
         window: &mut Window,
@@ -680,7 +710,12 @@ impl Editor {
         }
     }
 
-    pub fn select_next_syntax_node(&mut self, _: &SelectNextSyntaxNode, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_next_syntax_node(
+        &mut self,
+        _: &SelectNextSyntaxNode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let old_selections = self.selections.all_anchors(&self.display_snapshot(cx));
         if old_selections.is_empty() {
             return;
@@ -724,7 +759,7 @@ impl Editor {
         }
     }
 
-    pub fn select_prev_syntax_node(
+    pub(crate) fn select_prev_syntax_node(
         &mut self,
         _: &SelectPreviousSyntaxNode,
         window: &mut Window,
@@ -772,7 +807,7 @@ impl Editor {
         }
     }
 
-    pub fn move_to_start_of_larger_syntax_node(
+    pub(crate) fn move_to_start_of_larger_syntax_node(
         &mut self,
         _: &MoveToStartOfLargerSyntaxNode,
         window: &mut Window,
@@ -781,7 +816,7 @@ impl Editor {
         self.move_cursors_to_syntax_nodes(window, cx, false);
     }
 
-    pub fn move_to_end_of_larger_syntax_node(
+    pub(crate) fn move_to_end_of_larger_syntax_node(
         &mut self,
         _: &MoveToEndOfLargerSyntaxNode,
         window: &mut Window,
@@ -790,7 +825,7 @@ impl Editor {
         self.move_cursors_to_syntax_nodes(window, cx, true);
     }
 
-    pub fn select_to_start_of_larger_syntax_node(
+    pub(crate) fn select_to_start_of_larger_syntax_node(
         &mut self,
         _: &SelectToStartOfLargerSyntaxNode,
         window: &mut Window,
@@ -799,7 +834,7 @@ impl Editor {
         self.select_to_syntax_nodes(window, cx, false);
     }
 
-    pub fn select_to_end_of_larger_syntax_node(
+    pub(crate) fn select_to_end_of_larger_syntax_node(
         &mut self,
         _: &SelectToEndOfLargerSyntaxNode,
         window: &mut Window,
@@ -808,7 +843,7 @@ impl Editor {
         self.select_to_syntax_nodes(window, cx, true);
     }
 
-    pub fn select_inside_delimiters(
+    pub(crate) fn select_inside_delimiters(
         &mut self,
         _: &SelectInsideDelimiters,
         window: &mut Window,
@@ -817,7 +852,7 @@ impl Editor {
         self.select_delimiters_impl(false, window, cx);
     }
 
-    pub fn select_around_delimiters(
+    pub(crate) fn select_around_delimiters(
         &mut self,
         _: &SelectAroundDelimiters,
         window: &mut Window,
@@ -861,7 +896,7 @@ impl Editor {
         });
     }
 
-    pub fn move_to_enclosing_bracket(
+    pub(crate) fn move_to_enclosing_bracket(
         &mut self,
         _: &MoveToEnclosingBracket,
         window: &mut Window,
@@ -914,7 +949,7 @@ impl Editor {
         });
     }
 
-    pub fn undo_selection(&mut self, _: &UndoSelection, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn undo_selection(&mut self, _: &UndoSelection, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(entry) = self.selection_history.undo_stack.pop_back() {
             self.selection_history.mode = SelectionHistoryMode::Undoing;
             self.with_selection_effects_deferred(window, cx, |this, window, cx| {
@@ -931,7 +966,7 @@ impl Editor {
         }
     }
 
-    pub fn redo_selection(&mut self, _: &RedoSelection, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn redo_selection(&mut self, _: &RedoSelection, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(entry) = self.selection_history.redo_stack.pop_back() {
             self.selection_history.mode = SelectionHistoryMode::Redoing;
             self.with_selection_effects_deferred(window, cx, |this, window, cx| {
@@ -966,7 +1001,7 @@ impl Editor {
         }
     }
 
-    pub(super) fn extend_selection(
+    fn extend_selection(
         &mut self,
         position: DisplayPoint,
         click_count: usize,
@@ -1005,6 +1040,7 @@ impl Editor {
 
         match &mut pending_mode {
             SelectMode::Word(range) | SelectMode::Line(range) => *range = current_selection,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
 
@@ -1016,7 +1052,7 @@ impl Editor {
         });
     }
 
-    pub(super) fn begin_selection(
+    fn begin_selection(
         &mut self,
         position: DisplayPoint,
         add: bool,
@@ -1100,7 +1136,7 @@ impl Editor {
         });
     }
 
-    pub(super) fn update_selection(
+    fn update_selection(
         &mut self,
         position: DisplayPoint,
         goal_column: u32,

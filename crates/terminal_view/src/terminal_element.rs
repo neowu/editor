@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::mem;
 use std::ops;
-use std::rc::Rc;
 use std::slice;
 use std::time::Instant;
 
@@ -11,7 +10,6 @@ use editor::HighlightedRangeLine;
 use gpui::AbsoluteLength;
 use gpui::AnyElement;
 use gpui::App;
-use gpui::AvailableSpace;
 use gpui::Bounds;
 use gpui::ContentMask;
 use gpui::DispatchPhase;
@@ -71,19 +69,16 @@ use terminal::is_app_chosen_exact_color as terminal_is_app_chosen_exact_color;
 use terminal::is_default_background_color;
 use terminal::terminal_settings::TerminalSettings;
 use theme::Theme;
-use ui::ParentElement as _;
 use ui::Tooltip;
 use ui::font;
 use ui::utils::ensure_minimum_contrast;
 use util::ResultExt as _;
 use workspace::Workspace;
 
-use crate::BlockContext;
-use crate::BlockProperties;
 use crate::TerminalView;
 
 /// The information generated during layout that is necessary for painting.
-pub struct LayoutState {
+pub(crate) struct LayoutState {
     hitbox: Hitbox,
     batched_text_runs: Vec<BatchedTextRun>,
     block_element_rects: Vec<BlockElementLayoutRect>,
@@ -95,7 +90,6 @@ pub struct LayoutState {
     dimensions: TerminalBounds,
     display_offset: usize,
     hyperlink_tooltip: Option<AnyElement>,
-    block_below_cursor_element: Option<AnyElement>,
     base_text_style: TextStyle,
 }
 
@@ -111,17 +105,17 @@ impl DisplayCursor {
         Self { line: cursor_point.line + (display_offset as u32).cast_signed(), col: cursor_point.column }
     }
 
-    pub(crate) const fn line(&self) -> i32 {
+    const fn line(&self) -> i32 {
         self.line
     }
 
-    pub(crate) const fn col(&self) -> usize {
+    const fn col(&self) -> usize {
         self.col
     }
 }
 
 #[derive(Copy, Clone, Debug, Default)]
-pub struct LayoutPoint {
+struct LayoutPoint {
     line: i32,
     column: i32,
 }
@@ -130,24 +124,16 @@ impl LayoutPoint {
     const fn new(line: i32, column: i32) -> Self {
         Self { line, column }
     }
-
-    pub const fn line(&self) -> i32 {
-        self.line
-    }
-
-    pub const fn column(&self) -> i32 {
-        self.column
-    }
 }
 
 /// A batched text run that combines multiple adjacent cells with the same style.
 #[derive(Debug)]
-pub struct BatchedTextRun {
-    pub start_point: LayoutPoint,
-    pub text: String,
-    pub cell_count: usize,
-    pub style: TextRun,
-    pub font_size: AbsoluteLength,
+struct BatchedTextRun {
+    start_point: LayoutPoint,
+    text: String,
+    cell_count: usize,
+    style: TextRun,
+    font_size: AbsoluteLength,
 }
 
 impl BatchedTextRun {
@@ -194,7 +180,7 @@ impl BatchedTextRun {
         self.style.len += c.len_utf8();
     }
 
-    pub fn paint(&self, origin: GpuiPoint<Pixels>, dimensions: &TerminalBounds, window: &mut Window, cx: &mut App) {
+    fn paint(&self, origin: GpuiPoint<Pixels>, dimensions: &TerminalBounds, window: &mut Window, cx: &mut App) {
         let pos = GpuiPoint::new(
             origin.x + self.start_point.column as f32 * dimensions.cell_width,
             origin.y + self.start_point.line as f32 * dimensions.line_height,
@@ -220,7 +206,7 @@ const BLOCK_SUBCELL_COLUMNS: i32 = 8;
 const BLOCK_SUBCELL_LINES: i32 = 24;
 
 #[derive(Clone, Debug)]
-pub struct BlockElementLayoutRect {
+struct BlockElementLayoutRect {
     point: LayoutPoint,
     num_of_columns: usize,
     num_of_lines: usize,
@@ -232,7 +218,7 @@ impl BlockElementLayoutRect {
         Self { point, num_of_columns, num_of_lines, color }
     }
 
-    pub fn paint(&self, origin: GpuiPoint<Pixels>, dimensions: &TerminalBounds, window: &mut Window) {
+    fn paint(&self, origin: GpuiPoint<Pixels>, dimensions: &TerminalBounds, window: &mut Window) {
         let subcell_width = dimensions.cell_width / BLOCK_SUBCELL_COLUMNS as f32;
         let subcell_height = dimensions.line_height / BLOCK_SUBCELL_LINES as f32;
         let position = point(
@@ -243,14 +229,10 @@ impl BlockElementLayoutRect {
 
         window.paint_quad(fill(Bounds::new(position, size), self.color));
     }
-
-    pub const fn line(&self) -> i32 {
-        (self.point.line + (self.num_of_lines as u32).cast_signed() - 1) / BLOCK_SUBCELL_LINES
-    }
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct LayoutRect {
+struct LayoutRect {
     point: LayoutPoint,
     num_of_cells: usize,
     color: Hsla,
@@ -261,7 +243,7 @@ impl LayoutRect {
         LayoutRect { point, num_of_cells, color }
     }
 
-    pub fn paint(&self, origin: GpuiPoint<Pixels>, dimensions: &TerminalBounds, window: &mut Window) {
+    fn paint(&self, origin: GpuiPoint<Pixels>, dimensions: &TerminalBounds, window: &mut Window) {
         let position = {
             let layout_point = self.point;
             point(
@@ -322,7 +304,7 @@ impl BackgroundRegion {
     }
 }
 
-pub trait TerminalLayoutCell {
+trait TerminalLayoutCell {
     fn point(&self) -> Point;
     fn cell(&self) -> &Cell;
 }
@@ -381,7 +363,7 @@ fn merge_background_regions(regions: Vec<BackgroundRegion>) -> Vec<BackgroundReg
 
 /// The GPUI element that paints the terminal.
 /// We need to keep a reference to the model for mouse events, do we need it for any other terminal stuff, or can we move that to connection?
-pub struct TerminalElement {
+pub(crate) struct TerminalElement {
     terminal: Entity<Terminal>,
     terminal_view: Entity<TerminalView>,
     workspace: WeakEntity<Workspace>,
@@ -389,7 +371,6 @@ pub struct TerminalElement {
     focused: bool,
     cursor_visible: bool,
     interactivity: Interactivity,
-    block_below_cursor: Option<Rc<BlockProperties>>,
 }
 
 impl InteractiveElement for TerminalElement {
@@ -401,14 +382,13 @@ impl InteractiveElement for TerminalElement {
 impl StatefulInteractiveElement for TerminalElement {}
 
 impl TerminalElement {
-    pub fn new(
+    pub(crate) fn new(
         terminal: Entity<Terminal>,
         terminal_view: Entity<TerminalView>,
         workspace: WeakEntity<Workspace>,
         focus: FocusHandle,
         focused: bool,
         cursor_visible: bool,
-        block_below_cursor: Option<Rc<BlockProperties>>,
     ) -> TerminalElement {
         TerminalElement {
             terminal,
@@ -417,13 +397,12 @@ impl TerminalElement {
             focused,
             focus: focus.clone(),
             cursor_visible,
-            block_below_cursor,
             interactivity: Interactivity::default(),
         }
         .track_focus(&focus)
     }
 
-    pub fn layout_grid<T: TerminalLayoutCell>(
+    fn layout_grid<T: TerminalLayoutCell>(
         grid: impl Iterator<Item = T>,
         start_line_offset: i32,
         text_style: &TextStyle,
@@ -475,7 +454,7 @@ impl TerminalElement {
 
                 // Collect background regions (skip default background)
                 if !is_default_background_color(bg) {
-                    let color = convert_color(&bg, theme);
+                    let color = convert_color(bg, theme);
                     let col = (point.column as u32).cast_signed();
 
                     // Try to extend the last region if it's on the same line with the same color
@@ -845,8 +824,8 @@ impl TerminalElement {
         contrast_cache: &mut FxHashMap<(Hsla, Hsla), Hsla>,
     ) -> TextRun {
         let skip_contrast = Self::is_app_chosen_exact_color(fg);
-        let mut fg = convert_color(&fg, colors);
-        let bg = convert_color(&bg, colors);
+        let mut fg = convert_color(fg, colors);
+        let bg = convert_color(bg, colors);
 
         if !skip_contrast && !Self::is_decorative_character(cell.character()) {
             fg = cached_minimum_contrast(contrast_cache, fg, bg, minimum_contrast);
@@ -897,24 +876,15 @@ impl TerminalElement {
     fn register_mouse_listeners(&mut self, hitbox: &Hitbox, window: &mut Window) {
         let focus = self.focus.clone();
         let terminal = self.terminal.clone();
-        let terminal_view = self.terminal_view.clone();
-
         self.interactivity.on_mouse_down(MouseButton::Left, {
             let terminal = terminal.clone();
             let focus = focus.clone();
-            let terminal_view = terminal_view.clone();
 
             move |e, window, cx| {
                 window.focus(&focus, cx);
 
-                let view = terminal_view.read(cx);
-                let scroll_top = view.scroll_top;
                 terminal.update(cx, |terminal, cx| {
-                    let mut adjusted_event = e.clone();
-                    if scroll_top > Pixels::ZERO {
-                        adjusted_event.position.y += scroll_top;
-                    }
-                    terminal.mouse_down(&adjusted_event);
+                    terminal.mouse_down(e);
                     cx.notify();
                 });
             }
@@ -932,14 +902,9 @@ impl TerminalElement {
                 if e.pressed_button.is_some() && !cx.has_active_drag() && focus.is_focused(window) {
                     let hovered = hitbox.is_hovered(window);
 
-                    let scroll_top = terminal_view.read(cx).scroll_top;
                     terminal.update(cx, |terminal, cx| {
                         if terminal.selection_started() || hovered {
-                            let mut adjusted_event = e.clone();
-                            if scroll_top > Pixels::ZERO {
-                                adjusted_event.position.y += scroll_top;
-                            }
-                            terminal.mouse_drag(&adjusted_event, hitbox.bounds, cx);
+                            terminal.mouse_drag(e, hitbox.bounds, cx);
                             cx.notify();
                         }
                     });
@@ -1003,25 +968,6 @@ impl TerminalElement {
             }
         });
     }
-
-    fn rem_size(&self, cx: &App) -> Pixels {
-        let buffer_font_size = font::buffer_font_size(cx);
-        let rem_size_scale = {
-            // Our default UI font size is 14px on a 16px base scale.
-            // This means the default UI font size is 0.875rems.
-            let default_font_size_scale = 14. / ui::BASE_REM_SIZE_IN_PX;
-
-            // We then determine the delta between a single rem and the default font
-            // size scale.
-            let default_font_size_delta = 1. - default_font_size_scale;
-
-            // Finally, we add this delta to 1rem to get the scale factor that
-            // should be used to scale up the UI.
-            1. + default_font_size_delta
-        };
-
-        buffer_font_size * rem_size_scale
-    }
 }
 
 impl Element for TerminalElement {
@@ -1055,7 +1001,6 @@ impl Element for TerminalElement {
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
-        let rem_size = self.rem_size(cx);
         self.interactivity.prepaint(global_id, bounds, bounds.size, window, cx, |_, _, hitbox, window, cx| {
             let hitbox = hitbox.expect("terminal element has a hitbox");
 
@@ -1185,9 +1130,8 @@ impl Element for TerminalElement {
                 }
             });
 
-            let scroll_top = self.terminal_view.read(cx).scroll_top;
             let hyperlink_tooltip = hover_tooltip.map(|hover_tooltip| {
-                let offset = dimensions.bounds.origin - point(px(0.), scroll_top);
+                let offset = dimensions.bounds.origin;
                 let mut element =
                     div().size_full().id("terminal-element").tooltip(Tooltip::text(hover_tooltip)).into_any_element();
                 element.prepaint_as_root(offset, bounds.size.into(), window, cx);
@@ -1320,30 +1264,6 @@ impl Element for TerminalElement {
                 })
             };
 
-            let block_below_cursor_element = if let Some(block) = &self.block_below_cursor {
-                let content = &self.terminal.read(cx).last_content;
-                let target_line = (content.display_offset == 0).then(|| content.cursor.point.line + 1);
-                target_line.map(|target_line| {
-                    let render = &block.render;
-                    let mut block_cx = BlockContext { window, context: cx, dimensions };
-                    let element = render(&mut block_cx);
-                    let mut element = div().occlude().child(element).into_any_element();
-                    let available_space = size(
-                        AvailableSpace::Definite(dimensions.width() + gutter),
-                        AvailableSpace::Definite(block.height as f32 * dimensions.line_height()),
-                    );
-                    let origin = GpuiPoint::new(bounds.origin.x, dimensions.bounds.origin.y)
-                        + point(px(0.), target_line as f32 * dimensions.line_height())
-                        - point(px(0.), scroll_top);
-                    window.with_rem_size(Some(rem_size), |window| {
-                        element.prepaint_as_root(origin, available_space, window, cx);
-                    });
-                    element
-                })
-            } else {
-                None
-            };
-
             LayoutState {
                 hitbox,
                 batched_text_runs,
@@ -1356,7 +1276,6 @@ impl Element for TerminalElement {
                 relative_highlighted_ranges,
                 display_offset,
                 hyperlink_tooltip,
-                block_below_cursor_element,
                 base_text_style: text_style,
             }
         })
@@ -1373,10 +1292,7 @@ impl Element for TerminalElement {
     ) {
         let paint_start = Instant::now();
         window.with_content_mask(Some(ContentMask { bounds }), |window| {
-            let terminal_view = self.terminal_view.read(cx);
-            let scroll_top = terminal_view.scroll_top;
-
-            let origin = layout.dimensions.bounds.origin - GpuiPoint::new(px(0.), scroll_top);
+            let origin = layout.dimensions.bounds.origin;
             let scale_factor = window.scale_factor();
             let snap_px = |value: Pixels| Pixels::from((f32::from(value) * scale_factor).floor() / scale_factor);
             let origin = point(snap_px(origin.x), snap_px(origin.y));
@@ -1404,7 +1320,6 @@ impl Element for TerminalElement {
 
             let original_cursor = layout.cursor.take();
             let hyperlink_tooltip = layout.hyperlink_tooltip.take();
-            let block_below_cursor_element = layout.block_below_cursor_element.take();
             self.interactivity.paint(global_id, bounds, Some(&layout.hitbox), window, cx, |_, window, cx| {
                 window.handle_input(&self.focus, terminal_input_handler, cx);
 
@@ -1486,10 +1401,6 @@ impl Element for TerminalElement {
                     && let Some(mut cursor) = original_cursor
                 {
                     cursor.paint(origin, window, cx);
-                }
-
-                if let Some(mut element) = block_below_cursor_element {
-                    element.paint(window, cx);
                 }
 
                 if let Some(mut element) = hyperlink_tooltip {
@@ -1618,7 +1529,7 @@ impl InputHandler for TerminalInputHandler {
     }
 }
 
-pub fn is_blank(cell: &Cell) -> bool {
+fn is_blank(cell: &Cell) -> bool {
     if !matches!(cell.character(), ' ' | '\t') {
         return false;
     }
@@ -1703,7 +1614,7 @@ fn to_highlighted_range_lines(
 }
 
 /// Converts a 2, 8, or 24 bit color ANSI color to the GPUI equivalent.
-pub fn convert_color(fg: &Color, theme: &Theme) -> Hsla {
+fn convert_color(fg: Color, theme: &Theme) -> Hsla {
     let colors = theme.colors();
     match fg {
         // Named and theme defined colors
@@ -1741,7 +1652,7 @@ pub fn convert_color(fg: &Color, theme: &Theme) -> Hsla {
         // 'True' colors
         Color::Spec(rgb) => terminal::rgba_color(rgb.r, rgb.g, rgb.b),
         // 8 bit, indexed colors
-        Color::Indexed(i) => terminal::get_color_at_index(*i as usize, theme),
+        Color::Indexed(i) => terminal::get_color_at_index(i as usize, theme),
     }
 }
 

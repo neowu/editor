@@ -137,7 +137,7 @@ impl<D: PickerDelegate> Picker<D> {
             }))
     }
 
-    pub(crate) fn render_results(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_results(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let ui_font_size = font::ui_font_size(cx);
         let window_size = window.viewport_size();
         let rem_size = window.rem_size();

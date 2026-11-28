@@ -169,7 +169,7 @@ pub enum HeadlineSize {
 
 impl HeadlineSize {
     /// Returns the headline size in rems.
-    pub const fn rems(self) -> Rems {
+    const fn rems(self) -> Rems {
         match self {
             Self::XSmall => rems(0.88),
             Self::Small => rems(1.0),
@@ -180,7 +180,7 @@ impl HeadlineSize {
     }
 
     /// Returns the line height for the headline size.
-    pub const fn line_height(self) -> Rems {
+    const fn line_height(self) -> Rems {
         match self {
             Self::XSmall => rems(1.6),
             Self::Small => rems(1.6),

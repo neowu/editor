@@ -25,7 +25,7 @@ pub(crate) struct GraphNode {
     /// Declarations written on the node itself.
     pub(crate) css_styles: Vec<String>,
     /// Whether an image keeps its aspect ratio (`on`).
-    pub(crate) constraint: Option<String>,
+    constraint: Option<String>,
     /// The direction inside a group.
     pub(crate) dir: Option<String>,
     /// Icon name.

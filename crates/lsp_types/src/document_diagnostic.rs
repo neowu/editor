@@ -56,7 +56,7 @@ pub struct DiagnosticOptions {
     pub workspace_diagnostics: bool,
 
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 /// Diagnostic registration options.
@@ -66,13 +66,13 @@ pub struct DiagnosticOptions {
 #[serde(rename_all = "camelCase")]
 pub struct DiagnosticRegistrationOptions {
     #[serde(flatten)]
-    pub text_document_registration_options: TextDocumentRegistrationOptions,
+    text_document_registration_options: TextDocumentRegistrationOptions,
 
     #[serde(flatten)]
     pub diagnostic_options: DiagnosticOptions,
 
     #[serde(flatten)]
-    pub static_registration_options: StaticRegistrationOptions,
+    static_registration_options: StaticRegistrationOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]

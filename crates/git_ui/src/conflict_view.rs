@@ -40,7 +40,7 @@ use ui::prelude::Styled as _;
 use ui::prelude::Window;
 use ui::prelude::h_flex;
 
-pub(crate) struct ConflictAddon {
+struct ConflictAddon {
     buffers: FxHashMap<BufferId, BufferConflicts>,
 }
 
@@ -330,7 +330,7 @@ fn render_conflict_buttons(conflict: &ConflictRegion, editor: WeakEntity<Editor>
         .into_any()
 }
 
-pub(crate) fn resolve_conflict(
+fn resolve_conflict(
     editor: WeakEntity<Editor>,
     resolved_conflict: ConflictRegion,
     ranges: Vec<Range<Anchor>>,

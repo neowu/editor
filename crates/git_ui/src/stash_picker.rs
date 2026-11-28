@@ -72,9 +72,9 @@ actions!(
     stash_picker,
     [
         /// Drop the selected stash entry.
-        DropStashItem,
+        pub DropStashItem,
         /// Show the diff view of the selected stash entry.
-        ShowStashItem,
+        pub ShowStashItem,
     ]
 );
 
@@ -84,7 +84,7 @@ pub fn open(workspace: &mut Workspace, _: &ViewStash, window: &mut Window, cx: &
     workspace.toggle_modal(window, cx, |window, cx| StashList::new(repository, weak_workspace, rems(34.), window, cx));
 }
 
-pub fn create_embedded(
+pub(crate) fn create_embedded(
     repository: Option<Entity<Repository>>,
     workspace: WeakEntity<Workspace>,
     width: Rems,
@@ -95,9 +95,9 @@ pub fn create_embedded(
     StashList::new_embedded(repository, workspace, width, show_footer, window, cx)
 }
 
-pub struct StashList {
+pub(crate) struct StashList {
     width: Rems,
-    pub picker: Entity<Picker<StashListDelegate>>,
+    picker: Entity<Picker<StashListDelegate>>,
     picker_focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
 }
@@ -191,14 +191,14 @@ impl StashList {
         this
     }
 
-    pub fn handle_drop_stash(&mut self, _: &DropStashItem, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn handle_drop_stash(&mut self, _: &DropStashItem, window: &mut Window, cx: &mut Context<Self>) {
         self.picker.update(cx, |picker, cx| {
             picker.delegate.drop_stash_at(picker.delegate.selected_index(), window, cx);
         });
         cx.notify();
     }
 
-    pub fn handle_show_stash(&mut self, _: &ShowStashItem, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn handle_show_stash(&mut self, _: &ShowStashItem, window: &mut Window, cx: &mut Context<Self>) {
         self.picker.update(cx, |picker, cx| {
             picker.delegate.show_stash_at(picker.delegate.selected_index(), window, cx);
         });
@@ -206,7 +206,12 @@ impl StashList {
         cx.emit(DismissEvent);
     }
 
-    pub fn handle_modifiers_changed(&mut self, ev: &ModifiersChangedEvent, _: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn handle_modifiers_changed(
+        &mut self,
+        ev: &ModifiersChangedEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.picker.update(cx, |picker, _| picker.delegate.modifiers = ev.modifiers);
     }
 }
@@ -245,7 +250,7 @@ struct StashEntryMatch {
     formatted_absolute_timestamp: String,
 }
 
-pub struct StashListDelegate {
+struct StashListDelegate {
     matches: Vec<StashEntryMatch>,
     all_stash_entries: Option<Vec<StashEntry>>,
     repo: Option<Entity<Repository>>,
@@ -321,7 +326,7 @@ impl StashListDelegate {
         .detach_and_prompt_err("Failed to drop stash", window, cx, |e| Some(e.to_string()));
     }
 
-    fn show_stash_at(&self, ix: usize, window: &mut Window, cx: &mut Context<Picker<Self>>) {
+    fn show_stash_at(&self, ix: usize, window: &Window, cx: &mut Context<Picker<Self>>) {
         let Some(entry_match) = self.matches.get(ix) else {
             return;
         };

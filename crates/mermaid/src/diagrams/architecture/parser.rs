@@ -64,7 +64,7 @@ const fn word(text: &'static str) -> TokenType {
 ///
 /// The direction letters come before identifiers and have no longer alternative, so Mermaid
 /// reads an id that starts with L, R, T or B as a direction followed by the rest.
-pub(crate) const ARCHITECTURE_TOKENS: &[TokenType] = &[
+const ARCHITECTURE_TOKENS: &[TokenType] = &[
     word("architecture-beta"),
     word("junction"),
     word("service"),

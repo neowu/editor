@@ -1,5 +1,5 @@
 mod actions;
-pub(crate) mod autoscroll;
+mod autoscroll;
 pub(crate) mod scroll_amount;
 
 use core::fmt::Debug;
@@ -22,7 +22,7 @@ use gpui::TouchPhase;
 use gpui::Window;
 use gpui::point;
 use language::Bias;
-pub use scroll_amount::ScrollAmount;
+pub(crate) use scroll_amount::ScrollAmount;
 use ui::scrollbars::ScrollbarAutoHide;
 use util::ResultExt as _;
 
@@ -53,7 +53,7 @@ const SMOOTH_SCROLL_EPSILON: ScrollOffset = 0.01;
 /// A jump that is drawn as an animation. The scroll anchor moves to the target at once;
 /// only drawing trails it by `delta` display rows, decaying to zero.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct SmoothScroll {
+struct SmoothScroll {
     delta: ScrollOffset,
     started_at: Instant,
 }
@@ -99,7 +99,7 @@ impl SmoothScroll {
 pub struct WasScrolled(pub(crate) bool);
 
 pub type ScrollOffset = f64;
-pub type ScrollPixelOffset = f64;
+pub(crate) type ScrollPixelOffset = f64;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollAnchor {
     pub offset: gpui::Point<ScrollOffset>,
@@ -107,11 +107,11 @@ pub struct ScrollAnchor {
 }
 
 impl ScrollAnchor {
-    pub(super) fn new() -> Self {
+    fn new() -> Self {
         Self { offset: gpui::Point::default(), anchor: Anchor::Min }
     }
 
-    pub fn scroll_position(&self, snapshot: &DisplaySnapshot) -> gpui::Point<ScrollOffset> {
+    fn scroll_position(&self, snapshot: &DisplaySnapshot) -> gpui::Point<ScrollOffset> {
         self.offset.apply_along(Axis::Vertical, |offset| {
             if self.anchor == Anchor::Min {
                 0.
@@ -122,7 +122,7 @@ impl ScrollAnchor {
         })
     }
 
-    pub fn top_row(&self, buffer: &MultiBufferSnapshot) -> u32 {
+    pub(crate) fn top_row(&self, buffer: &MultiBufferSnapshot) -> u32 {
         self.anchor.to_point(buffer).row
     }
 }
@@ -133,15 +133,15 @@ impl ScrollAnchor {
 ///
 /// For normal editors, this just acts as a wrapper around a ScrollAnchor.
 #[derive(Clone, Copy, Debug)]
-pub struct SharedScrollAnchor {
-    pub scroll_anchor: ScrollAnchor,
-    pub display_map_id: Option<EntityId>,
+pub(crate) struct SharedScrollAnchor {
+    pub(crate) scroll_anchor: ScrollAnchor,
+    pub(crate) display_map_id: Option<EntityId>,
     /// Shared so both sides of a split diff animate together.
-    pub(crate) smooth_scroll: Option<SmoothScroll>,
+    smooth_scroll: Option<SmoothScroll>,
 }
 
 impl SharedScrollAnchor {
-    pub fn scroll_position(&self, snapshot: &DisplaySnapshot) -> gpui::Point<ScrollOffset> {
+    pub(crate) fn scroll_position(&self, snapshot: &DisplaySnapshot) -> gpui::Point<ScrollOffset> {
         let snapshot = if let Some(display_map_id) = self.display_map_id
             && display_map_id != snapshot.display_map_id
         {
@@ -160,7 +160,7 @@ impl SharedScrollAnchor {
         self.scroll_anchor.scroll_position(snapshot)
     }
 
-    pub fn scroll_top_display_point(&self, snapshot: &DisplaySnapshot) -> DisplayPoint {
+    fn scroll_top_display_point(&self, snapshot: &DisplaySnapshot) -> DisplayPoint {
         let snapshot = if let Some(display_map_id) = self.display_map_id
             && display_map_id != snapshot.display_map_id
         {
@@ -181,7 +181,7 @@ impl SharedScrollAnchor {
 }
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
-pub enum ScrollbarThumbState {
+pub(crate) enum ScrollbarThumbState {
     #[default]
     Idle,
     Hovered,
@@ -189,23 +189,23 @@ pub enum ScrollbarThumbState {
 }
 
 #[derive(PartialEq, Eq)]
-pub struct ActiveScrollbarState {
+pub(crate) struct ActiveScrollbarState {
     axis: Axis,
     thumb_state: ScrollbarThumbState,
 }
 
 impl ActiveScrollbarState {
-    pub const fn new(axis: Axis, thumb_state: ScrollbarThumbState) -> Self {
+    const fn new(axis: Axis, thumb_state: ScrollbarThumbState) -> Self {
         ActiveScrollbarState { axis, thumb_state }
     }
 
-    pub fn thumb_state_for_axis(&self, axis: Axis) -> Option<ScrollbarThumbState> {
+    pub(crate) fn thumb_state_for_axis(&self, axis: Axis) -> Option<ScrollbarThumbState> {
         (self.axis == axis).then_some(self.thumb_state)
     }
 }
 
-pub struct ScrollManager {
-    pub(crate) vertical_scroll_margin: ScrollOffset,
+pub(crate) struct ScrollManager {
+    vertical_scroll_margin: ScrollOffset,
     anchor: Entity<SharedScrollAnchor>,
     /// Value to be used for clamping the x component of the SharedScrollAnchor's offset.
     ///
@@ -229,7 +229,7 @@ pub struct ScrollManager {
 }
 
 impl ScrollManager {
-    pub fn new(cx: &mut Context<Editor>) -> Self {
+    pub(crate) fn new(cx: &mut Context<Editor>) -> Self {
         let anchor = cx.new(|_| SharedScrollAnchor {
             scroll_anchor: ScrollAnchor::new(),
             display_map_id: None,
@@ -252,7 +252,7 @@ impl ScrollManager {
         }
     }
 
-    pub fn clone_state(
+    pub(crate) fn clone_state(
         &mut self,
         other: &Self,
         other_snapshot: &DisplaySnapshot,
@@ -267,7 +267,7 @@ impl ScrollManager {
         self.ongoing = other.ongoing;
     }
 
-    pub fn offset(&self, cx: &App) -> gpui::Point<f64> {
+    fn offset(&self, cx: &App) -> gpui::Point<f64> {
         let mut offset = self.anchor.read(cx).scroll_anchor.offset;
         if let Some(max_x) = self.scroll_max_x {
             offset.x = offset.x.min(max_x);
@@ -281,7 +281,7 @@ impl ScrollManager {
     /// we may need to translate the anchor to point to the "native" multibuffer first. That translation is lossy,
     /// so this method should be used sparingly---if you just need a scroll position or display point, call the appropriate helper method instead,
     /// since they can losslessly handle the case where the ScrollAnchor was last set from the other side.
-    pub fn native_anchor(&self, snapshot: &DisplaySnapshot, cx: &App) -> ScrollAnchor {
+    pub(crate) fn native_anchor(&self, snapshot: &DisplaySnapshot, cx: &App) -> ScrollAnchor {
         let shared = self.anchor.read(cx);
 
         let mut result = if let Some(display_map_id) = shared.display_map_id
@@ -310,7 +310,7 @@ impl ScrollManager {
         result
     }
 
-    pub fn shared_scroll_anchor(&self, cx: &App) -> SharedScrollAnchor {
+    pub(crate) fn shared_scroll_anchor(&self, cx: &App) -> SharedScrollAnchor {
         let mut shared = *self.anchor.read(cx);
         if let Some(max_x) = self.scroll_max_x {
             shared.scroll_anchor.offset.x = shared.scroll_anchor.offset.x.min(max_x);
@@ -318,19 +318,19 @@ impl ScrollManager {
         shared
     }
 
-    pub fn scroll_top_display_point(&self, snapshot: &DisplaySnapshot, cx: &App) -> DisplayPoint {
+    fn scroll_top_display_point(&self, snapshot: &DisplaySnapshot, cx: &App) -> DisplayPoint {
         self.anchor.read(cx).scroll_top_display_point(snapshot)
     }
 
-    pub fn scroll_anchor_entity(&self) -> Entity<SharedScrollAnchor> {
+    pub(crate) fn scroll_anchor_entity(&self) -> Entity<SharedScrollAnchor> {
         self.anchor.clone()
     }
 
-    pub fn set_shared_scroll_anchor(&mut self, entity: Entity<SharedScrollAnchor>) {
+    pub(crate) fn set_shared_scroll_anchor(&mut self, entity: Entity<SharedScrollAnchor>) {
         self.anchor = entity;
     }
 
-    pub fn unshare_scroll_anchor(&mut self, snapshot: &DisplaySnapshot, cx: &mut Context<Editor>) {
+    pub(crate) fn unshare_scroll_anchor(&mut self, snapshot: &DisplaySnapshot, cx: &mut Context<Editor>) {
         let scroll_anchor = self.native_anchor(snapshot, cx);
         self.anchor = cx.new(|_| SharedScrollAnchor {
             scroll_anchor,
@@ -339,11 +339,11 @@ impl ScrollManager {
         });
     }
 
-    pub fn filter_scroll_delta(&mut self, delta: &mut gpui::Point<Pixels>, touch_phase: TouchPhase) {
+    pub(crate) fn filter_scroll_delta(&mut self, delta: &mut gpui::Point<Pixels>, touch_phase: TouchPhase) {
         self.ongoing.filter(delta, touch_phase);
     }
 
-    pub fn scroll_position(&self, snapshot: &DisplaySnapshot, cx: &App) -> gpui::Point<ScrollOffset> {
+    fn scroll_position(&self, snapshot: &DisplaySnapshot, cx: &App) -> gpui::Point<ScrollOffset> {
         let mut pos = self.anchor.read(cx).scroll_position(snapshot);
         if let Some(max_x) = self.scroll_max_x {
             pos.x = pos.x.min(max_x);
@@ -358,7 +358,7 @@ impl ScrollManager {
         scroll_beyond_last_line: bool,
         local: bool,
         autoscroll: bool,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Editor>,
     ) -> WasScrolled {
         let scroll_top = scroll_position.y.max(0.);
@@ -393,7 +393,7 @@ impl ScrollManager {
         display_map: &DisplaySnapshot,
         local: bool,
         autoscroll: bool,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Editor>,
     ) -> WasScrolled {
         let adjusted_anchor = if self.forbid_vertical_scroll {
@@ -426,7 +426,7 @@ impl ScrollManager {
     }
 
     /// Draws the jump of the logical scroll top from `from_top` to where it is now as an animation.
-    pub(crate) fn animate_jump(&self, from_top: ScrollOffset, display_map: &DisplaySnapshot, cx: &mut Context<Editor>) {
+    fn animate_jump(&self, from_top: ScrollOffset, display_map: &DisplaySnapshot, cx: &mut Context<Editor>) {
         let to_top = self.anchor.read(cx).scroll_position(display_map).y;
         let now = cx.background_executor().now();
         let visible_line_count = self.visible_line_count;
@@ -441,7 +441,7 @@ impl ScrollManager {
         SmoothScroll::offset(self.anchor.read(cx).smooth_scroll, cx.background_executor().now())
     }
 
-    pub fn show_scrollbars(&mut self, window: &mut Window, cx: &mut Context<Editor>) {
+    pub(crate) fn show_scrollbars(&mut self, window: &Window, cx: &mut Context<Editor>) {
         if !self.show_scrollbars {
             self.show_scrollbars = true;
             cx.notify();
@@ -462,42 +462,42 @@ impl ScrollManager {
         }
     }
 
-    pub const fn scrollbars_visible(&self) -> bool {
+    pub(crate) const fn scrollbars_visible(&self) -> bool {
         self.show_scrollbars
     }
 
-    pub const fn has_autoscroll_request(&self) -> bool {
+    const fn has_autoscroll_request(&self) -> bool {
         self.autoscroll_request.is_some()
     }
 
-    pub const fn take_autoscroll_request(&mut self) -> Option<(Autoscroll, bool)> {
+    pub(crate) const fn take_autoscroll_request(&mut self) -> Option<(Autoscroll, bool)> {
         self.autoscroll_request.take()
     }
 
-    pub const fn active_scrollbar_state(&self) -> Option<&ActiveScrollbarState> {
+    pub(crate) const fn active_scrollbar_state(&self) -> Option<&ActiveScrollbarState> {
         self.active_scrollbar.as_ref()
     }
 
-    pub fn dragging_scrollbar_axis(&self) -> Option<Axis> {
+    pub(crate) fn dragging_scrollbar_axis(&self) -> Option<Axis> {
         self.active_scrollbar
             .as_ref()
             .filter(|scrollbar| scrollbar.thumb_state == ScrollbarThumbState::Dragging)
             .map(|scrollbar| scrollbar.axis)
     }
 
-    pub fn any_scrollbar_dragged(&self) -> bool {
+    pub(crate) fn any_scrollbar_dragged(&self) -> bool {
         self.active_scrollbar.as_ref().is_some_and(|scrollbar| scrollbar.thumb_state == ScrollbarThumbState::Dragging)
     }
 
-    pub fn set_hovered_scroll_thumb_axis(&mut self, axis: Axis, cx: &mut Context<Editor>) {
+    pub(crate) fn set_hovered_scroll_thumb_axis(&mut self, axis: Axis, cx: &mut Context<Editor>) {
         self.update_active_scrollbar_state(Some(ActiveScrollbarState::new(axis, ScrollbarThumbState::Hovered)), cx);
     }
 
-    pub fn set_dragged_scroll_thumb_axis(&mut self, axis: Axis, cx: &mut Context<Editor>) {
+    pub(crate) fn set_dragged_scroll_thumb_axis(&mut self, axis: Axis, cx: &mut Context<Editor>) {
         self.update_active_scrollbar_state(Some(ActiveScrollbarState::new(axis, ScrollbarThumbState::Dragging)), cx);
     }
 
-    pub fn reset_scrollbar_state(&mut self, cx: &mut Context<Editor>) {
+    pub(crate) fn reset_scrollbar_state(&mut self, cx: &mut Context<Editor>) {
         self.update_active_scrollbar_state(None, cx);
     }
 
@@ -508,22 +508,22 @@ impl ScrollManager {
         }
     }
 
-    pub fn set_is_hovering_minimap_thumb(&mut self, hovered: bool, cx: &mut Context<Editor>) {
+    pub(crate) fn set_is_hovering_minimap_thumb(&mut self, hovered: bool, cx: &mut Context<Editor>) {
         self.update_minimap_thumb_state(
             Some(if hovered { ScrollbarThumbState::Hovered } else { ScrollbarThumbState::Idle }),
             cx,
         );
     }
 
-    pub fn set_is_dragging_minimap(&mut self, cx: &mut Context<Editor>) {
+    pub(crate) fn set_is_dragging_minimap(&mut self, cx: &mut Context<Editor>) {
         self.update_minimap_thumb_state(Some(ScrollbarThumbState::Dragging), cx);
     }
 
-    pub fn hide_minimap_thumb(&mut self, cx: &mut Context<Editor>) {
+    pub(crate) fn hide_minimap_thumb(&mut self, cx: &mut Context<Editor>) {
         self.update_minimap_thumb_state(None, cx);
     }
 
-    pub fn is_dragging_minimap(&self) -> bool {
+    pub(crate) fn is_dragging_minimap(&self) -> bool {
         self.minimap_thumb_state.is_some_and(|state| state == ScrollbarThumbState::Dragging)
     }
 
@@ -534,27 +534,27 @@ impl ScrollManager {
         }
     }
 
-    pub const fn minimap_thumb_state(&self) -> Option<ScrollbarThumbState> {
+    pub(crate) const fn minimap_thumb_state(&self) -> Option<ScrollbarThumbState> {
         self.minimap_thumb_state
     }
 
-    pub fn clamp_scroll_left(&mut self, max: f64, cx: &App) -> bool {
+    pub(crate) fn clamp_scroll_left(&mut self, max: f64, cx: &App) -> bool {
         let current_x = self.anchor.read(cx).scroll_anchor.offset.x;
         self.scroll_max_x = Some(max);
         current_x > max
     }
 
-    pub const fn forbid_vertical_scroll(&self) -> bool {
+    pub(crate) const fn forbid_vertical_scroll(&self) -> bool {
         self.forbid_vertical_scroll
     }
 }
 
 impl Editor {
-    pub const fn has_autoscroll_request(&self) -> bool {
+    pub(crate) const fn has_autoscroll_request(&self) -> bool {
         self.scroll_manager.has_autoscroll_request()
     }
 
-    pub const fn vertical_scroll_margin(&self) -> usize {
+    pub(crate) const fn vertical_scroll_margin(&self) -> usize {
         self.scroll_manager.vertical_scroll_margin as usize
     }
 
@@ -571,19 +571,19 @@ impl Editor {
         cx.notify();
     }
 
-    pub const fn visible_line_count(&self) -> Option<f64> {
+    pub(crate) const fn visible_line_count(&self) -> Option<f64> {
         self.scroll_manager.visible_line_count
     }
 
-    pub fn visible_row_count(&self) -> Option<u32> {
+    pub(crate) fn visible_row_count(&self) -> Option<u32> {
         self.visible_line_count().map(|line_count| line_count as u32 - 1)
     }
 
-    pub const fn visible_column_count(&self) -> Option<f64> {
+    const fn visible_column_count(&self) -> Option<f64> {
         self.scroll_manager.visible_column_count
     }
 
-    pub(crate) fn set_visible_line_count(&mut self, lines: f64, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn set_visible_line_count(&mut self, lines: f64, window: &Window, cx: &mut Context<Self>) {
         let opened_first_time = self.scroll_manager.visible_line_count.is_none();
         self.scroll_manager.visible_line_count = Some(lines);
         if opened_first_time {
@@ -595,7 +595,12 @@ impl Editor {
         self.scroll_manager.visible_column_count = Some(columns);
     }
 
-    pub fn apply_scroll_delta(&mut self, scroll_delta: gpui::Point<f32>, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn apply_scroll_delta(
+        &mut self,
+        scroll_delta: gpui::Point<f32>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
         let mut delta = scroll_delta;
         if self.scroll_manager.forbid_vertical_scroll {
             delta.y = 0.0;
@@ -620,7 +625,7 @@ impl Editor {
     }
 
     /// Scrolls so that `row` is at the top of the editor view.
-    pub fn set_scroll_top_row(&mut self, row: DisplayRow, window: &mut Window, cx: &mut Context<Editor>) {
+    fn set_scroll_top_row(&mut self, row: DisplayRow, window: &mut Window, cx: &mut Context<Editor>) {
         let snapshot = self.snapshot(window, cx).display_snapshot;
         let new_screen_top = DisplayPoint::new(row, 0);
         let new_screen_top = new_screen_top.to_offset(&snapshot, Bias::Left);
@@ -629,12 +634,12 @@ impl Editor {
         self.set_scroll_anchor(ScrollAnchor { anchor: new_anchor, offset: gpui::Point::default() }, window, cx);
     }
 
-    pub(crate) fn set_scroll_position_internal(
+    fn set_scroll_position_internal(
         &mut self,
         scroll_position: gpui::Point<ScrollOffset>,
         local: bool,
         autoscroll: bool,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> WasScrolled {
         let map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
@@ -648,7 +653,7 @@ impl Editor {
         local: bool,
         autoscroll: bool,
         display_map: DisplaySnapshot,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> WasScrolled {
         hide_hover(self, cx);
@@ -681,7 +686,7 @@ impl Editor {
         self.scroll_manager.set_anchor(scroll_anchor, &display_map, true, false, window, cx);
     }
 
-    pub fn scroll_screen(&mut self, amount: &ScrollAmount, window: &mut Window, cx: &mut Context<Self>) {
+    fn scroll_screen(&mut self, amount: ScrollAmount, window: &mut Window, cx: &mut Context<Self>) {
         if matches!(self.mode, EditorMode::SingleLine) {
             cx.propagate();
             return;
@@ -717,9 +722,9 @@ impl Editor {
         }
     }
 
-    pub fn scroll_screen_with_cursor_margin(
+    pub(crate) fn scroll_screen_with_cursor_margin(
         &mut self,
-        amount: &ScrollAmount,
+        amount: ScrollAmount,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {

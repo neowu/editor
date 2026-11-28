@@ -31,20 +31,20 @@ impl ScrollHandleState {
 }
 
 #[derive(Debug, Clone)]
-pub struct TerminalScrollHandle {
+pub(crate) struct TerminalScrollHandle {
     state: Rc<RefCell<ScrollHandleState>>,
-    pub future_display_offset: Rc<Cell<Option<usize>>>,
+    pub(crate) future_display_offset: Rc<Cell<Option<usize>>>,
 }
 
 impl TerminalScrollHandle {
-    pub fn new(terminal: &Terminal) -> Self {
+    pub(crate) fn new(terminal: &Terminal) -> Self {
         Self {
             state: Rc::new(RefCell::new(ScrollHandleState::new(terminal))),
             future_display_offset: Rc::new(Cell::new(None)),
         }
     }
 
-    pub fn update(&self, terminal: &Terminal) {
+    pub(crate) fn update(&self, terminal: &Terminal) {
         *self.state.borrow_mut() = ScrollHandleState::new(terminal);
     }
 }

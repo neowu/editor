@@ -17,13 +17,13 @@ use crate::LanguageQueries;
 use crate::highlight_cache::TextHighlightCache;
 use crate::language_config::BracketPairConfig;
 
-pub static NEXT_GRAMMAR_ID: AtomicUsize = AtomicUsize::new(0);
+static NEXT_GRAMMAR_ID: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-pub struct GrammarId(pub usize);
+pub struct GrammarId(usize);
 
 impl GrammarId {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self(NEXT_GRAMMAR_ID.fetch_add(1, SeqCst))
     }
 }
@@ -38,13 +38,6 @@ impl Default for GrammarId {
 #[derive(Clone)]
 pub struct ParseableLanguage {
     language: tree_sitter::Language,
-}
-
-impl ParseableLanguage {
-    /// A parseable language valid on the calling thread.
-    pub fn resolve(&self) -> Result<tree_sitter::Language> {
-        Ok(self.language.clone())
-    }
 }
 
 impl From<tree_sitter::Language> for ParseableLanguage {
@@ -79,7 +72,6 @@ pub struct Grammar {
 
 pub struct HighlightsConfig {
     pub query: Query,
-    pub identifier_capture_indices: Vec<u32>,
     pub text_highlight_cache: TextHighlightCache,
 }
 
@@ -114,7 +106,7 @@ pub enum TextObject {
 }
 
 impl TextObject {
-    pub fn from_capture_name(name: &str) -> Option<TextObject> {
+    fn from_capture_name(name: &str) -> Option<TextObject> {
         match name {
             "function.inside" => Some(TextObject::InsideFunction),
             "function.around" => Some(TextObject::AroundFunction),
@@ -131,7 +123,7 @@ impl TextObject {
             TextObject::InsideFunction => Some(TextObject::AroundFunction),
             TextObject::InsideClass => Some(TextObject::AroundClass),
             TextObject::InsideComment => Some(TextObject::AroundComment),
-            _ => None,
+            &TextObject::AroundFunction | &TextObject::AroundClass | &TextObject::AroundComment => None,
         }
     }
 }
@@ -237,7 +229,7 @@ fn populate_capture_indices(
                     **index = Some(ix as u32);
                     continue 'outer;
                 }
-                _ => {}
+                &mut (Capture::Required(_, _) | Capture::Optional(_, _)) => {}
             }
         }
         if !name.starts_with('_') && !expected_prefixes.iter().any(|&prefix| name.starts_with(prefix)) {
@@ -270,8 +262,7 @@ fn populate_capture_indices(
 impl Grammar {
     pub fn new(language: impl Into<ParseableLanguage>) -> Self {
         let parseable_language = language.into();
-        let error_query =
-            parseable_language.resolve().ok().and_then(|ts_language| Query::new(&ts_language, "(ERROR) @error").ok());
+        let error_query = Query::new(&parseable_language.language, "(ERROR) @error").ok();
         Self {
             id: GrammarId::new(),
             highlights_config: None,
@@ -284,14 +275,9 @@ impl Grammar {
             spell_check_config: None,
             runnable_config: None,
             error_query,
-            ts_language: parseable_language.resolve().expect("resolving a native parseable language cannot fail"),
+            ts_language: parseable_language.language,
             highlight_map: HighlightMap::default(),
         }
-    }
-
-    /// A parseable [`tree_sitter::Language`] valid on the calling thread.
-    pub fn parseable_language(&self) -> Result<tree_sitter::Language> {
-        Ok(self.ts_language.clone())
     }
 
     pub const fn id(&self) -> GrammarId {
@@ -345,35 +331,15 @@ impl Grammar {
     }
 
     pub fn with_highlights_query(mut self, source: &str) -> Result<Self> {
-        let query = Query::new(&self.parseable_language()?, source)?;
+        let query = Query::new(&self.ts_language, source)?;
 
-        let mut identifier_capture_indices = Vec::new();
-        for name in [
-            "variable",
-            "constant",
-            "constructor",
-            "function",
-            "function.method",
-            "function.method.call",
-            "function.special",
-            "property",
-            "type",
-            "type.interface",
-        ] {
-            identifier_capture_indices.extend(query.capture_index_for_name(name));
-        }
-
-        self.highlights_config = Some(HighlightsConfig {
-            query,
-            identifier_capture_indices,
-            text_highlight_cache: TextHighlightCache::default(),
-        });
+        self.highlights_config = Some(HighlightsConfig { query, text_highlight_cache: TextHighlightCache::default() });
 
         Ok(self)
     }
 
     pub fn with_runnable_query(mut self, source: &str) -> Result<Self> {
-        let query = Query::new(&self.parseable_language()?, source)?;
+        let query = Query::new(&self.ts_language, source)?;
         let extra_captures: Vec<_> = query
             .capture_names()
             .iter()
@@ -392,7 +358,7 @@ impl Grammar {
     }
 
     pub fn with_outline_query(mut self, source: &str, language_name: &LanguageName) -> Result<Self> {
-        let query = Query::new(&self.parseable_language()?, source)?;
+        let query = Query::new(&self.ts_language, source)?;
         let mut item_capture_ix = 0;
         let mut name_capture_ix = 0;
         let mut context_capture_ix = None;
@@ -430,7 +396,7 @@ impl Grammar {
     }
 
     pub fn with_text_object_query(mut self, source: &str, language_name: &LanguageName) -> Result<Self> {
-        let query = Query::new(&self.parseable_language()?, source)?;
+        let query = Query::new(&self.ts_language, source)?;
 
         let mut text_objects_by_capture_ix = Vec::new();
         for (ix, name) in query.capture_names().iter().enumerate() {
@@ -446,7 +412,7 @@ impl Grammar {
     }
 
     pub fn with_brackets_query(mut self, source: &str, language_name: &LanguageName) -> Result<Self> {
-        let query = Query::new(&self.parseable_language()?, source)?;
+        let query = Query::new(&self.ts_language, source)?;
         let mut open_capture_ix = 0;
         let mut close_capture_ix = 0;
         if populate_capture_indices(
@@ -474,7 +440,7 @@ impl Grammar {
     }
 
     pub fn with_indents_query(mut self, source: &str, language_name: &LanguageName) -> Result<Self> {
-        let query = Query::new(&self.parseable_language()?, source)?;
+        let query = Query::new(&self.ts_language, source)?;
         let mut indent_capture_ix = 0;
         let mut start_capture_ix = None;
         let mut end_capture_ix = None;
@@ -511,7 +477,7 @@ impl Grammar {
     }
 
     pub fn with_injection_query(mut self, source: &str, language_name: &LanguageName) -> Result<Self> {
-        let query = Query::new(&self.parseable_language()?, source)?;
+        let query = Query::new(&self.ts_language, source)?;
         let mut language_capture_ix = None;
         let mut injection_language_capture_ix = None;
         let mut content_capture_ix = None;
@@ -581,7 +547,7 @@ impl Grammar {
         overrides: &FxHashMap<String, LanguageConfigOverride>,
         brackets: &mut BracketPairConfig,
     ) -> Result<Self> {
-        let query = Query::new(&self.parseable_language()?, source)?;
+        let query = Query::new(&self.ts_language, source)?;
 
         let mut override_configs_by_id = FxHashMap::default();
         for (ix, mut name) in query.capture_names().iter().copied().enumerate() {
@@ -624,8 +590,8 @@ impl Grammar {
         Ok(self)
     }
 
-    pub fn with_spell_check_query(mut self, source: &str, language_name: &LanguageName) -> Result<Self> {
-        let query = Query::new(&self.parseable_language()?, source)?;
+    fn with_spell_check_query(mut self, source: &str, language_name: &LanguageName) -> Result<Self> {
+        let query = Query::new(&self.ts_language, source)?;
         let mut spell_capture_ix = None;
         let mut nospell_capture_ix = None;
         // A layer may only carve text out (e.g. Markdown's inline layer), so

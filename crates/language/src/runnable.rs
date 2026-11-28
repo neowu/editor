@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
-use text::BufferId;
 use tree_sitter::QueryCapture;
 use util::RangeExt as _;
 
@@ -17,9 +16,7 @@ use crate::RunnableConfig;
 use crate::RunnableTag;
 
 pub struct RunnableRange {
-    pub buffer_id: BufferId,
     pub run_range: Range<usize>,
-    pub full_range: Range<usize>,
     pub runnable: Runnable,
     pub extra_captures: FxHashMap<String, String>,
 }
@@ -250,10 +247,8 @@ fn runnable_ranges_from_grouped_matches(
 
         runnable_ranges.push(RunnableRange {
             run_range,
-            full_range: group.range,
             runnable: Runnable { tags: tags.clone(), language: Arc::clone(&language), buffer: buffer_id },
             extra_captures,
-            buffer_id,
         });
     }
 
@@ -268,17 +263,6 @@ fn runnable_range_from_captures(
     language: Arc<Language>,
 ) -> Option<RunnableRange> {
     let mut run_range = None;
-    let first_capture = captures.first()?;
-    let full_range = captures.iter().skip(1).fold(first_capture.node.byte_range(), |mut acc, next| {
-        let byte_range = next.node.byte_range();
-        if acc.start > byte_range.start {
-            acc.start = byte_range.start;
-        }
-        if acc.end < byte_range.end {
-            acc.end = byte_range.end;
-        }
-        acc
-    });
 
     let extra_captures: SmallVec<[_; 1]> = SmallVec::from_iter(captures.iter().filter_map(|capture| {
         let tag_name = runnable_config.extra_captures.get(capture.index as usize).cloned()?;
@@ -300,13 +284,7 @@ fn runnable_range_from_captures(
 
     // A runnable has one range, even when its query pattern contributes multiple tags.
     let buffer_id = buffer.buffer_id();
-    Some(RunnableRange {
-        run_range,
-        full_range,
-        runnable: Runnable { tags, language, buffer: buffer_id },
-        extra_captures,
-        buffer_id,
-    })
+    Some(RunnableRange { run_range, runnable: Runnable { tags, language, buffer: buffer_id }, extra_captures })
 }
 
 #[cfg(test)]

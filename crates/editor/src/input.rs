@@ -27,6 +27,7 @@ use super::DeleteToNextWordEnd;
 use super::DeleteToPreviousSubwordStart;
 use super::DeleteToPreviousWordStart;
 use super::DisplayPoint;
+use super::DisplaySnapshot;
 use super::Editor;
 use super::EditorEvent;
 use super::EditorMode;
@@ -95,7 +96,7 @@ impl Editor {
         self.use_autoclose = autoclose;
     }
 
-    pub fn handle_input(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn handle_input(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
         let text: Arc<str> = text.into();
 
         if self.read_only(cx) {
@@ -467,7 +468,7 @@ impl Editor {
         });
     }
 
-    pub fn newline(&mut self, _: &Newline, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn newline(&mut self, _: &Newline, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -639,7 +640,7 @@ impl Editor {
         });
     }
 
-    pub fn newline_above(&mut self, _: &NewlineAbove, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn newline_above(&mut self, _: &NewlineAbove, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -705,7 +706,7 @@ impl Editor {
         });
     }
 
-    pub fn newline_below(&mut self, _: &NewlineBelow, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn newline_below(&mut self, _: &NewlineBelow, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -787,14 +788,14 @@ impl Editor {
         });
     }
 
-    pub fn insert(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn insert(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
         let autoindent = text.is_empty().not().then(|| AutoindentMode::Block { original_indent_columns: Vec::new() });
         self.replace_selections(text, autoindent, window, cx, false);
     }
 
     /// Collects linked edits for the current selections, pairing each linked
     /// range with `text`.
-    pub fn linked_edits_for_selections(&self, text: Arc<str>, cx: &App) -> LinkedEdits {
+    pub(crate) fn linked_edits_for_selections(&self, text: Arc<str>, cx: &App) -> LinkedEdits {
         let multibuffer_snapshot = self.buffer().read(cx).snapshot(cx);
         let mut linked_edits = LinkedEdits::new();
         if !self.linked_edit_ranges.is_empty() {
@@ -809,7 +810,7 @@ impl Editor {
         linked_edits
     }
 
-    pub fn delete_to_previous_word_start(
+    pub(crate) fn delete_to_previous_word_start(
         &mut self,
         action: &DeleteToPreviousWordStart,
         window: &mut Window,
@@ -828,8 +829,7 @@ impl Editor {
                         } else {
                             movement::previous_word_start_or_newline(map, selection.head())
                         };
-                        cursor =
-                            movement::adjust_greedy_deletion(map, selection.head(), cursor, action.ignore_brackets);
+                        cursor = adjust_greedy_deletion(map, selection.head(), cursor, action.ignore_brackets);
                         selection.set_head(cursor, SelectionGoal::None);
                     }
                 });
@@ -838,7 +838,7 @@ impl Editor {
         });
     }
 
-    pub fn delete_to_previous_subword_start(
+    pub(crate) fn delete_to_previous_subword_start(
         &mut self,
         action: &DeleteToPreviousSubwordStart,
         window: &mut Window,
@@ -857,8 +857,7 @@ impl Editor {
                         } else {
                             movement::previous_subword_start_or_newline(map, selection.head())
                         };
-                        cursor =
-                            movement::adjust_greedy_deletion(map, selection.head(), cursor, action.ignore_brackets);
+                        cursor = adjust_greedy_deletion(map, selection.head(), cursor, action.ignore_brackets);
                         selection.set_head(cursor, SelectionGoal::None);
                     }
                 });
@@ -867,7 +866,7 @@ impl Editor {
         });
     }
 
-    pub fn delete_to_next_word_end(
+    pub(crate) fn delete_to_next_word_end(
         &mut self,
         action: &DeleteToNextWordEnd,
         window: &mut Window,
@@ -885,8 +884,7 @@ impl Editor {
                         } else {
                             movement::next_word_end_or_newline(map, selection.head())
                         };
-                        cursor =
-                            movement::adjust_greedy_deletion(map, selection.head(), cursor, action.ignore_brackets);
+                        cursor = adjust_greedy_deletion(map, selection.head(), cursor, action.ignore_brackets);
                         selection.set_head(cursor, SelectionGoal::None);
                     }
                 });
@@ -895,7 +893,7 @@ impl Editor {
         });
     }
 
-    pub fn delete_to_next_subword_end(
+    pub(crate) fn delete_to_next_subword_end(
         &mut self,
         action: &DeleteToNextSubwordEnd,
         window: &mut Window,
@@ -913,8 +911,7 @@ impl Editor {
                         } else {
                             movement::next_subword_end_or_newline(map, selection.head())
                         };
-                        cursor =
-                            movement::adjust_greedy_deletion(map, selection.head(), cursor, action.ignore_brackets);
+                        cursor = adjust_greedy_deletion(map, selection.head(), cursor, action.ignore_brackets);
                         selection.set_head(cursor, SelectionGoal::None);
                     }
                 });
@@ -923,7 +920,7 @@ impl Editor {
         });
     }
 
-    pub fn delete_to_beginning_of_line(
+    pub(crate) fn delete_to_beginning_of_line(
         &mut self,
         action: &DeleteToBeginningOfLine,
         window: &mut Window,
@@ -948,7 +945,7 @@ impl Editor {
         });
     }
 
-    pub fn delete_to_end_of_line(&mut self, _: &DeleteToEndOfLine, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn delete_to_end_of_line(&mut self, _: &DeleteToEndOfLine, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -964,7 +961,7 @@ impl Editor {
         });
     }
 
-    pub fn cut_to_end_of_line(&mut self, action: &CutToEndOfLine, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn cut_to_end_of_line(&mut self, action: &CutToEndOfLine, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -990,7 +987,7 @@ impl Editor {
         });
     }
 
-    pub fn insert_snippet_at_selections(
+    pub(crate) fn insert_snippet_at_selections(
         &mut self,
         action: &InsertSnippet,
         window: &mut Window,
@@ -999,7 +996,12 @@ impl Editor {
         self.try_insert_snippet_at_selections(action, window, cx).log_err();
     }
 
-    pub fn toggle_block_comments(&mut self, _: &ToggleBlockComments, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_block_comments(
+        &mut self,
+        _: &ToggleBlockComments,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.read_only(cx) {
             return;
         }
@@ -1140,7 +1142,7 @@ impl Editor {
         });
     }
 
-    pub fn toggle_comments(&mut self, action: &ToggleComments, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_comments(&mut self, action: &ToggleComments, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -1409,7 +1411,7 @@ impl Editor {
         });
     }
 
-    pub fn unwrap_syntax_node(&mut self, _: &UnwrapSyntaxNode, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn unwrap_syntax_node(&mut self, _: &UnwrapSyntaxNode, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -1608,7 +1610,7 @@ impl Editor {
         Some(linked_edits)
     }
 
-    pub(super) fn marked_text_ranges(&self, cx: &App) -> Option<Vec<Range<MultiBufferOffsetUtf16>>> {
+    fn marked_text_ranges(&self, cx: &App) -> Option<Vec<Range<MultiBufferOffsetUtf16>>> {
         let snapshot = self.buffer.read(cx).read(cx);
         let (_, ranges) = self.text_highlights(HighlightKey::InputComposition, cx)?;
         Some(
@@ -1624,7 +1626,7 @@ impl Editor {
     ///
     /// Early returns if the editor is in read-only mode, without applying any
     /// edits.
-    pub(super) fn replace_selections(
+    fn replace_selections(
         &mut self,
         text: &str,
         autoindent_mode: Option<AutoindentMode>,
@@ -2517,4 +2519,81 @@ impl EntityInputHandler for Editor {
     fn accepts_text_input(&self, _window: &mut Window, _cx: &mut Context<Self>) -> bool {
         self.expects_character_input
     }
+}
+
+/// Text movements are too greedy, making deletions too greedy too.
+/// Makes deletions more ergonomic by potentially reducing the deletion range based on its text contents:
+/// * whitespace sequences with length >= 2 stop the deletion after removal (despite movement jumping over the word behind the whitespaces)
+/// * brackets stop the deletion after removal (despite movement currently not accounting for these and jumping over)
+fn adjust_greedy_deletion(
+    map: &DisplaySnapshot,
+    delete_from: DisplayPoint,
+    delete_until: DisplayPoint,
+    ignore_brackets: bool,
+) -> DisplayPoint {
+    if delete_from == delete_until {
+        return delete_until;
+    }
+    let is_backward = delete_from > delete_until;
+    let delete_range = if is_backward {
+        map.display_point_to_point(delete_until, Bias::Left).to_offset(map.buffer_snapshot())
+            ..map.display_point_to_point(delete_from, Bias::Right).to_offset(map.buffer_snapshot())
+    } else {
+        map.display_point_to_point(delete_from, Bias::Left).to_offset(map.buffer_snapshot())
+            ..map.display_point_to_point(delete_until, Bias::Right).to_offset(map.buffer_snapshot())
+    };
+
+    let trimmed_delete_range = if ignore_brackets {
+        delete_range
+    } else {
+        let brackets_in_delete_range = map
+            .buffer_snapshot()
+            .bracket_ranges(delete_range.clone())
+            .into_iter()
+            .flatten()
+            .flat_map(|(left_bracket, right_bracket)| {
+                [left_bracket.start, left_bracket.end, right_bracket.start, right_bracket.end]
+            })
+            .filter(|&bracket| delete_range.start < bracket && bracket < delete_range.end);
+        let closest_bracket = if is_backward { brackets_in_delete_range.max() } else { brackets_in_delete_range.min() };
+
+        if is_backward {
+            closest_bracket.unwrap_or(delete_range.start)..delete_range.end
+        } else {
+            delete_range.start..closest_bracket.unwrap_or(delete_range.end)
+        }
+    };
+
+    let mut whitespace_sequences = Vec::new();
+    let mut current_offset = trimmed_delete_range.start;
+    let mut whitespace_sequence_length = MultiBufferOffset(0);
+    let mut whitespace_sequence_start = MultiBufferOffset(0);
+    for ch in map.buffer_snapshot().text_for_range(trimmed_delete_range.clone()).flat_map(str::chars) {
+        if ch.is_whitespace() {
+            if whitespace_sequence_length == MultiBufferOffset(0) {
+                whitespace_sequence_start = current_offset;
+            }
+            whitespace_sequence_length += 1;
+        } else {
+            if whitespace_sequence_length >= MultiBufferOffset(2) {
+                whitespace_sequences.push((whitespace_sequence_start, current_offset));
+            }
+            whitespace_sequence_start = MultiBufferOffset(0);
+            whitespace_sequence_length = MultiBufferOffset(0);
+        }
+        current_offset += ch.len_utf8();
+    }
+    if whitespace_sequence_length >= MultiBufferOffset(2) {
+        whitespace_sequences.push((whitespace_sequence_start, current_offset));
+    }
+
+    let closest_whitespace_end = if is_backward {
+        whitespace_sequences.last().map(|&(start, _)| start)
+    } else {
+        whitespace_sequences.first().map(|&(_, end)| end)
+    };
+
+    closest_whitespace_end
+        .unwrap_or(if is_backward { trimmed_delete_range.start } else { trimmed_delete_range.end })
+        .to_display_point(map)
 }

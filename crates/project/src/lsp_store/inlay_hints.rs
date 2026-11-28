@@ -34,7 +34,7 @@ use crate::ResolveState;
 use crate::lsp_command::InlayHints;
 
 pub type CacheInlayHints = FxHashMap<LanguageServerId, Vec<(InlayId, InlayHint)>>;
-pub type CacheInlayHintsTask = Shared<Task<Result<CacheInlayHints, Arc<anyhow::Error>>>>;
+pub(crate) type CacheInlayHintsTask = Shared<Task<Result<CacheInlayHints, Arc<anyhow::Error>>>>;
 
 pub(super) fn hints_in_range(
     mut hints: Vec<InlayHint>,
@@ -316,7 +316,7 @@ impl LspStore {
         self.mark_inlay_hints_refresh_pending(server_id, cx);
     }
 
-    pub(super) fn mark_inlay_hints_refresh_pending(&mut self, server_id: LanguageServerId, cx: &mut Context<Self>) {
+    fn mark_inlay_hints_refresh_pending(&mut self, server_id: LanguageServerId, cx: &mut Context<Self>) {
         for lsp_data in self.lsp_data.values_mut() {
             lsp_data.inlay_hints.mark_refresh_pending(server_id);
         }

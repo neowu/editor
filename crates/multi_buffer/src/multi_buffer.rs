@@ -107,7 +107,7 @@ pub use self::iterators::MultiBufferBytes;
 pub use self::iterators::MultiBufferChunks;
 pub use self::iterators::MultiBufferRows;
 pub use self::iterators::ReversedMultiBufferBytes;
-pub use self::iterators::ReversedMultiBufferChunks;
+pub(crate) use self::iterators::ReversedMultiBufferChunks;
 pub use self::path_key::PathKey;
 use self::transaction::History;
 
@@ -619,7 +619,7 @@ impl ExcerptRange<text::Anchor> {
 }
 
 #[derive(Clone, Debug)]
-pub struct ExcerptSummary {
+struct ExcerptSummary {
     path_key: PathKey,
     path_key_index: Option<PathKeyIndex>,
     max_anchor: Option<text::Anchor>,
@@ -629,7 +629,7 @@ pub struct ExcerptSummary {
 }
 
 impl ExcerptSummary {
-    pub fn min() -> Self {
+    fn min() -> Self {
         ExcerptSummary {
             path_key: PathKey::min(),
             path_key_index: None,
@@ -646,7 +646,7 @@ impl ExcerptSummary {
 }
 
 #[derive(Debug, Clone)]
-pub struct DiffTransformSummary {
+struct DiffTransformSummary {
     input: MBTextSummary,
     output: MBTextSummary,
 }
@@ -718,7 +718,7 @@ impl MultiBuffer {
     }
 
     #[inline]
-    pub fn new_(capability: Capability, snapshot: MultiBufferSnapshot) -> Self {
+    fn new_(capability: Capability, snapshot: MultiBufferSnapshot) -> Self {
         Self {
             snapshot: RefCell::new(snapshot),
             buffers: BTreeMap::default(),
@@ -1209,7 +1209,7 @@ impl MultiBuffer {
     }
 
     // If point is at the end of the buffer, the last excerpt is returned
-    pub fn point_to_buffer_offset<T: ToOffset>(&self, point: T, cx: &App) -> Option<(Entity<Buffer>, BufferOffset)> {
+    fn point_to_buffer_offset<T: ToOffset>(&self, point: T, cx: &App) -> Option<(Entity<Buffer>, BufferOffset)> {
         let snapshot = self.read(cx);
         let (buffer, offset) = snapshot.point_to_buffer_offset(point)?;
         Some((self.buffers.get(&buffer.buffer_id())?.buffer.clone(), offset))
@@ -1546,7 +1546,7 @@ impl MultiBuffer {
         self.snapshot.get_mut().use_extended_diff_range = use_extended;
     }
 
-    pub fn single_hunk_is_expanded(&self, range: Range<Anchor>, cx: &App) -> bool {
+    fn single_hunk_is_expanded(&self, range: Range<Anchor>, cx: &App) -> bool {
         let snapshot = self.read(cx);
         let mut cursor = snapshot.diff_transforms.cursor::<MultiBufferOffset>(());
         let offset_range = range.to_offset(&snapshot);
@@ -1584,11 +1584,11 @@ impl MultiBuffer {
         false
     }
 
-    pub fn expand_or_collapse_diff_hunks_inner(
+    fn expand_or_collapse_diff_hunks_inner(
         &mut self,
         ranges: impl IntoIterator<Item = (Range<Point>, Option<Anchor>)>,
         expand: bool,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Vec<Edit<MultiBufferOffset>> {
         if self.snapshot.borrow().all_diff_hunks_expanded && !expand {
             return Vec::new();
@@ -2325,7 +2325,7 @@ impl MultiBufferSnapshot {
         self.diff_transforms.summary().output.len
     }
 
-    pub fn max_position<MBD: MultiBufferDimension>(&self) -> MBD {
+    fn max_position<MBD: MultiBufferDimension>(&self) -> MBD {
         MBD::from_summary(&self.text_summary())
     }
 
@@ -2424,15 +2424,15 @@ impl MultiBufferSnapshot {
         self.convert_dimension(offset, text::BufferSnapshot::offset_to_point)
     }
 
-    pub fn offset_to_point_utf16(&self, offset: MultiBufferOffset) -> PointUtf16 {
+    fn offset_to_point_utf16(&self, offset: MultiBufferOffset) -> PointUtf16 {
         self.convert_dimension(offset, text::BufferSnapshot::offset_to_point_utf16)
     }
 
-    pub fn point_to_point_utf16(&self, point: Point) -> PointUtf16 {
+    fn point_to_point_utf16(&self, point: Point) -> PointUtf16 {
         self.convert_dimension(point, text::BufferSnapshot::point_to_point_utf16)
     }
 
-    pub fn point_utf16_to_point(&self, point: PointUtf16) -> Point {
+    fn point_utf16_to_point(&self, point: PointUtf16) -> Point {
         self.convert_dimension(point, text::BufferSnapshot::point_utf16_to_point)
     }
 
@@ -2440,15 +2440,15 @@ impl MultiBufferSnapshot {
         self.convert_dimension(point, text::BufferSnapshot::point_to_offset)
     }
 
-    pub fn point_to_offset_utf16(&self, point: Point) -> MultiBufferOffsetUtf16 {
+    fn point_to_offset_utf16(&self, point: Point) -> MultiBufferOffsetUtf16 {
         self.convert_dimension(point, text::BufferSnapshot::point_to_offset_utf16)
     }
 
-    pub fn offset_utf16_to_offset(&self, offset: MultiBufferOffsetUtf16) -> MultiBufferOffset {
+    fn offset_utf16_to_offset(&self, offset: MultiBufferOffsetUtf16) -> MultiBufferOffset {
         self.convert_dimension(offset, text::BufferSnapshot::offset_utf16_to_offset)
     }
 
-    pub fn offset_to_offset_utf16(&self, offset: MultiBufferOffset) -> MultiBufferOffsetUtf16 {
+    fn offset_to_offset_utf16(&self, offset: MultiBufferOffset) -> MultiBufferOffsetUtf16 {
         self.convert_dimension(offset, text::BufferSnapshot::offset_to_offset_utf16)
     }
 
@@ -2456,7 +2456,7 @@ impl MultiBufferSnapshot {
         self.convert_dimension(point, text::BufferSnapshot::point_utf16_to_offset)
     }
 
-    pub fn point_utf16_to_offset_utf16(&self, point: PointUtf16) -> MultiBufferOffsetUtf16 {
+    fn point_utf16_to_offset_utf16(&self, point: PointUtf16) -> MultiBufferOffsetUtf16 {
         self.convert_dimension(point, text::BufferSnapshot::point_utf16_to_offset_utf16)
     }
 

@@ -1472,7 +1472,7 @@ impl LspStore {
         self.shutdown_all_language_servers(cx).detach();
     }
 
-    pub fn shutdown_all_language_servers(&mut self, cx: &mut Context<Self>) -> Task<()> {
+    fn shutdown_all_language_servers(&mut self, cx: &mut Context<Self>) -> Task<()> {
         let local = &mut self.local;
         local.language_server_restart_tasks.clear();
         let language_servers_to_stop = local.language_server_ids.values().map(|state| state.id).collect();

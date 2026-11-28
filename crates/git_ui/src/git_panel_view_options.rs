@@ -20,9 +20,9 @@ pub(crate) enum GitPanelGroupBy {
 /// not persisted: every window starts with the tree view grouped by status.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) struct GitPanelViewOptions {
-    pub sort_by: GitPanelSortBy,
-    pub group_by: GitPanelGroupBy,
-    pub tree_view: bool,
+    pub(crate) sort_by: GitPanelSortBy,
+    pub(crate) group_by: GitPanelGroupBy,
+    pub(crate) tree_view: bool,
 }
 
 impl Default for GitPanelViewOptions {

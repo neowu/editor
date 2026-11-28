@@ -42,29 +42,29 @@ use crate::PointForPosition;
 use crate::SelectPhase;
 
 #[derive(Debug)]
-pub struct HoveredLinkState {
-    pub last_trigger_point: TriggerPoint,
-    pub preferred_kind: GotoDefinitionKind,
-    pub symbol_range: Option<RangeInEditor>,
-    pub links: Vec<HoverLink>,
-    pub task: Option<Task<Option<()>>>,
+pub(crate) struct HoveredLinkState {
+    last_trigger_point: TriggerPoint,
+    preferred_kind: GotoDefinitionKind,
+    pub(crate) symbol_range: Option<RangeInEditor>,
+    pub(crate) links: Vec<HoverLink>,
+    task: Option<Task<Option<()>>>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum RangeInEditor {
+pub(crate) enum RangeInEditor {
     Text(Range<Anchor>),
     Inlay(InlayHighlight),
 }
 
 impl RangeInEditor {
-    pub fn as_text_range(&self) -> Option<Range<Anchor>> {
+    pub(crate) fn as_text_range(&self) -> Option<Range<Anchor>> {
         match self {
             Self::Text(range) => Some(range.clone()),
             Self::Inlay(_) => None,
         }
     }
 
-    pub fn point_within_range(&self, trigger_point: &TriggerPoint, snapshot: &EditorSnapshot) -> bool {
+    fn point_within_range(&self, trigger_point: &TriggerPoint, snapshot: &EditorSnapshot) -> bool {
         match (self, trigger_point) {
             (Self::Text(range), TriggerPoint::Text(point)) => {
                 let buffer_snapshot = snapshot.buffer_snapshot();
@@ -103,7 +103,7 @@ pub enum HoverLink {
 /// existing navigation paths: `file://` URIs go through the LSP location
 /// pipeline (so an optional `#line[,column]` fragment is honored), while
 /// any other scheme is opened as a regular URL.
-pub fn document_link_target_to_hover_link(target: &str, server_id: LanguageServerId) -> HoverLink {
+fn document_link_target_to_hover_link(target: &str, server_id: LanguageServerId) -> HoverLink {
     if let Ok(url) = url::Url::parse(target)
         && url.scheme() == "file"
         && let Ok(uri) = lsp_types::Uri::from_str(target)
@@ -121,14 +121,14 @@ pub fn document_link_target_to_hover_link(target: &str, server_id: LanguageServe
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InlayHighlight {
-    pub inlay: InlayId,
-    pub inlay_position: Anchor,
-    pub range: Range<usize>,
+pub(crate) struct InlayHighlight {
+    pub(crate) inlay: InlayId,
+    pub(crate) inlay_position: Anchor,
+    pub(crate) range: Range<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TriggerPoint {
+pub(crate) enum TriggerPoint {
     Text(Anchor),
     InlayHint(InlayHighlight, lsp_types::Location, LanguageServerId),
 }
@@ -142,7 +142,7 @@ impl TriggerPoint {
     }
 }
 
-pub fn exclude_link_to_position(
+pub(crate) fn exclude_link_to_position(
     buffer: &Entity<language::Buffer>,
     current_position: &text::Anchor,
     location: &LocationLink,
@@ -252,6 +252,7 @@ impl Editor {
                 }
                 ResolvedPath::AbsPath { .. } => true,
             },
+            // lint: expect(wildcard_match) only some variants matter here
             _ => true,
         });
         let definitions = (refresh && self.lsp_data_enabled() && point.as_valid().is_some())
@@ -316,16 +317,17 @@ impl Editor {
     }
 }
 
-pub fn show_link_definition(
+pub(crate) fn show_link_definition(
     shift_held: bool,
     editor: &mut Editor,
     trigger_point: TriggerPoint,
     snapshot: &EditorSnapshot,
-    window: &mut Window,
+    window: &Window,
     cx: &mut Context<Editor>,
 ) {
     let preferred_kind = match trigger_point {
         TriggerPoint::Text(_) if !shift_held => GotoDefinitionKind::Symbol,
+        // lint: expect(wildcard_match) only some variants matter here
         _ => GotoDefinitionKind::Type,
     };
 
@@ -666,14 +668,14 @@ pub(crate) fn find_url_from_range(
 
 #[derive(Debug, Clone)]
 pub struct ResolvedFileTarget {
-    pub resolved_path: ResolvedPath,
-    pub row: Option<u32>,
-    pub column: Option<u32>,
+    pub(crate) resolved_path: ResolvedPath,
+    row: Option<u32>,
+    column: Option<u32>,
 }
 
 impl ResolvedFileTarget {
     /// After opening a file, navigate the editor to the row/column position if present.
-    pub fn navigate_item_to_position(&self, item: Box<dyn crate::ItemHandle>, cx: &mut AsyncWindowContext) {
+    pub(crate) fn navigate_item_to_position(&self, item: Box<dyn crate::ItemHandle>, cx: &mut AsyncWindowContext) {
         if let Some(row) = self.row {
             let col = self.column.unwrap_or(0);
             if let Some(active_editor) = item.downcast::<Editor>() {

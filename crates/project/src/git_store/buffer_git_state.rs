@@ -7,10 +7,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use async_macos::yield_now;
 use buffer_diff::BufferDiff;
-use buffer_diff::DiffHunk;
 use buffer_diff::DiffOperations;
-use buffer_diff::PendingHunk;
-use buffer_diff::PendingSense;
 use futures::channel::oneshot;
 use gpui::App;
 use gpui::AppContext as _;
@@ -97,15 +94,6 @@ fn head_text_shows_deletions(
     (has_staged_diff && !index_matches_head) || !buffer_text.chunks().equals_str(head_text)
 }
 
-pub(super) fn pending_hunks(hunks: &[DiffHunk], version: &clock::Global, sense: PendingSense) -> Vec<PendingHunk> {
-    hunks
-        .iter()
-        .map(|hunk| {
-            PendingHunk::new(hunk.buffer_range.clone(), hunk.diff_base_byte_range.clone(), version.clone(), sense)
-        })
-        .collect()
-}
-
 #[derive(Clone, Debug)]
 pub(super) enum DiffBasesChange {
     Index(Option<String>),
@@ -149,6 +137,7 @@ impl DiffOperations for GitDiffOperations {
                 let secondary_diff = diff.read(cx).secondary_diff().context("diff has no unstaged secondary")?;
                 project.stage_hunks(buffer, secondary_diff, buffer_ranges, cx)
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => Ok(()),
         });
         result.and_then(|result| result).log_err();
@@ -167,6 +156,7 @@ impl DiffOperations for GitDiffOperations {
                 let buffer = buffer.context("uncommitted diff has no worktree buffer")?;
                 project.unstage_uncommitted_hunks(buffer, diff, buffer_ranges, cx)
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => Ok(()),
         });
         result.and_then(|result| result).log_err();

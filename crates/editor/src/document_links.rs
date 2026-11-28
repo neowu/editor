@@ -66,8 +66,8 @@ impl Editor {
     ///
     /// Returns `None` when nothing is cached at `position` so callers can skip
     /// spawning anything.
-    pub fn document_links_at(
-        &mut self,
+    pub(crate) fn document_links_at(
+        &self,
         buffer: Entity<Buffer>,
         position: text::Anchor,
         cx: &mut Context<Self>,

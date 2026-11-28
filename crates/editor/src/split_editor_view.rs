@@ -61,20 +61,20 @@ const RESIZE_HANDLE_WIDTH: f32 = 8.0;
 #[derive(Debug, Clone)]
 struct DraggedSplitHandle;
 
-pub struct SplitEditorState {
+pub(crate) struct SplitEditorState {
     visible_left_ratio: f32,
 }
 
 impl SplitEditorState {
-    pub const fn new(_cx: &mut App) -> Self {
+    pub(crate) const fn new(_cx: &mut App) -> Self {
         Self { visible_left_ratio: 0.5 }
     }
 
-    pub const fn left_ratio(&self) -> f32 {
+    const fn left_ratio(&self) -> f32 {
         self.visible_left_ratio
     }
 
-    pub fn right_ratio(&self) -> f32 {
+    fn right_ratio(&self) -> f32 {
         1.0 - self.visible_left_ratio
     }
 
@@ -101,14 +101,14 @@ impl SplitEditorState {
 }
 
 #[derive(IntoElement)]
-pub struct SplitEditorView {
+pub(crate) struct SplitEditorView {
     splittable_editor: Entity<SplittableEditor>,
     style: EditorStyle,
     split_state: Entity<SplitEditorState>,
 }
 
 impl SplitEditorView {
-    pub const fn new(
+    pub(crate) const fn new(
         splittable_editor: Entity<SplittableEditor>,
         style: EditorStyle,
         split_state: Entity<SplitEditorState>,

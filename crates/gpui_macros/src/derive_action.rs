@@ -1,12 +1,11 @@
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
+use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::Data;
 use syn::DeriveInput;
 use syn::LitStr;
 use syn::Token;
-
-use crate::register_action::generate_register_action;
 
 pub(crate) fn derive_action(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -110,4 +109,16 @@ pub(crate) fn derive_action(input: TokenStream) -> TokenStream {
             }
         }
     })
+}
+
+fn generate_register_action(type_name: &Ident, name: &str, build: &TokenStream2) -> TokenStream2 {
+    quote! {
+        gpui::private::inventory::submit! {
+            gpui::MacroActionData {
+                name: #name,
+                type_id: ::std::any::TypeId::of::<#type_name>,
+                build: #build,
+            }
+        }
+    }
 }

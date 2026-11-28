@@ -326,7 +326,7 @@ impl RenderedLine {
         }
     }
 
-    pub(crate) fn source_index_for_position(&self, position: Point<Pixels>) -> Result<usize, usize> {
+    fn source_index_for_position(&self, position: Point<Pixels>) -> Result<usize, usize> {
         let adjusted_position = (|| {
             if self.text_align == TextAlign::Left {
                 return None;
@@ -408,6 +408,7 @@ fn source_index_for_rendered_index(mappings: &[SourceMapping], source_end: usize
 /// Within a mapping, a rendered index and its source index advance together. Text longer than
 /// its source, such as dashes substituted for a run of hyphens, would run out of source that
 /// way, so each of its characters gets a mapping of its own.
+// lint: expect(misplaced_item) builds the SourceMapping list the lookups here read; their tests use it
 pub(crate) fn push_source_mappings(
     mappings: &mut Vec<SourceMapping>,
     rendered_start: usize,

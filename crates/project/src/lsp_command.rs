@@ -27,8 +27,6 @@ use language::ToPointUtf16 as _;
 use language::Transaction;
 use language::Unclipped;
 use language::language_settings::InlayHintKind;
-use language::language_settings::LanguageSettings;
-use language::lsp_to_symbol_kind;
 use language::point_from_lsp;
 use language::point_to_lsp;
 use language::range_from_lsp;
@@ -102,18 +100,7 @@ fn code_action_kind_matches(requested: &CodeActionKind, actual: &CodeActionKind)
     actual_str == requested_str || actual_str.strip_prefix(requested_str).is_some_and(|suffix| suffix.starts_with('.'))
 }
 
-pub fn lsp_formatting_options(settings: &LanguageSettings) -> lsp_types::FormattingOptions {
-    lsp_types::FormattingOptions {
-        tab_size: settings.tab_size.into(),
-        insert_spaces: !settings.hard_tabs,
-        trim_trailing_whitespace: Some(settings.remove_trailing_whitespace_on_save),
-        trim_final_newlines: Some(settings.ensure_final_newline_on_save),
-        insert_final_newline: Some(settings.ensure_final_newline_on_save),
-        ..lsp_types::FormattingOptions::default()
-    }
-}
-
-pub fn file_path_to_lsp_url(path: &Path) -> Result<lsp_types::Uri> {
+pub(crate) fn file_path_to_lsp_url(path: &Path) -> Result<lsp_types::Uri> {
     match lsp_types::Uri::from_file_path(path) {
         Ok(url) => Ok(url),
         Err(()) => anyhow::bail!("Invalid file path provided to LSP request: {path:?}"),
@@ -180,45 +167,45 @@ pub trait LspCommand: 'static + Sized + Send + Debug {
 
 #[derive(Debug)]
 pub(crate) struct PrepareRename {
-    pub position: PointUtf16,
+    pub(crate) position: PointUtf16,
 }
 
 #[derive(Debug)]
 pub(crate) struct PerformRename {
-    pub position: PointUtf16,
-    pub new_name: String,
-    pub push_to_history: bool,
-    pub language_server_id: Option<LanguageServerId>,
+    pub(crate) position: PointUtf16,
+    pub(crate) new_name: String,
+    pub(crate) push_to_history: bool,
+    pub(crate) language_server_id: Option<LanguageServerId>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct GetDefinitions {
-    pub position: PointUtf16,
+pub(crate) struct GetDefinitions {
+    pub(crate) position: PointUtf16,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct GetDeclarations {
-    pub position: PointUtf16,
+    pub(crate) position: PointUtf16,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct GetTypeDefinitions {
-    pub position: PointUtf16,
+    pub(crate) position: PointUtf16,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct GetImplementations {
-    pub position: PointUtf16,
+    pub(crate) position: PointUtf16,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct GetReferences {
-    pub position: PointUtf16,
+    pub(crate) position: PointUtf16,
 }
 
 #[derive(Debug)]
 pub(crate) struct GetDocumentHighlights {
-    pub position: PointUtf16,
+    pub(crate) position: PointUtf16,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -226,32 +213,32 @@ pub(crate) struct GetDocumentSymbols;
 
 #[derive(Clone, Debug)]
 pub(crate) struct GetHover {
-    pub position: PointUtf16,
+    pub(crate) position: PointUtf16,
 }
 
 #[derive(Debug)]
 pub(crate) struct GetCompletions {
-    pub position: PointUtf16,
-    pub context: CompletionContext,
+    pub(crate) position: PointUtf16,
+    pub(crate) context: CompletionContext,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct GetCodeActions {
-    pub range: Range<Anchor>,
-    pub kinds: Option<Vec<CodeActionKind>>,
+    pub(crate) range: Range<Anchor>,
+    pub(crate) kinds: Option<Vec<CodeActionKind>>,
 }
 
 #[derive(Debug)]
 pub(crate) struct OnTypeFormatting {
-    pub position: PointUtf16,
-    pub trigger: String,
-    pub options: lsp_types::FormattingOptions,
-    pub push_to_history: bool,
+    pub(crate) position: PointUtf16,
+    pub(crate) trigger: String,
+    pub(crate) options: lsp_types::FormattingOptions,
+    pub(crate) push_to_history: bool,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct InlayHints {
-    pub range: Range<Anchor>,
+    pub(crate) range: Range<Anchor>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -259,7 +246,7 @@ pub(crate) struct SemanticTokensFull;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SemanticTokensDelta {
-    pub previous_result_id: SharedString,
+    pub(crate) previous_result_id: SharedString,
 }
 
 #[derive(Debug)]
@@ -276,9 +263,9 @@ impl Default for SemanticTokensResponse {
 
 #[derive(Debug)]
 pub(crate) struct SemanticTokensEdit {
-    pub start: u32,
-    pub delete_count: u32,
-    pub data: Vec<u32>,
+    pub(crate) start: u32,
+    pub(crate) delete_count: u32,
+    pub(crate) data: Vec<u32>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -305,16 +292,16 @@ impl GetCodeLens {
 
 #[derive(Debug)]
 pub(crate) struct LinkedEditingRange {
-    pub position: Anchor,
+    pub(crate) position: Anchor,
 }
 
 #[derive(Clone, Debug)]
-pub struct GetDocumentDiagnostics {
+pub(crate) struct GetDocumentDiagnostics {
     /// We cannot blindly rely on server's capabilities.diagnostic_provider, as they're a singular field, whereas
     /// a server can register multiple diagnostic providers post-mortem.
-    pub registration_id: Option<SharedString>,
-    pub identifier: Option<SharedString>,
-    pub previous_result_id: Option<SharedString>,
+    pub(crate) registration_id: Option<SharedString>,
+    pub(crate) identifier: Option<SharedString>,
+    pub(crate) previous_result_id: Option<SharedString>,
 }
 
 impl LspCommand for PrepareRename {
@@ -613,7 +600,7 @@ fn language_server_for_buffer(
         .context("no language server found for buffer")
 }
 
-pub async fn location_links_from_lsp(
+async fn location_links_from_lsp(
     message: Option<lsp_types::GotoDefinitionResponse>,
     lsp_store: Entity<LspStore>,
     buffer: Entity<Buffer>,
@@ -684,7 +671,7 @@ fn definition_locations_from_lsp(
     locations
 }
 
-pub async fn location_link_from_lsp(
+pub(crate) async fn location_link_from_lsp(
     link: lsp_types::LocationLink,
     lsp_store: &Entity<LspStore>,
     buffer: &Entity<Buffer>,
@@ -892,7 +879,6 @@ impl LspCommand for GetDocumentSymbols {
                 .into_iter()
                 .map(|lsp_symbol| DocumentSymbol {
                     name: lsp_symbol.name,
-                    kind: lsp_to_symbol_kind(lsp_symbol.kind),
                     range: range_from_lsp(lsp_symbol.location.range),
                     selection_range: range_from_lsp(lsp_symbol.location.range),
                     children: Vec::new(),
@@ -902,7 +888,6 @@ impl LspCommand for GetDocumentSymbols {
                 fn convert_symbol(lsp_symbol: lsp_types::DocumentSymbol) -> DocumentSymbol {
                     DocumentSymbol {
                         name: lsp_symbol.name,
-                        kind: lsp_to_symbol_kind(lsp_symbol.kind),
                         range: range_from_lsp(lsp_symbol.range),
                         selection_range: range_from_lsp(lsp_symbol.selection_range),
                         children: lsp_symbol
@@ -1155,13 +1140,13 @@ impl LspCommand for GetCompletions {
     }
 }
 
-pub struct ParsedCompletionEdit {
-    pub replace_range: Range<Anchor>,
-    pub insert_range: Option<Range<Anchor>>,
-    pub new_text: String,
+struct ParsedCompletionEdit {
+    replace_range: Range<Anchor>,
+    insert_range: Option<Range<Anchor>>,
+    new_text: String,
 }
 
-pub(crate) fn parse_completion_text_edit(
+fn parse_completion_text_edit(
     edit: &lsp_types::CompletionTextEdit,
     snapshot: &BufferSnapshot,
 ) -> Option<ParsedCompletionEdit> {
@@ -1989,7 +1974,7 @@ impl LspCommand for LinkedEditingRange {
 }
 
 impl GetDocumentDiagnostics {
-    pub fn deserialize_workspace_diagnostics_report(
+    pub(crate) fn deserialize_workspace_diagnostics_report(
         report: lsp_types::WorkspaceDiagnosticReportResult,
         server_id: LanguageServerId,
         registration_id: Option<SharedString>,
@@ -2046,9 +2031,9 @@ impl GetDocumentDiagnostics {
 }
 
 #[derive(Debug)]
-pub struct WorkspaceLspPullDiagnostics {
-    pub version: Option<i32>,
-    pub diagnostics: LspPullDiagnostics,
+pub(crate) struct WorkspaceLspPullDiagnostics {
+    pub(crate) version: Option<i32>,
+    pub(crate) diagnostics: LspPullDiagnostics,
 }
 
 fn process_full_workspace_diagnostics_report(

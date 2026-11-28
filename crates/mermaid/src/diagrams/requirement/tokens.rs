@@ -196,7 +196,7 @@ const ALL: [T; 61] = [
 ];
 
 /// The names Mermaid's parser reports for each token kind, indexed by [`T`].
-pub(crate) const NAMES: [&str; 61] = [
+const NAMES: [&str; 61] = [
     "$end",
     "INVALID",
     "title",
@@ -275,43 +275,4 @@ impl T {
     pub(crate) fn through(self, to: T) -> impl Iterator<Item = T> {
         ALL.into_iter().filter(move |&t| t >= self && t <= to)
     }
-}
-
-/// The keyword a lowercased word names. Every keyword is matched without regard to case and must
-/// end at a word boundary.
-pub(crate) fn keyword(word: &str) -> Option<T> {
-    Some(match word {
-        "requirementdiagram" => T::Rd,
-        "id" => T::Id,
-        "text" => T::Text,
-        "risk" => T::Risk,
-        "verifymethod" => T::Verifymthd,
-        "requirement" => T::Requirement,
-        "functionalrequirement" => T::FunctionalRequirement,
-        "interfacerequirement" => T::InterfaceRequirement,
-        "performancerequirement" => T::PerformanceRequirement,
-        "physicalrequirement" => T::PhysicalRequirement,
-        "designconstraint" => T::DesignConstraint,
-        "low" => T::LowRisk,
-        "medium" => T::MedRisk,
-        "high" => T::HighRisk,
-        "analysis" => T::VerifyAnalysis,
-        "demonstration" => T::VerifyDemonstration,
-        "inspection" => T::VerifyInspection,
-        "test" => T::VerifyTest,
-        "element" => T::Element,
-        "contains" => T::Contains,
-        "copies" => T::Copies,
-        "derives" => T::Derives,
-        "satisfies" => T::Satisfies,
-        "verifies" => T::Verifies,
-        "refines" => T::Refines,
-        "traces" => T::Traces,
-        "type" => T::Type,
-        "docref" => T::Docref,
-        "style" => T::Style,
-        "classdef" => T::Classdef,
-        "class" => T::Class,
-        _ => return None,
-    })
 }

@@ -2,7 +2,7 @@
 
 /// The kind of failure, mirroring Pele's `PeleErrorCode`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Code {
+pub(crate) enum Code {
     /// A configured limit was exceeded.
     Limit,
     /// The source parsed but describes something invalid.
@@ -15,7 +15,7 @@ pub enum Code {
 
 impl Code {
     /// The code as the TypeScript API reports it.
-    pub const fn as_str(self) -> &'static str {
+    pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Limit => "limit",
             Self::Semantic => "semantic",
@@ -29,17 +29,17 @@ impl Code {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Error {
     /// The kind of failure.
-    pub code: Code,
+    pub(crate) code: Code,
     /// One-based UTF-16 column, or 0 when the error has no position.
-    pub column: u32,
+    pub(crate) column: u32,
     /// One-based line, or 0 when the error has no position.
-    pub line: u32,
+    pub(crate) line: u32,
     /// The human-readable message.
-    pub message: String,
+    pub(crate) message: String,
     /// The offending source line with a caret under the column, or empty.
-    pub snippet: String,
+    pub(crate) snippet: String,
     /// The detected diagram type, when known.
-    pub r#type: Option<&'static str>,
+    pub(crate) r#type: Option<&'static str>,
 }
 
 impl Error {

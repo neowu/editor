@@ -79,18 +79,18 @@ pub struct DocumentSymbol {
     /// More detail for this symbol, e.g the signature of a function. If not provided the
     /// name is used.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub detail: Option<String>,
+    detail: Option<String>,
     /// The kind of this symbol.
-    pub kind: SymbolKind,
+    kind: SymbolKind,
     /// Tags for this completion item.
     ///
     /// @since 3.15.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tags: Option<Vec<SymbolTag>>,
+    tags: Option<Vec<SymbolTag>>,
     /// Indicates if this symbol is deprecated.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[deprecated(note = "Use tags instead")]
-    pub deprecated: Option<bool>,
+    deprecated: Option<bool>,
     /// The range enclosing this symbol not including leading/trailing whitespace but everything else
     /// like comments. This information is typically used to determine if the the clients cursor is
     /// inside the symbol to reveal in the symbol in the UI.
@@ -118,12 +118,12 @@ pub struct SymbolInformation {
     ///
     /// @since 3.16.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tags: Option<Vec<SymbolTag>>,
+    tags: Option<Vec<SymbolTag>>,
 
     /// Indicates if this symbol is deprecated.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[deprecated(note = "Use tags instead")]
-    pub deprecated: Option<bool>,
+    deprecated: Option<bool>,
 
     /// The location of this symbol.
     pub location: Location,

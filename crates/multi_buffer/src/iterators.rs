@@ -48,7 +48,7 @@ pub struct MultiBufferChunks<'a> {
     pub(super) snapshot: &'a MultiBufferSnapshot,
 }
 
-pub struct ReversedMultiBufferChunks<'a> {
+pub(crate) struct ReversedMultiBufferChunks<'a> {
     pub(super) cursor: MultiBufferCursor<'a, MultiBufferOffset, BufferOffset>,
     pub(super) current_chunks: Option<rope::Chunks<'a>>,
     pub(super) start: MultiBufferOffset,

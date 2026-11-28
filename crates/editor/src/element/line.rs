@@ -71,7 +71,7 @@ impl fmt::Debug for LineFragment {
 
 /// Minimap text is too small to read, so it's laid out on a monospace grid
 /// without shaping and painted as blocks (see `LineWithInvisibles::draw`).
-pub(super) fn shape_editor_line(
+fn shape_editor_line(
     text: SharedString,
     font_size: Pixels,
     runs: &[TextRun],
@@ -92,7 +92,6 @@ impl LineWithInvisibles {
         max_line_len: usize,
         max_line_count: usize,
         editor_mode: &EditorMode,
-        text_width: Pixels,
         is_row_soft_wrapped: impl Copy + Fn(usize) -> bool,
         bg_segments_per_row: &[Vec<(Range<usize>, Hsla)>],
         window: &mut Window,
@@ -173,8 +172,7 @@ impl LineWithInvisibles {
                             AvailableSpace::MinContent
                         };
 
-                        let mut element =
-                            (renderer.render)(&mut ChunkRendererContext { context: cx, window, max_width: text_width });
+                        let mut element = (renderer.render)(&mut ChunkRendererContext { context: cx });
                         let line_height = text_style.line_height_in_pixels(window.rem_size());
                         let size = element.layout_as_root(
                             size(available_width, AvailableSpace::Definite(line_height)),

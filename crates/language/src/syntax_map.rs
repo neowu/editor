@@ -110,7 +110,7 @@ pub struct SyntaxMapCaptures<'a> {
 }
 
 #[derive(Default)]
-pub struct SyntaxMapMatches<'a> {
+pub(crate) struct SyntaxMapMatches<'a> {
     layers: Vec<SyntaxMapMatchesLayer<'a>>,
     active_layer_count: usize,
     grammars: Vec<&'a Grammar>,
@@ -124,10 +124,11 @@ pub struct SyntaxMapCapture<'a> {
 }
 
 pub(crate) struct HighlightCaptureRegion {
-    pub range: Range<usize>,
-    pub stack: SmallVec<[HighlightCaptureRef; 4]>,
+    pub(crate) range: Range<usize>,
+    pub(crate) stack: SmallVec<[HighlightCaptureRef; 4]>,
 }
 
+// lint: expect(misplaced_item) thin wrapper of flatten_capture_regions, which stays here for language.rs
 pub(crate) fn flattened_highlight_regions(
     mut captures: SyntaxMapCaptures<'_>,
     range: Range<usize>,
@@ -184,12 +185,12 @@ pub(crate) fn flatten_capture_regions(
 }
 
 #[derive(Debug)]
-pub struct SyntaxMapMatch<'a> {
-    pub language: Arc<Language>,
-    pub depth: usize,
-    pub pattern_index: usize,
-    pub captures: &'a [QueryCapture<'a>],
-    pub grammar_index: usize,
+pub(crate) struct SyntaxMapMatch<'a> {
+    pub(crate) language: Arc<Language>,
+    pub(crate) depth: usize,
+    pub(crate) pattern_index: usize,
+    pub(crate) captures: &'a [QueryCapture<'a>],
+    pub(crate) grammar_index: usize,
 }
 
 struct SyntaxMapCapturesLayer<'a> {
@@ -264,7 +265,7 @@ impl SyntaxLayerContent {
 pub struct SyntaxLayer<'a> {
     /// The language for this layer.
     pub language: &'a Arc<Language>,
-    pub included_sub_ranges: Option<&'a [Range<Anchor>]>,
+    pub(crate) included_sub_ranges: Option<&'a [Range<Anchor>]>,
     pub(crate) depth: usize,
     tree: &'a tree_sitter::Tree,
     pub(crate) offset: (usize, tree_sitter::Point),
@@ -1020,6 +1021,7 @@ impl SyntaxSnapshot {
                     SyntaxLayerContent::Parsed { language, .. } if include_hidden || !language.config.hidden => {
                         Some(language)
                     }
+                    // lint: expect(wildcard_match) only some variants matter here
                     _ => None,
                 };
                 cursor.next();
@@ -1174,13 +1176,13 @@ impl<'a> SyntaxMapCaptures<'a> {
         &self.grammars
     }
 
-    pub fn peek(&self) -> Option<SyntaxMapCapture<'a>> {
+    fn peek(&self) -> Option<SyntaxMapCapture<'a>> {
         let layer = self.layers[..self.active_layer_count].first()?;
         let capture = layer.next_capture?;
         Some(SyntaxMapCapture { grammar_index: layer.grammar_index, index: capture.index, node: capture.node })
     }
 
-    pub fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> bool {
         let Some(layer) = self.layers[..self.active_layer_count].first_mut() else {
             return false;
         };
@@ -1201,7 +1203,7 @@ impl<'a> SyntaxMapCaptures<'a> {
         true
     }
 
-    pub fn set_byte_range(&mut self, range: Range<usize>) {
+    pub(crate) fn set_byte_range(&mut self, range: Range<usize>) {
         for layer in &mut self.layers {
             layer.captures.set_byte_range(range.clone());
             if let Some(capture) = &layer.next_capture
@@ -1219,8 +1221,8 @@ impl<'a> SyntaxMapCaptures<'a> {
 
 #[derive(Default)]
 pub struct TreeSitterOptions {
-    pub max_start_depth: Option<u32>,
-    pub max_bytes_to_query: Option<usize>,
+    pub(crate) max_start_depth: Option<u32>,
+    pub(crate) max_bytes_to_query: Option<usize>,
 }
 
 impl<'a> SyntaxMapMatches<'a> {
@@ -1288,11 +1290,11 @@ impl<'a> SyntaxMapMatches<'a> {
         result
     }
 
-    pub fn grammars(&self) -> &[&'a Grammar] {
+    pub(crate) fn grammars(&self) -> &[&'a Grammar] {
         &self.grammars
     }
 
-    pub fn peek(&self) -> Option<SyntaxMapMatch<'_>> {
+    pub(crate) fn peek(&self) -> Option<SyntaxMapMatch<'_>> {
         let layer = self.layers.first()?;
 
         if !layer.has_next {
@@ -1308,7 +1310,7 @@ impl<'a> SyntaxMapMatches<'a> {
         })
     }
 
-    pub fn advance(&mut self) -> bool {
+    pub(crate) fn advance(&mut self) -> bool {
         let Some(layer) = self.layers.first_mut() else {
             return false;
         };
@@ -1665,7 +1667,7 @@ fn get_injections(
 ///
 /// Returns a new vector of ranges, and the range of the vector that was changed,
 /// from the previous `ranges` vector.
-pub(crate) fn splice_included_ranges(
+fn splice_included_ranges(
     mut ranges: Vec<tree_sitter::Range>,
     removed_ranges: &[Range<usize>],
     new_ranges: &[tree_sitter::Range],

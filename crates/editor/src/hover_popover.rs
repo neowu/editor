@@ -51,7 +51,6 @@ use multi_buffer::ToOffset as _;
 use multi_buffer::ToPoint as _;
 use project::HoverBlock;
 use project::HoverBlockKind;
-use project::InlayHintLabelPart;
 use ui::CopyButton;
 use ui::ScrollAxes;
 use ui::Scrollbars;
@@ -89,29 +88,24 @@ use crate::hover_links::InlayHighlight;
 use crate::hover_links::RangeInEditor;
 use crate::movement;
 use crate::movement::TextLayoutDetails;
-use crate::scroll::ScrollAmount;
 
-pub const MIN_POPOVER_CHARACTER_WIDTH: f32 = 20.;
-pub const MIN_POPOVER_LINE_HEIGHT: f32 = 4.;
-pub const POPOVER_RIGHT_OFFSET: Pixels = px(8.0);
-pub const HOVER_POPOVER_GAP: Pixels = px(10.);
 const MAX_HOVER_BYTES: usize = 100_000;
 const HOVER_POPOVER_DELAY: Duration = Duration::from_millis(300);
 const HOVER_POPOVER_HIDING_DELAY: Duration = Duration::from_millis(300);
 
 /// Bindable action which uses the most recent selection head to trigger a hover.
-pub fn hover(editor: &mut Editor, _: &Hover, window: &mut Window, cx: &mut Context<Editor>) {
+pub(crate) fn hover(editor: &mut Editor, _: &Hover, window: &mut Window, cx: &mut Context<Editor>) {
     let head = editor.selections.newest_anchor().head();
     show_hover(editor, head, true, window, cx);
 }
 
 /// The internal hover action dispatches between `show_hover` or `hide_hover`
 /// depending on whether a point to hover over is provided.
-pub fn hover_at(
+pub(crate) fn hover_at(
     editor: &mut Editor,
     anchor: Option<Anchor>,
     mouse_position: Option<gpui::Point<Pixels>>,
-    window: &mut Window,
+    window: &Window,
     cx: &mut Context<Editor>,
 ) {
     editor.hover_state.hint_hover_task = None;
@@ -146,7 +140,7 @@ pub fn hover_at(
     }
 }
 
-pub fn show_keyboard_hover(editor: &mut Editor, window: &mut Window, cx: &mut Context<Editor>) -> bool {
+fn show_keyboard_hover(editor: &mut Editor, window: &Window, cx: &mut Context<Editor>) -> bool {
     if let Some(anchor) =
         editor.hover_state.info_popovers.iter().find_map(|p| if *p.keyboard_grace.borrow() { p.anchor } else { None })
     {
@@ -164,31 +158,16 @@ pub fn show_keyboard_hover(editor: &mut Editor, window: &mut Window, cx: &mut Co
     false
 }
 
-pub struct InlayHover {
+pub(crate) struct InlayHover {
     pub(crate) range: InlayHighlight,
-    pub tooltip: HoverBlock,
+    pub(crate) tooltip: HoverBlock,
 }
 
-pub fn find_hovered_hint_part(
-    label_parts: Vec<InlayHintLabelPart>,
-    offset_in_label: usize,
-) -> Option<(InlayHintLabelPart, Range<usize>)> {
-    let mut part_start = 0;
-    for part in label_parts {
-        let part_end = part_start + part.value.len();
-        if (part_start..part_end).contains(&offset_in_label) {
-            return Some((part, part_start..part_end));
-        }
-        part_start = part_end;
-    }
-    None
-}
-
-pub fn hover_at_inlay(
+pub(crate) fn hover_at_inlay(
     editor: &mut Editor,
     inlay_hover: InlayHover,
-    window: &mut Window,
-    cx: &mut Context<Editor>,
+    window: &Window,
+    cx: &Context<Editor>,
 ) -> Option<Task<()>> {
     if editor.pending_rename.is_some() {
         return None;
@@ -235,7 +214,7 @@ pub fn hover_at_inlay(
 /// Hides the type information popup.
 /// Triggered by the `Hover` action when the cursor is not over a symbol or when the
 /// selections changed.
-pub fn hide_hover(editor: &mut Editor, cx: &mut Context<Editor>) -> bool {
+pub(crate) fn hide_hover(editor: &mut Editor, cx: &mut Context<Editor>) -> bool {
     editor.hover_state.hint_hover_task = None;
     hide_popovers(editor, cx)
 }
@@ -982,21 +961,21 @@ pub fn open_markdown_url(workspace: Option<Entity<Workspace>>, link: SharedStrin
 }
 
 #[derive(Default)]
-pub struct HoverState {
-    pub info_popovers: Vec<InfoPopover>,
-    pub diagnostic_popover: Option<DiagnosticPopover>,
-    pub info_task: Option<Task<Option<()>>>,
-    pub closest_mouse_distance: Option<Pixels>,
-    pub hiding_delay_task: Option<Task<()>>,
+pub(crate) struct HoverState {
+    info_popovers: Vec<InfoPopover>,
+    diagnostic_popover: Option<DiagnosticPopover>,
+    info_task: Option<Task<Option<()>>>,
+    closest_mouse_distance: Option<Pixels>,
+    hiding_delay_task: Option<Task<()>>,
     pub(crate) hint_hover_task: Option<Task<()>>,
 }
 
 impl HoverState {
-    pub const fn visible(&self) -> bool {
+    pub(crate) const fn visible(&self) -> bool {
         !self.info_popovers.is_empty() || self.diagnostic_popover.is_some()
     }
 
-    pub fn is_mouse_getting_closer(&mut self, mouse_position: gpui::Point<Pixels>) -> bool {
+    fn is_mouse_getting_closer(&mut self, mouse_position: gpui::Point<Pixels>) -> bool {
         if !self.visible() {
             return false;
         }
@@ -1112,7 +1091,7 @@ impl HoverState {
         Some((point, elements))
     }
 
-    pub fn focused(&self, window: &mut Window, cx: &mut Context<Editor>) -> bool {
+    pub(crate) fn focused(&self, window: &Window, cx: &Context<Editor>) -> bool {
         let mut hover_popover_is_focused = false;
         for info_popover in &self.info_popovers {
             if let Some(markdown_view) = &info_popover.parsed_content
@@ -1130,13 +1109,13 @@ impl HoverState {
     }
 }
 
-pub struct InfoPopover {
-    pub symbol_range: RangeInEditor,
-    pub parsed_content: Option<Entity<Markdown>>,
-    pub scroll_handle: ScrollHandle,
-    pub keyboard_grace: Rc<RefCell<bool>>,
-    pub anchor: Option<Anchor>,
-    pub last_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
+struct InfoPopover {
+    symbol_range: RangeInEditor,
+    parsed_content: Option<Entity<Markdown>>,
+    scroll_handle: ScrollHandle,
+    keyboard_grace: Rc<RefCell<bool>>,
+    anchor: Option<Anchor>,
+    last_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
     code_lenses: Vec<HoverCodeLens>,
     fallback_state: Option<FallbackHoverState>,
     _subscription: Option<Subscription>,
@@ -1162,7 +1141,7 @@ impl FallbackHoverState {
 }
 
 impl InfoPopover {
-    pub(crate) fn render(&self, max_size: Size<Pixels>, window: &mut Window, cx: &mut Context<Editor>) -> AnyElement {
+    fn render(&self, max_size: Size<Pixels>, window: &mut Window, cx: &mut Context<Editor>) -> AnyElement {
         let keyboard_grace = Rc::clone(&self.keyboard_grace);
         let this = cx.entity().downgrade();
         let this2 = this.clone();
@@ -1235,13 +1214,6 @@ impl InfoPopover {
             })
             .into_any_element()
     }
-
-    pub fn scroll(&self, amount: ScrollAmount, window: &mut Window, cx: &mut Context<Editor>) {
-        let mut current = self.scroll_handle.offset();
-        current.y -= amount.pixels(window.line_height(), self.scroll_handle.bounds().size.height - px(16.)) / 2.0;
-        cx.notify();
-        self.scroll_handle.set_offset(current);
-    }
 }
 
 fn render_code_lenses(
@@ -1284,20 +1256,20 @@ fn render_code_lenses(
         .into_any_element()
 }
 
-pub struct DiagnosticPopover {
-    pub(crate) local_diagnostic: DiagnosticEntry<Anchor>,
+struct DiagnosticPopover {
+    local_diagnostic: DiagnosticEntry<Anchor>,
     markdown: Entity<Markdown>,
     border_color: Hsla,
     background_color: Hsla,
-    pub keyboard_grace: Rc<RefCell<bool>>,
-    pub anchor: Anchor,
-    pub last_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
+    keyboard_grace: Rc<RefCell<bool>>,
+    anchor: Anchor,
+    last_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
     _subscription: Subscription,
-    pub scroll_handle: ScrollHandle,
+    scroll_handle: ScrollHandle,
 }
 
 impl DiagnosticPopover {
-    pub fn render(&self, max_size: Size<Pixels>, window: &mut Window, cx: &mut Context<Editor>) -> AnyElement {
+    fn render(&self, max_size: Size<Pixels>, window: &mut Window, cx: &mut Context<Editor>) -> AnyElement {
         let keyboard_grace = Rc::clone(&self.keyboard_grace);
         let this = cx.entity().downgrade();
         let bounds_cell = Rc::clone(&self.last_bounds);

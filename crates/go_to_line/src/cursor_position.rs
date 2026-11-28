@@ -34,10 +34,10 @@ use workspace::item::ItemHandle;
 use workspace::status_item_color;
 
 #[derive(Copy, Clone, Debug, Default, PartialOrd, PartialEq)]
-pub(crate) struct SelectionStats {
-    pub lines: usize,
-    pub characters: usize,
-    pub selections: usize,
+struct SelectionStats {
+    lines: usize,
+    characters: usize,
+    selections: usize,
 }
 
 pub struct CursorPosition {
@@ -54,9 +54,9 @@ pub struct CursorPosition {
 /// Characters may start with zero as the caret may be at the beginning of a line, but all editors start counting characters from 1,
 /// where "1" will mean "before the first character".
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct UserCaretPosition {
-    pub line: NonZeroU32,
-    pub character: NonZeroU32,
+pub(crate) struct UserCaretPosition {
+    pub(crate) line: NonZeroU32,
+    pub(crate) character: NonZeroU32,
 }
 
 impl UserCaretPosition {

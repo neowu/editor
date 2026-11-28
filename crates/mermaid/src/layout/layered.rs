@@ -223,11 +223,13 @@ impl Groups {
 }
 
 /// A node of the given size and kind, as Pele's `lnode` creates it.
+// lint: expect(misplaced_item) this module's entry point, used by its own tests
 pub(crate) fn lnode(w: f64, h: f64, kind: Kind) -> LNode {
     LNode { h, kind, w, ..LNode::default() }
 }
 
 /// An edge from `tail` to `head`, as Pele's `ledge` creates it.
+// lint: expect(misplaced_item) this module's entry point, used by its own tests
 pub(crate) fn ledge(tail: usize, head: usize, minlen: u32, label_w: f64, label_h: f64) -> LEdge {
     LEdge { head, label_h, label_w, minlen, tail, ..LEdge::default() }
 }
@@ -395,6 +397,7 @@ fn sort_range(list: &mut [usize], from: usize, to: usize, key: &[usize]) {
 /// where edges spread along their nodes. Returns the size of the drawing.
 ///
 /// An edge whose endpoint names no node makes the whole layout empty, where Pele throws.
+// lint: expect(misplaced_item) this module's entry point, used by its own tests
 pub(crate) fn layered(nodes: &mut [LNode], edges: &mut [LEdge], opt: &LayeredOptions) -> LayeredResult {
     layered_with(nodes, edges, opt, None, false)
 }

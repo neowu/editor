@@ -151,15 +151,15 @@ actions!(
     project_search,
     [
         /// Searches in a new project search tab.
-        SearchInNew,
+        pub SearchInNew,
         /// Toggles focus between the search bar and the search results.
-        ToggleFocus,
+        pub ToggleFocus,
         /// Toggles the search filters panel.
-        ToggleFilters,
+        pub ToggleFilters,
         /// Toggles collapse/expand state of all search result excerpts.
-        ToggleAllSearchResults,
+        pub ToggleAllSearchResults,
         /// Open a text picker showing the current result in a modal.
-        OpenTextFinder
+        pub OpenTextFinder
     ]
 );
 
@@ -194,7 +194,7 @@ pub(crate) struct ActiveSettings(pub(crate) FxHashMap<WeakEntity<Project>, Proje
 
 impl Global for ActiveSettings {}
 
-pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
+pub(crate) fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     cx.set_global(ActiveSettings::default());
     register_workspace_action(workspace_actions, move |search_bar, _: &Deploy, window, cx| {
         search_bar.focus_search(window, cx);
@@ -284,15 +284,15 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
 
 const SEARCH_ON_TYPE_DEBOUNCE: Duration = Duration::from_millis(250);
 
-pub struct ProjectSearch {
+pub(crate) struct ProjectSearch {
     pub(crate) project: Entity<Project>,
     workspace: WeakEntity<Workspace>,
-    pub excerpts: Entity<MultiBuffer>,
-    pub pending_search: Option<Task<Option<SearchResults<SearchResult>>>>,
-    pub match_ranges: Vec<Range<Anchor>>,
+    pub(crate) excerpts: Entity<MultiBuffer>,
+    pub(crate) pending_search: Option<Task<Option<SearchResults<SearchResult>>>>,
+    pub(crate) match_ranges: Vec<Range<Anchor>>,
     pub(crate) active_query: Option<SearchQuery>,
     last_search_query_text: Option<String>,
-    pub search_id: usize,
+    pub(crate) search_id: usize,
     search_state: SearchState,
     phase: SearchPhase,
     reuses_excerpts: bool,
@@ -300,7 +300,7 @@ pub struct ProjectSearch {
     search_history_cursor: SearchHistoryCursor,
     search_included_history_cursor: SearchHistoryCursor,
     search_excluded_history_cursor: SearchHistoryCursor,
-    pub project_search_turning_into_text_finder: Arc<AtomicBool>,
+    pub(crate) project_search_turning_into_text_finder: Arc<AtomicBool>,
     _excerpts_subscription: Subscription,
     _workspace_subscription: Option<Subscription>,
 }
@@ -408,7 +408,7 @@ pub struct ProjectSearchView {
 }
 
 #[derive(Debug, Clone)]
-pub struct ProjectSearchSettings {
+pub(crate) struct ProjectSearchSettings {
     search_options: SearchOptions,
     filters_enabled: bool,
 }
@@ -419,7 +419,7 @@ pub struct ProjectSearchBar {
 }
 
 impl ProjectSearch {
-    pub fn new(project: Entity<Project>, workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
+    pub(crate) fn new(project: Entity<Project>, workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
         let excerpts = cx.new(|_| MultiBuffer::new(language::Capability::ReadWrite));
         let excerpts_subscription = Self::subscribe_to_excerpts(&excerpts, cx);
         let workspace_subscription = Self::subscribe_to_workspace(&workspace, cx);
@@ -973,6 +973,7 @@ impl Render for ProjectSearchView {
                 SearchState::Running { activity: SearchActivity::WaitingForScan, .. } => "Loading project…",
                 SearchState::Running { activity: SearchActivity::Searching, .. } => "Searching…",
                 SearchState::Completed(SearchCompletion::NoResults) => "No Results",
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => "Search All Files",
             };
 
@@ -985,6 +986,7 @@ impl Render for ProjectSearchView {
                         .size(LabelSize::Small)
                         .into_any_element(),
                 ),
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => None,
             };
 
@@ -1204,7 +1206,7 @@ impl ProjectSearchView {
         self.included_opened_only = !self.included_opened_only;
     }
 
-    pub fn replacement(&self, cx: &App) -> String {
+    fn replacement(&self, cx: &App) -> String {
         self.replacement_editor.read(cx).text(cx)
     }
 
@@ -1295,7 +1297,7 @@ impl ProjectSearchView {
         cx.notify();
     }
 
-    pub fn new(
+    pub(crate) fn new(
         workspace: WeakEntity<Workspace>,
         entity: Entity<ProjectSearch>,
         window: &mut Window,
@@ -1460,7 +1462,7 @@ impl ProjectSearchView {
         this
     }
 
-    pub fn new_search_with_filter(
+    fn new_search_with_filter(
         workspace: &mut Workspace,
         filter_str: String,
         window: &mut Window,
@@ -1480,7 +1482,7 @@ impl ProjectSearchView {
 
     /// Re-activate the most recently activated search in this pane or the most recent if it has been closed.
     /// If no search exists in the workspace, create a new one.
-    pub fn deploy_search(
+    fn deploy_search(
         workspace: &mut Workspace,
         action: &DeploySearch,
         window: &mut Window,
@@ -2084,7 +2086,7 @@ impl ProjectSearchView {
         });
     }
 
-    pub const fn has_matches(&self) -> bool {
+    const fn has_matches(&self) -> bool {
         self.active_match_index.is_some()
     }
 

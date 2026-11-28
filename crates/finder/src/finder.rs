@@ -102,15 +102,15 @@ actions!(
     [
         /// Opens the selected file in the editor without dismissing the finder,
         /// so additional files can be opened in sequence.
-        OpenWithoutDismiss,
+        pub(crate) OpenWithoutDismiss,
         /// Switches the finder to searching project files.
-        ShowFiles,
+        pub ShowFiles,
         /// Switches the finder to searching project symbols.
-        ShowSymbols,
+        pub ShowSymbols,
         /// Switches the finder to searching open tabs.
-        ShowTabs,
+        pub ShowTabs,
         /// Closes the tab selected in the finder's tab list.
-        CloseSelectedTab
+        pub CloseSelectedTab
     ]
 );
 
@@ -147,7 +147,7 @@ impl ModalView for Finder {}
 /// One modal searching files, symbols or open tabs. Each mode is its own
 /// embedded picker of the same size, so switching keeps the layout and
 /// carries the query over.
-pub struct Finder {
+struct Finder {
     picker: Entity<Picker<FileFinderDelegate>>,
     symbols: Option<Entity<Picker<SymbolsDelegate>>>,
     tabs: Option<Entity<Picker<TabsDelegate>>>,
@@ -452,7 +452,7 @@ impl Render for Finder {
     }
 }
 
-pub struct FileFinderDelegate {
+struct FileFinderDelegate {
     finder: WeakEntity<Finder>,
     workspace: WeakEntity<Workspace>,
     project: Entity<Project>,
@@ -558,7 +558,7 @@ impl Match {
 
 /// Wrapper with Eq comparing the worktree-qualified path of file matches.
 #[derive(Clone)]
-struct SelectedMatch(pub Match);
+struct SelectedMatch(Match);
 
 impl SelectedMatch {
     fn new(m: Match) -> Option<Self> {
@@ -1022,6 +1022,7 @@ impl FileFinderDelegate {
             project::Event::WorktreeAdded(_) | project::Event::WorktreeRemoved(_) => {
                 finder.picker.update(cx, |picker, cx| picker.refresh(window, cx));
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         })
         .detach();
@@ -1594,6 +1595,7 @@ impl FileFinderDelegate {
 
         let start_icon = match path_match {
             Match::CreateNew(_) => Some(Icon::new(IconName::Plus).size(IconSize::Small)),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => (|| {
                 let abs_path = path_match.abs_path(&self.project, cx)?;
                 let file_name = abs_path.file_name()?;

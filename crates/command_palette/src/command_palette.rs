@@ -56,7 +56,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions) {
 
 impl ModalView for CommandPalette {}
 
-pub struct CommandPalette {
+struct CommandPalette {
     picker: Entity<Picker<CommandPaletteDelegate>>,
 }
 
@@ -66,7 +66,7 @@ pub struct CommandPalette {
 /// This improves the likelihood of a match by either humanized name or keymap-style name.
 /// Underscores are converted to spaces because `humanize_action_name` converts them to spaces
 /// when building the search candidates (e.g. `terminal_panel::Toggle` -> `terminal panel: toggle`).
-pub fn normalize_action_query(input: &str) -> String {
+fn normalize_action_query(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     let mut last_char = None;
 
@@ -92,7 +92,7 @@ impl CommandPalette {
         workspace_actions.register_action(|workspace, _: &Toggle, window, cx| Self::toggle(workspace, "", window, cx));
     }
 
-    pub fn toggle(workspace: &mut Workspace, query: &str, window: &mut Window, cx: &mut Context<Workspace>) {
+    fn toggle(workspace: &mut Workspace, query: &str, window: &mut Window, cx: &mut Context<Workspace>) {
         if workspace.active_modal::<CommandPalette>(cx).is_some() {
             workspace.hide_modal(window, cx);
             return;
@@ -138,10 +138,6 @@ impl CommandPalette {
         });
         Self { picker }
     }
-
-    pub fn set_query(&mut self, query: &str, window: &mut Window, cx: &mut Context<Self>) {
-        self.picker.update(cx, |picker, cx| picker.set_query(query, window, cx));
-    }
 }
 
 impl EventEmitter<DismissEvent> for CommandPalette {}
@@ -158,7 +154,7 @@ impl Render for CommandPalette {
     }
 }
 
-pub struct CommandPaletteDelegate {
+struct CommandPaletteDelegate {
     latest_query: String,
     command_palette: WeakEntity<CommandPalette>,
     all_commands: Vec<Command>,
@@ -388,7 +384,7 @@ impl PickerDelegate for CommandPaletteDelegate {
     }
 }
 
-pub fn humanize_action_name(name: &str) -> String {
+fn humanize_action_name(name: &str) -> String {
     let chars = name.chars().collect::<Vec<_>>();
     let capacity = name.len() + chars.iter().filter(|c| c.is_uppercase()).count();
     let mut result = String::with_capacity(capacity);

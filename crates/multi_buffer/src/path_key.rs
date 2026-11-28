@@ -40,16 +40,16 @@ use crate::remove_diff_state;
 #[derive(PartialEq, Eq, Ord, PartialOrd, Clone, Hash, Debug)]
 pub struct PathKey {
     // Used by the derived PartialOrd & Ord
-    pub sort_prefix: Option<u64>,
-    pub path: Arc<RelPath>,
+    sort_prefix: Option<u64>,
+    path: Arc<RelPath>,
 }
 
 impl PathKey {
-    pub fn min() -> Self {
+    pub(crate) fn min() -> Self {
         Self { sort_prefix: None, path: RelPath::empty_arc() }
     }
 
-    pub fn sorted(sort_prefix: u64) -> Self {
+    pub(crate) fn sorted(sort_prefix: u64) -> Self {
         Self { sort_prefix: Some(sort_prefix), path: RelPath::empty_arc() }
     }
     pub const fn with_sort_prefix(sort_prefix: u64, path: Arc<RelPath>) -> Self {
@@ -133,7 +133,7 @@ impl MultiBuffer {
         inserted
     }
 
-    pub fn merge_new_with_existing_excerpt_ranges(
+    fn merge_new_with_existing_excerpt_ranges(
         &self,
         path: &PathKey,
         buffer_snapshot: &BufferSnapshot,
@@ -310,7 +310,7 @@ impl MultiBuffer {
     }
 
     /// Sets excerpts, returns `true` if at least one new excerpt was added.
-    pub(crate) fn set_merged_excerpt_ranges_for_path<T>(
+    fn set_merged_excerpt_ranges_for_path<T>(
         &mut self,
         path: PathKey,
         buffer: Entity<Buffer>,
@@ -334,7 +334,7 @@ impl MultiBuffer {
         (inserted, path_key_index)
     }
 
-    pub(crate) fn get_or_create_path_key_index(&self, path_key: &PathKey) -> PathKeyIndex {
+    fn get_or_create_path_key_index(&self, path_key: &PathKey) -> PathKeyIndex {
         let mut snapshot = self.snapshot.borrow_mut();
 
         if let Some(existing) = snapshot.path_keys.get_index_of(path_key) {

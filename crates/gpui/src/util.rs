@@ -1,11 +1,5 @@
-use std::pin::Pin;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::SeqCst;
-use std::task;
-use std::time::Duration;
-
-use crate::BackgroundExecutor;
-use crate::Task;
 
 /// Blocks the current thread until the given future completes.
 pub fn block_on<T>(future: impl Future<Output = T>) -> T {
@@ -54,53 +48,6 @@ pub trait FluentBuilder {
     }
 }
 
-/// Extensions for Future types that provide additional combinators and utilities.
-pub trait FutureExt {
-    /// Requires a Future to complete before the specified duration has elapsed.
-    /// Similar to tokio::timeout.
-    fn with_timeout(self, timeout: Duration, executor: &BackgroundExecutor) -> WithTimeout<Self>
-    where
-        Self: Sized;
-}
-
-impl<T: Future> FutureExt for T {
-    fn with_timeout(self, timeout: Duration, executor: &BackgroundExecutor) -> WithTimeout<Self>
-    where
-        Self: Sized,
-    {
-        WithTimeout { future: self, timer: executor.timer(timeout) }
-    }
-}
-
-#[pin_project::pin_project]
-pub struct WithTimeout<T> {
-    #[pin]
-    future: T,
-    #[pin]
-    timer: Task<()>,
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Timed out before future resolved")]
-/// Error returned by with_timeout when the timeout duration elapsed before the future resolved.
-pub struct Timeout;
-
-impl<T: Future> Future for WithTimeout<T> {
-    type Output = Result<T::Output, Timeout>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context) -> task::Poll<Self::Output> {
-        let this = self.project();
-
-        if let task::Poll::Ready(output) = this.future.poll(cx) {
-            task::Poll::Ready(Ok(output))
-        } else if this.timer.poll(cx).is_ready() {
-            task::Poll::Ready(Err(Timeout))
-        } else {
-            task::Poll::Pending
-        }
-    }
-}
-
 /// Increment the given atomic counter if it is not zero.
 /// Return the new value of the counter.
 pub(crate) fn atomic_incr_if_not_zero(counter: &AtomicUsize) -> usize {
@@ -123,11 +70,6 @@ pub(crate) fn round_half_toward_zero(value: f32) -> f32 {
 }
 
 #[inline]
-pub(crate) fn round_half_toward_zero_f64(value: f64) -> f64 {
-    (value.abs() - 0.5).ceil().copysign(value)
-}
-
-#[inline]
 pub(crate) fn round_to_device_pixel(logical: f32, scale_factor: f32) -> f32 {
     round_half_toward_zero(logical * scale_factor)
 }
@@ -135,11 +77,6 @@ pub(crate) fn round_to_device_pixel(logical: f32, scale_factor: f32) -> f32 {
 #[inline]
 pub(crate) fn round_stroke_to_device_pixel(logical: f32, scale_factor: f32) -> f32 {
     if logical == 0.0 { 0.0 } else { round_to_device_pixel(logical.max(0.0), scale_factor).max(1.0) }
-}
-
-#[inline]
-pub(crate) fn floor_to_device_pixel(logical: f32, scale_factor: f32) -> f32 {
-    (logical * scale_factor).floor()
 }
 
 #[inline]

@@ -1,11 +1,13 @@
 //! The nodes and edges of a requirement diagram to lay out. Port of Pele's
 //! `src/diagrams/requirement/graph.ts`.
 
-use super::db::CONTAINS;
 use super::db::RequirementDb;
 use super::types::Requirement;
 use super::types::RequirementElement;
 use crate::error;
+
+/// What `contains` relationships are called.
+const CONTAINS: &str = "contains";
 
 /// A node: a requirement or an element.
 pub(crate) struct GraphNode<'a> {

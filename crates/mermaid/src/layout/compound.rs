@@ -216,7 +216,7 @@ const MAX_INSERT: usize = 128;
 
 /// How the drawing joins the points of a route.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Style {
+enum Style {
     /// Curves, with corners rounded where a route turns at right angles.
     Curved,
     /// Straight lines from point to point.
@@ -226,7 +226,7 @@ pub(crate) enum Style {
 }
 
 /// The style that a layout with `opt` is drawn in.
-pub(crate) const fn style_of(opt: &LayeredOptions) -> Style {
+const fn style_of(opt: &LayeredOptions) -> Style {
     if opt.tracks {
         Style::Stepped
     } else if opt.straight {
@@ -325,7 +325,7 @@ impl Lines {
 /// their first or last piece, or where both are on the straight run that joins them to it.
 #[allow(clippy::float_cmp, reason = "Pele compares route axes exactly")]
 #[expect(clippy::many_single_char_names, reason = "names mirror Pele's compound.ts for side-by-side review")]
-pub(crate) fn route_crossings(nodes: &[CNode], edges: &[CEdge], style: Style) -> usize {
+fn route_crossings(nodes: &[CNode], edges: &[CEdge], style: Style) -> usize {
     let mut size = 0;
     for e in edges {
         if e.src != e.dst && e.route.len() > 3 {

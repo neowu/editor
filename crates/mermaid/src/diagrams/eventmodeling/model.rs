@@ -46,7 +46,7 @@ impl EntityKind {
 
 /// The group of lanes a kind of entity goes in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum LaneGroup {
+enum LaneGroup {
     /// Commands and read models.
     State,
     /// Events.
@@ -70,14 +70,14 @@ impl LaneGroup {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct EmLane {
     /// The lane's group.
-    pub(crate) group: LaneGroup,
+    group: LaneGroup,
     /// Mermaid's ordering key: 0 for UI/Automation, 100 for Command/Read Model, 200 for Events,
     /// and the next free number after those for each namespace.
-    pub(crate) index: u32,
+    index: u32,
     /// The heading.
     pub(crate) label: String,
     /// The namespace, for a lane of one.
-    pub(crate) namespace: Option<String>,
+    namespace: Option<String>,
 }
 
 /// A frame's box: Pele's `EmBox`.
@@ -86,9 +86,9 @@ pub(crate) struct EmBox {
     /// Example data from the frame or from the data block it refers to.
     pub(crate) data: Option<String>,
     /// The data type of inline data.
-    pub(crate) data_type: Option<String>,
+    data_type: Option<String>,
     /// The entity's qualified name.
-    pub(crate) entity: String,
+    entity: String,
     /// The frame number as written, such as "01".
     pub(crate) id: String,
     /// What the box draws.
@@ -98,7 +98,7 @@ pub(crate) struct EmBox {
     /// The entity's name without its namespace.
     pub(crate) name: String,
     /// The namespace of a two-part name.
-    pub(crate) namespace: Option<String>,
+    namespace: Option<String>,
     /// Whether the frame is a reset frame.
     pub(crate) reset: bool,
 }
@@ -107,7 +107,7 @@ pub(crate) struct EmBox {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct EmNote {
     /// The data type.
-    pub(crate) data_type: Option<String>,
+    data_type: Option<String>,
     /// The frame the note belongs to.
     pub(crate) frame: String,
     /// The note's text.
@@ -131,13 +131,13 @@ pub(crate) struct EmSpecification {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct EventModelingModel {
     /// The accessible description.
-    pub(crate) acc_descr: Option<String>,
+    acc_descr: Option<String>,
     /// The accessible title.
-    pub(crate) acc_title: Option<String>,
+    acc_title: Option<String>,
     /// Boxes in frame order.
     pub(crate) boxes: Vec<EmBox>,
     /// Model entity names.
-    pub(crate) entities: Vec<String>,
+    entities: Vec<String>,
     /// Lanes from top to bottom.
     pub(crate) lanes: Vec<EmLane>,
     /// Notes.
@@ -176,7 +176,7 @@ fn blank(text: &str) -> bool {
 }
 
 /// The text between the outer braces, without the indentation its lines share.
-pub(crate) fn block_text(raw: &str) -> String {
+fn block_text(raw: &str) -> String {
     let open = raw.find('{');
     let close = raw.rfind('}');
     let inner = match (open, close) {

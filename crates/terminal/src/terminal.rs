@@ -142,12 +142,12 @@ use crate::mappings::keys::to_esc_str;
 /// PTY. The normal editor leaves it unset to preserve the interactive PTY
 /// experience.
 #[derive(Clone, Copy, Default)]
-pub struct HeadlessTerminal(pub bool);
+struct HeadlessTerminal(bool);
 
 impl gpui::Global for HeadlessTerminal {}
 
 impl HeadlessTerminal {
-    pub fn is_enabled(cx: &App) -> bool {
+    fn is_enabled(cx: &App) -> bool {
         cx.try_global::<Self>().is_some_and(|headless| headless.0)
     }
 }
@@ -310,7 +310,7 @@ impl Deref for IndexedCell {
 pub struct Modes(u32);
 
 impl Modes {
-    pub const NONE: Self = Self(0);
+    const NONE: Self = Self(0);
     pub const APP_CURSOR: Self = Self(1 << 0);
     pub const APP_KEYPAD: Self = Self(1 << 1);
     pub const SHOW_CURSOR: Self = Self(1 << 2);
@@ -327,10 +327,10 @@ impl Modes {
     pub const MOUSE_REPORT_CLICK: Self = Self(1 << 13);
     pub const MOUSE_DRAG: Self = Self(1 << 14);
     pub const MOUSE_MOTION: Self = Self(1 << 15);
-    pub const VI: Self = Self(1 << 16);
+    const VI: Self = Self(1 << 16);
     pub const MOUSE_MODE: Self = Self(Self::MOUSE_REPORT_CLICK.0 | Self::MOUSE_DRAG.0 | Self::MOUSE_MOTION.0);
 
-    pub const fn empty() -> Self {
+    const fn empty() -> Self {
         Self::NONE
     }
 
@@ -342,7 +342,7 @@ impl Modes {
         self.0 & other.0 != 0
     }
 
-    pub const fn insert(&mut self, other: Self) {
+    const fn insert(&mut self, other: Self) {
         self.0 |= other.0;
     }
 
@@ -410,7 +410,7 @@ pub struct Range {
 }
 
 impl Range {
-    pub const fn new(start: Point, end: Point) -> Self {
+    const fn new(start: Point, end: Point) -> Self {
         Self { start, end }
     }
 
@@ -429,9 +429,9 @@ impl Range {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SelectionRange {
-    pub start: Point,
-    pub end: Point,
-    pub is_block: bool,
+    start: Point,
+    end: Point,
+    is_block: bool,
 }
 
 impl SelectionRange {
@@ -445,24 +445,24 @@ impl SelectionRange {
 pub struct Content {
     pub cells: Vec<IndexedCell>,
     pub mode: Modes,
-    pub total_lines: usize,
+    total_lines: usize,
     pub display_offset: usize,
-    pub columns: usize,
-    pub screen_lines: usize,
+    columns: usize,
+    screen_lines: usize,
     pub selection_text: Option<String>,
     pub selection: Option<SelectionRange>,
     pub cursor: Cursor,
     pub cursor_char: char,
     pub terminal_bounds: TerminalBounds,
     pub last_hovered_word: Option<HoveredWord>,
-    pub grid_lines_change: GridLinesChange,
-    pub scrolled_to_top: bool,
+    grid_lines_change: GridLinesChange,
+    scrolled_to_top: bool,
     pub scrolled_to_bottom: bool,
     pub bottom_row_occupied: bool,
 }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
-pub enum GridLinesChange {
+enum GridLinesChange {
     #[default]
     Unchanged,
     Changed,
@@ -470,7 +470,7 @@ pub enum GridLinesChange {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct HoveredWord {
-    pub word: String,
+    word: String,
     pub word_match: Range,
     pub id: usize,
 }
@@ -508,31 +508,31 @@ actions!(
     terminal,
     [
         /// Clears the terminal screen.
-        Clear,
+        pub Clear,
         /// Copies selected text to the clipboard.
-        Copy,
+        pub Copy,
         /// Pastes from the clipboard.
-        Paste,
+        pub Paste,
         /// Pastes the text from the clipboard.
-        PasteText,
+        pub PasteText,
         /// Shows the character palette for special characters.
-        ShowCharacterPalette,
+        pub ShowCharacterPalette,
         /// Scrolls up by one line.
-        ScrollLineUp,
+        pub ScrollLineUp,
         /// Scrolls down by one line.
-        ScrollLineDown,
+        pub ScrollLineDown,
         /// Scrolls up by one page.
-        ScrollPageUp,
+        pub ScrollPageUp,
         /// Scrolls down by one page.
-        ScrollPageDown,
+        pub ScrollPageDown,
         /// Scrolls to the top of the terminal buffer.
-        ScrollToTop,
+        pub ScrollToTop,
         /// Scrolls to the bottom of the terminal buffer.
-        ScrollToBottom,
+        pub ScrollToBottom,
         /// Toggles vi mode in the terminal.
-        ToggleViMode,
+        pub ToggleViMode,
         /// Selects all text in the terminal.
-        SelectAll,
+        pub(crate) SelectAll,
     ]
 );
 
@@ -543,7 +543,7 @@ const DEBUG_LINE_HEIGHT: Pixels = px(5.);
 
 /// Inserts ed-specific environment variables for terminal sessions.
 /// Used by both local terminals and remote terminals (via SSH).
-pub fn insert_ed_terminal_env(env: &mut FxHashMap<String, String>) {
+fn insert_ed_terminal_env(env: &mut FxHashMap<String, String>) {
     env.insert("TERM_PROGRAM".to_owned(), "ed".to_owned());
     env.insert("TERM".to_owned(), "xterm-256color".to_owned());
     env.insert("COLORTERM".to_owned(), "truecolor".to_owned());
@@ -670,11 +670,11 @@ impl TerminalBounds {
         raw.next_up().floor() as usize
     }
 
-    pub const fn height(&self) -> Pixels {
+    const fn height(&self) -> Pixels {
         self.bounds.size.height
     }
 
-    pub const fn width(&self) -> Pixels {
+    const fn width(&self) -> Pixels {
         self.bounds.size.width
     }
 
@@ -707,12 +707,12 @@ fn normalize_terminal_bounds(mut bounds: TerminalBounds) -> TerminalBounds {
 }
 
 #[derive(Error, Debug)]
-pub struct TerminalError {
-    pub directory: Option<PathBuf>,
-    pub program: Option<String>,
-    pub args: Option<Vec<String>>,
-    pub title_override: Option<String>,
-    pub source: io::Error,
+struct TerminalError {
+    directory: Option<PathBuf>,
+    program: Option<String>,
+    args: Option<Vec<String>>,
+    title_override: Option<String>,
+    source: io::Error,
 }
 
 impl TerminalError {
@@ -759,7 +759,7 @@ impl Display for TerminalError {
 
 // https://github.com/alacritty/alacritty/blob/cb3a79dbf6472740daca8440d5166c1d4af5029e/extra/man/alacritty.5.scd?plain=1#L207-L213
 const DEFAULT_SCROLL_HISTORY_LINES: usize = 10_000;
-pub const MAX_SCROLL_HISTORY_LINES: usize = 100_000;
+const MAX_SCROLL_HISTORY_LINES: usize = 100_000;
 
 /// Configures whether a terminal runs an interactive shell or a tracked task.
 ///
@@ -1591,7 +1591,7 @@ impl Terminal {
         self.events.push_back(InternalEvent::ToggleViMode);
     }
 
-    pub fn vi_motion(&mut self, keystroke: &Keystroke) {
+    fn vi_motion(&mut self, keystroke: &Keystroke) {
         if !self.vi_mode_enabled {
             return;
         }
@@ -2180,7 +2180,7 @@ impl Terminal {
     /// output.
     ///
     /// Calling this method after the resources have already been released is a no-op.
-    pub fn release_pty_resources(&mut self) {
+    fn release_pty_resources(&mut self) {
         let TerminalType::Pty { resources, info } = &mut self.terminal_type else {
             return;
         };

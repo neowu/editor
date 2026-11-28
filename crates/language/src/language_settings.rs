@@ -106,7 +106,7 @@ pub struct CompletionSettings {
     /// How many characters the query needs before word completions show automatically.
     pub words_min_length: usize,
     /// Whether to fetch LSP completions.
-    pub lsp: bool,
+    lsp: bool,
     /// How long to wait for each language server's completions; 0 waits indefinitely.
     pub lsp_fetch_timeout_ms: u64,
 }
@@ -115,9 +115,9 @@ pub struct CompletionSettings {
 pub struct IndentGuideSettings {
     pub enabled: bool,
     /// Width of the indent guides in pixels, between 1 and 10.
-    pub line_width: u32,
+    line_width: u32,
     /// Width of the active indent guide in pixels, between 1 and 10.
-    pub active_line_width: u32,
+    active_line_width: u32,
 }
 
 impl IndentGuideSettings {
@@ -150,11 +150,7 @@ impl LanguageSettings {
         AllLanguageSettings::get_global(cx).language(language.map(|l| l.name()).as_ref())
     }
 
-    pub fn resolve(
-        buffer: Option<&Buffer>,
-        override_language: Option<&LanguageName>,
-        cx: &App,
-    ) -> Arc<LanguageSettings> {
+    fn resolve(buffer: Option<&Buffer>, override_language: Option<&LanguageName>, cx: &App) -> Arc<LanguageSettings> {
         let Some(buffer) = buffer else {
             return AllLanguageSettings::get_global(cx).language(override_language);
         };
@@ -203,11 +199,11 @@ impl LanguageSettings {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct InlayHintSettings {
     /// Whether type hints should be shown.
-    pub show_type_hints: bool,
+    show_type_hints: bool,
     /// Whether parameter hints should be shown.
-    pub show_parameter_hints: bool,
+    show_parameter_hints: bool,
     /// Whether other hints should be shown.
-    pub show_other_hints: bool,
+    show_other_hints: bool,
     /// Whether to show a background for inlay hints.
     ///
     /// If set to `true`, the background will use the `hint.background` color

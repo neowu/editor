@@ -80,18 +80,21 @@ use super::post_inc;
 use crate::hover_popover;
 
 impl Editor {
-    pub fn text_layout_details(&self, window: &mut Window, cx: &mut App) -> TextLayoutDetails {
+    pub(crate) fn text_layout_details(&self, window: &Window, cx: &App) -> TextLayoutDetails {
         TextLayoutDetails {
             text_system: Rc::clone(window.text_system()),
             editor_style: self.style.clone().unwrap_or_else(|| self.create_style(cx)),
             rem_size: window.rem_size(),
             scroll_anchor: self.scroll_manager.shared_scroll_anchor(cx),
-            visible_rows: self.visible_line_count(),
-            vertical_scroll_margin: self.scroll_manager.vertical_scroll_margin,
         }
     }
 
-    pub fn show_word_completions(&mut self, _: &ShowWordCompletions, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn show_word_completions(
+        &mut self,
+        _: &ShowWordCompletions,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.open_or_update_completions_menu(
             Some(CompletionsMenuSource::Words { ignore_threshold: true }),
             None,
@@ -101,11 +104,11 @@ impl Editor {
         );
     }
 
-    pub fn show_completions(&mut self, _: &ShowCompletions, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn show_completions(&mut self, _: &ShowCompletions, window: &mut Window, cx: &mut Context<Self>) {
         self.open_or_update_completions_menu(None, None, false, window, cx);
     }
 
-    pub fn confirm_completion(
+    pub(crate) fn confirm_completion(
         &mut self,
         action: &ConfirmCompletion,
         window: &mut Window,
@@ -117,7 +120,7 @@ impl Editor {
         self.do_completion(action.item_ix, CompletionIntent::Complete, window, cx)
     }
 
-    pub fn confirm_completion_insert(
+    pub(crate) fn confirm_completion_insert(
         &mut self,
         _: &ConfirmCompletionInsert,
         window: &mut Window,
@@ -129,7 +132,7 @@ impl Editor {
         self.do_completion(None, CompletionIntent::CompleteWithInsert, window, cx)
     }
 
-    pub fn confirm_completion_replace(
+    pub(crate) fn confirm_completion_replace(
         &mut self,
         _: &ConfirmCompletionReplace,
         window: &mut Window,
@@ -141,7 +144,7 @@ impl Editor {
         self.do_completion(None, CompletionIntent::CompleteWithReplace, window, cx)
     }
 
-    pub fn compose_completion(
+    pub(crate) fn compose_completion(
         &mut self,
         action: &ComposeCompletion,
         window: &mut Window,
@@ -398,7 +401,7 @@ impl Editor {
             return;
         }
 
-        let query: Option<Arc<String>> =
+        let query: Option<Arc<str>> =
             Self::completion_query(&multibuffer_snapshot, multibuffer_position).map(|query| query.into());
 
         drop(multibuffer_snapshot);
@@ -932,7 +935,7 @@ impl Editor {
     }
 }
 
-pub trait CompletionProvider {
+pub(crate) trait CompletionProvider {
     fn completions(
         &self,
         buffer: &Entity<Buffer>,
@@ -1302,7 +1305,7 @@ pub(crate) fn split_words(text: &str) -> impl Iterator<Item = &str> + '_ {
 /// every non-word character).
 ///
 /// Shorter suffixes are returned first.
-pub(crate) fn snippet_candidate_suffixes<'a>(
+fn snippet_candidate_suffixes<'a>(
     text: &'a str,
     is_word_char: &'a dyn Fn(char) -> bool,
 ) -> impl Iterator<Item = &'a str> + 'a {

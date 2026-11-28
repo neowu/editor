@@ -96,7 +96,7 @@ fn iso_comment(src: &str, at: usize) -> Option<usize> {
 }
 
 /// Pele's `EBNF_TOKENS`, in matching order.
-pub(crate) const EBNF_TOKENS: &[TokenType] = &[
+const EBNF_TOKENS: &[TokenType] = &[
     opening("railroad-ebnf-beta", &[t::ID]),
     literal("::="),
     literal("="),

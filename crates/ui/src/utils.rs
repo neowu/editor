@@ -15,9 +15,9 @@ mod with_rem_size;
 pub use constants::CARD_GAP;
 pub use constants::TRAFFIC_LIGHT_PADDING;
 pub use constants::TRAFFIC_LIGHT_POSITION;
-pub use control_characters::replace_control_characters;
-pub use control_characters::replace_control_characters_remapping_offsets;
-pub use corner_solver::inner_corner_radius;
+pub(crate) use control_characters::replace_control_characters;
+pub(crate) use control_characters::replace_control_characters_remapping_offsets;
+pub(crate) use corner_solver::inner_corner_radius;
 pub use highlight_contrast::ensure_highlight_contrast;
 pub use highlight_contrast::merge_highlight_backgrounds;
 pub use search_input::SearchInputWidth;
@@ -25,11 +25,6 @@ pub use theme::contrast::apca_contrast;
 pub use theme::contrast::ensure_minimum_contrast;
 pub use window_drag::window_drag_area;
 pub use with_rem_size::WithRemSize;
-
-/// Returns true if the current theme is light or vibrant light.
-pub fn is_light() -> bool {
-    theme::theme().appearance.is_light()
-}
 
 pub fn ui_text_style(cx: &App) -> gpui::TextStyle {
     let ui_font = font::ui_font();
@@ -47,41 +42,4 @@ pub fn ui_text_style(cx: &App) -> gpui::TextStyle {
 /// Returns the platform-appropriate label for the "reveal in file manager" action.
 pub const fn reveal_in_file_manager_label() -> &'static str {
     "Reveal in Finder"
-}
-
-/// Capitalizes the first character of a string.
-///
-/// This function takes a string slice as input and returns a new `String` with the first character
-/// capitalized.
-pub fn capitalize(str: &str) -> String {
-    let mut chars = str.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(first_char) => first_char.to_uppercase().collect::<String>() + chars.as_str(),
-    }
-}
-
-pub fn format_number_with_commas(value: u128) -> String {
-    let digits = value.to_string();
-    let mut formatted = String::with_capacity(digits.len() + (digits.len() - 1) / 3);
-    for (index, digit) in digits.chars().enumerate() {
-        if index > 0 && (digits.len() - index).is_multiple_of(3) {
-            formatted.push(',');
-        }
-        formatted.push(digit);
-    }
-    formatted
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::capitalize;
-
-    #[test]
-    fn capitalize_first_letter() {
-        assert_eq!(capitalize("hello"), "Hello");
-        assert_eq!(capitalize("WORLD"), "WORLD");
-        assert_eq!(capitalize(""), "");
-    }
 }

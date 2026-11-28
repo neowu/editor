@@ -228,38 +228,38 @@ pub struct CloseOtherItems {
 /// Closes all multibuffers in the pane.
 #[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
-pub struct CloseMultibufferItems {
-    pub save_intent: Option<SaveIntent>,
-    pub close_pinned: bool,
+struct CloseMultibufferItems {
+    save_intent: Option<SaveIntent>,
+    close_pinned: bool,
 }
 
 /// Closes all items in the pane.
 #[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
-pub struct CloseAllItems {
-    pub save_intent: Option<SaveIntent>,
-    pub close_pinned: bool,
+pub(crate) struct CloseAllItems {
+    pub(crate) save_intent: Option<SaveIntent>,
+    pub(crate) close_pinned: bool,
 }
 
 /// Closes all items to the right of the current item.
 #[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
-pub struct CloseItemsToTheRight {
-    pub close_pinned: bool,
+struct CloseItemsToTheRight {
+    close_pinned: bool,
 }
 
 /// Closes all items to the left of the current item.
 #[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
-pub struct CloseItemsToTheLeft {
-    pub close_pinned: bool,
+struct CloseItemsToTheLeft {
+    close_pinned: bool,
 }
 
 /// Reveals the current item in the project panel.
 #[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
 pub struct RevealInProjectPanel {
-    pub entry_id: Option<u64>,
+    entry_id: Option<u64>,
 }
 
 /// Opens the search interface with the specified configuration.
@@ -304,7 +304,9 @@ split_structs!(
     SplitRight => "Splits the pane to the right.",
     SplitUp => "Splits the pane upward.",
     SplitDown => "Splits the pane downward.",
+    // lint: expect(excess_visibility) visibility is written by the `split_structs!` macro
     SplitHorizontal => "Splits the pane horizontally.",
+    // lint: expect(excess_visibility) visibility is written by the `split_structs!` macro
     SplitVertical => "Splits the pane vertically."
 );
 
@@ -313,7 +315,7 @@ split_structs!(
 #[action(namespace = pane)]
 pub struct ActivatePreviousItem {
     /// Whether to wrap from the first item to the last item.
-    pub wrap_around: bool,
+    pub(crate) wrap_around: bool,
 }
 
 impl Default for ActivatePreviousItem {
@@ -327,7 +329,7 @@ impl Default for ActivatePreviousItem {
 #[action(namespace = pane)]
 pub struct ActivateNextItem {
     /// Whether to wrap from the last item to the first item.
-    pub wrap_around: bool,
+    pub(crate) wrap_around: bool,
 }
 
 impl Default for ActivateNextItem {
@@ -340,7 +342,7 @@ actions!(
     pane,
     [
         /// Activates the last item in the pane.
-        ActivateLastItem,
+        pub ActivateLastItem,
         /// Switches to the alternate file.
         AlternateFile,
         /// Navigates back in the tag stack.
@@ -352,11 +354,11 @@ actions!(
         /// Joins all panes into one.
         JoinAll,
         /// Reopens the most recently closed item.
-        ReopenClosedItem,
+        pub ReopenClosedItem,
         /// Swaps the current item with the one to the left.
-        SwapItemLeft,
+        pub SwapItemLeft,
         /// Swaps the current item with the one to the right.
-        SwapItemRight,
+        pub SwapItemRight,
         /// Toggles preview mode for the current tab.
         TogglePreviewTab,
         /// Toggles pin status for the current tab.
@@ -454,7 +456,7 @@ pub struct Pane {
     toolbar: Entity<Toolbar>,
     pub(crate) workspace: WeakEntity<Workspace>,
     project: WeakEntity<Project>,
-    pub drag_split_direction: Option<SplitDirection>,
+    drag_split_direction: Option<SplitDirection>,
     #[allow(clippy::type_complexity)]
     can_drop_predicate: Option<Arc<dyn Fn(&dyn Any, &mut Window, &mut App) -> bool>>,
     #[allow(clippy::type_complexity)]
@@ -496,9 +498,9 @@ pub struct Pane {
     pub project_item_restoration_data: FxHashMap<ProjectItemKind, Box<dyn Any + Send>>,
 }
 
-pub struct ActivationHistoryEntry {
-    pub entity_id: EntityId,
-    pub timestamp: usize,
+pub(crate) struct ActivationHistoryEntry {
+    pub(crate) entity_id: EntityId,
+    pub(crate) timestamp: usize,
 }
 
 #[derive(Clone)]
@@ -526,7 +528,7 @@ struct NavHistoryState {
 }
 
 #[derive(Debug, Default, Copy, Clone)]
-pub enum NavigationMode {
+pub(crate) enum NavigationMode {
     #[default]
     Normal,
     GoingBack,
@@ -537,7 +539,7 @@ pub enum NavigationMode {
 }
 
 #[derive(Debug, Default, Copy, Clone)]
-pub enum TagNavigationMode {
+pub(crate) enum TagNavigationMode {
     #[default]
     Older,
     Newer,
@@ -545,33 +547,33 @@ pub enum TagNavigationMode {
 
 #[derive(Clone)]
 pub struct NavigationEntry {
-    pub item: Arc<dyn WeakItemHandle + Send + Sync>,
-    pub data: Option<Arc<dyn Any + Send + Sync>>,
-    pub timestamp: usize,
-    pub is_preview: bool,
+    pub(crate) item: Arc<dyn WeakItemHandle + Send + Sync>,
+    pub(crate) data: Option<Arc<dyn Any + Send + Sync>>,
+    pub(crate) timestamp: usize,
+    pub(crate) is_preview: bool,
     /// Row position for Neovim-style deduplication. When set, entries with the
     /// same item and row are considered duplicates and deduplicated.
-    pub row: Option<u32>,
+    row: Option<u32>,
 }
 
 #[derive(Clone)]
-pub struct TagStackEntry {
-    pub origin: NavigationEntry,
-    pub target: NavigationEntry,
+struct TagStackEntry {
+    origin: NavigationEntry,
+    target: NavigationEntry,
 }
 
 #[derive(Clone)]
 pub struct DraggedTab {
     pub pane: Entity<Pane>,
-    pub item: Box<dyn ItemHandle>,
+    pub(crate) item: Box<dyn ItemHandle>,
     pub ix: usize,
-    pub detail: usize,
-    pub is_active: bool,
+    detail: usize,
+    is_active: bool,
 }
 
 impl EventEmitter<Event> for Pane {}
 
-pub enum Side {
+enum Side {
     Left,
     Right,
 }
@@ -658,7 +660,7 @@ impl Pane {
         }
     }
 
-    pub fn track_alternate_file_items(&mut self) {
+    pub(crate) fn track_alternate_file_items(&mut self) {
         if let Some(item) = self.active_item().map(|item| item.downgrade_item()) {
             let (current, _) = &self.alternate_file_items;
             match current {
@@ -728,18 +730,18 @@ impl Pane {
         self.active_item_index
     }
 
-    pub const fn is_active_item_pinned(&self) -> bool {
+    pub(crate) const fn is_active_item_pinned(&self) -> bool {
         self.is_tab_pinned(self.active_item_index)
     }
 
-    pub fn activation_history(&self) -> &[ActivationHistoryEntry] {
+    pub(crate) fn activation_history(&self) -> &[ActivationHistoryEntry] {
         &self.activation_history
     }
 
     /// Sets the window chrome at the start of the tab bar, whether the tab bar
     /// is part of the window's top row, and the room kept before the tabs for
     /// a window header overhanging the sidebar. Redraws only when one changes.
-    pub fn set_tab_bar_chrome(
+    pub(crate) fn set_tab_bar_chrome(
         &mut self,
         header: Option<AnyView>,
         is_titlebar: bool,
@@ -780,7 +782,7 @@ impl Pane {
 
     /// Height of everything above the card: the tab bar, plus the gap above it
     /// that a tab bar in the window's top row keeps from the window edge.
-    pub fn tab_strip_height(&self, cx: &App) -> Pixels {
+    pub(crate) fn tab_strip_height(&self, cx: &App) -> Pixels {
         tab_strip_height(self.tab_style != TabStyle::Pill, self.tab_bar_is_titlebar, Tab::container_height(cx))
     }
 
@@ -811,7 +813,7 @@ impl Pane {
         ItemNavHistory { history: self.nav_history.clone(), item: Arc::new(item.downgrade()) }
     }
 
-    pub const fn nav_history(&self) -> &NavHistory {
+    pub(crate) const fn nav_history(&self) -> &NavHistory {
         &self.nav_history
     }
 
@@ -820,7 +822,7 @@ impl Pane {
     }
 
     /// Makes the pane record into `history`, shared with the workspace's other content panes.
-    pub fn set_nav_history(&mut self, history: NavHistory) {
+    pub(crate) fn set_nav_history(&mut self, history: NavHistory) {
         self.nav_history = history;
     }
 
@@ -832,7 +834,7 @@ impl Pane {
         self.nav_history.enable();
     }
 
-    pub fn go_to_older_tag(&mut self, _: &GoToOlderTag, window: &mut Window, cx: &mut Context<Self>) {
+    fn go_to_older_tag(&mut self, _: &GoToOlderTag, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(workspace) = self.workspace.upgrade() {
             window.defer(cx, move |window, cx| {
                 workspace.update(cx, |workspace, cx| {
@@ -842,7 +844,7 @@ impl Pane {
         }
     }
 
-    pub fn go_to_newer_tag(&mut self, _: &GoToNewerTag, window: &mut Window, cx: &mut Context<Self>) {
+    fn go_to_newer_tag(&mut self, _: &GoToNewerTag, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(workspace) = self.workspace.upgrade() {
             window.defer(cx, move |window, cx| {
                 workspace.update(cx, |workspace, cx| {
@@ -852,15 +854,15 @@ impl Pane {
         }
     }
 
-    pub const fn preview_item_id(&self) -> Option<EntityId> {
+    const fn preview_item_id(&self) -> Option<EntityId> {
         self.preview_item_id
     }
 
-    pub fn preview_item(&self) -> Option<Box<dyn ItemHandle>> {
+    fn preview_item(&self) -> Option<Box<dyn ItemHandle>> {
         self.preview_item_id.and_then(|id| self.items.iter().find(|item| item.item_id() == id)).cloned()
     }
 
-    pub fn preview_item_idx(&self) -> Option<usize> {
+    fn preview_item_idx(&self) -> Option<usize> {
         if let Some(preview_item_id) = self.preview_item_id {
             self.items.iter().position(|item| item.item_id() == preview_item_id)
         } else {
@@ -883,7 +885,7 @@ impl Pane {
     /// Marks the item with the given ID as the preview item.
     ///
     /// The old preview item (if there was one) is closed and its index is returned.
-    pub fn replace_preview_item_id(
+    pub(crate) fn replace_preview_item_id(
         &mut self,
         item_id: EntityId,
         window: &mut Window,
@@ -902,20 +904,20 @@ impl Pane {
         self.nav_history.set_preview_item(old_item_id, item_id);
     }
 
-    pub const fn set_read_only_tabs(&mut self, read_only_tabs: bool) {
+    pub(crate) const fn set_read_only_tabs(&mut self, read_only_tabs: bool) {
         self.read_only_tabs = read_only_tabs;
     }
 
     /// Should only be used when deserializing a pane.
-    pub const fn set_pinned_count(&mut self, count: usize) {
+    pub(crate) const fn set_pinned_count(&mut self, count: usize) {
         self.pinned_tab_count = count;
     }
 
-    pub const fn pinned_count(&self) -> usize {
+    pub(crate) const fn pinned_count(&self) -> usize {
         self.pinned_tab_count
     }
 
-    pub fn handle_item_edit(&mut self, item_id: EntityId, cx: &App) {
+    pub(crate) fn handle_item_edit(&mut self, item_id: EntityId, cx: &App) {
         if let Some(preview_item) = self.preview_item()
             && preview_item.item_id() == item_id
             && !preview_item.preserve_preview(cx)
@@ -1037,7 +1039,7 @@ impl Pane {
         }
     }
 
-    pub fn close_current_preview_item(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<usize> {
+    fn close_current_preview_item(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<usize> {
         let item_idx = self.preview_item_idx()?;
         let id = self.preview_item_id()?;
         self.preview_item_id = None;
@@ -1053,7 +1055,7 @@ impl Pane {
         (item_idx < self.items.len()).then_some(item_idx)
     }
 
-    pub fn add_item_inner(
+    pub(crate) fn add_item_inner(
         &mut self,
         item: Box<dyn ItemHandle>,
         activate_pane: bool,
@@ -1199,18 +1201,18 @@ impl Pane {
         self.items[self.active_item_index].item_id()
     }
 
-    pub fn pixel_position_of_cursor(&self, cx: &App) -> Option<Point<Pixels>> {
+    pub(crate) fn pixel_position_of_cursor(&self, cx: &App) -> Option<Point<Pixels>> {
         self.items.get(self.active_item_index)?.pixel_position_of_cursor(cx)
     }
 
-    pub fn item_for_entry(&self, entry_id: ProjectEntryId, cx: &App) -> Option<Box<dyn ItemHandle>> {
+    pub(crate) fn item_for_entry(&self, entry_id: ProjectEntryId, cx: &App) -> Option<Box<dyn ItemHandle>> {
         self.items.iter().find_map(|item| {
             (item.buffer_kind(cx) == ItemBufferKind::Singleton && (item.project_entry_ids(cx).as_slice() == [entry_id]))
                 .then(|| item.boxed_clone())
         })
     }
 
-    pub fn item_for_path(&self, project_path: ProjectPath, cx: &App) -> Option<Box<dyn ItemHandle>> {
+    pub(crate) fn item_for_path(&self, project_path: ProjectPath, cx: &App) -> Option<Box<dyn ItemHandle>> {
         self.items.iter().find_map(move |item| {
             (item.buffer_kind(cx) == ItemBufferKind::Singleton
                 && (item.project_path(cx).as_slice() == [project_path.clone()]))
@@ -1230,7 +1232,7 @@ impl Pane {
         self.items.get(ix).map(AsRef::as_ref)
     }
 
-    pub fn toggle_zoom(&mut self, _: &ToggleZoom, window: &mut Window, cx: &mut Context<Self>) {
+    fn toggle_zoom(&mut self, _: &ToggleZoom, window: &mut Window, cx: &mut Context<Self>) {
         if !self.can_toggle_zoom {
             cx.propagate();
         } else if self.zoomed {
@@ -1243,7 +1245,7 @@ impl Pane {
         }
     }
 
-    pub fn zoom_in(&mut self, _: &ZoomIn, window: &mut Window, cx: &mut Context<Self>) {
+    fn zoom_in(&mut self, _: &ZoomIn, window: &mut Window, cx: &mut Context<Self>) {
         if !self.can_toggle_zoom {
             cx.propagate();
         } else if !self.zoomed && !self.items.is_empty() {
@@ -1254,7 +1256,7 @@ impl Pane {
         }
     }
 
-    pub fn zoom_out(&mut self, _: &ZoomOut, _window: &mut Window, cx: &mut Context<Self>) {
+    fn zoom_out(&mut self, _: &ZoomOut, _window: &mut Window, cx: &mut Context<Self>) {
         if !self.can_toggle_zoom {
             cx.propagate();
         } else if self.zoomed {
@@ -1312,12 +1314,7 @@ impl Pane {
         }
     }
 
-    pub fn activate_previous_item(
-        &mut self,
-        action: &ActivatePreviousItem,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn activate_previous_item(&mut self, action: &ActivatePreviousItem, window: &mut Window, cx: &mut Context<Self>) {
         let mut index = self.active_item_index;
         if index > 0 {
             index -= 1;
@@ -1327,7 +1324,7 @@ impl Pane {
         self.activate_item(index, true, true, window, cx);
     }
 
-    pub fn activate_next_item(&mut self, action: &ActivateNextItem, window: &mut Window, cx: &mut Context<Self>) {
+    fn activate_next_item(&mut self, action: &ActivateNextItem, window: &mut Window, cx: &mut Context<Self>) {
         let mut index = self.active_item_index;
         if index + 1 < self.items.len() {
             index += 1;
@@ -1337,7 +1334,7 @@ impl Pane {
         self.activate_item(index, true, true, window, cx);
     }
 
-    pub fn swap_item_left(&mut self, _: &SwapItemLeft, window: &mut Window, cx: &mut Context<Self>) {
+    fn swap_item_left(&mut self, _: &SwapItemLeft, window: &mut Window, cx: &mut Context<Self>) {
         let index = self.active_item_index;
         if index == 0 {
             return;
@@ -1347,7 +1344,7 @@ impl Pane {
         self.activate_item(index - 1, true, true, window, cx);
     }
 
-    pub fn swap_item_right(&mut self, _: &SwapItemRight, window: &mut Window, cx: &mut Context<Self>) {
+    fn swap_item_right(&mut self, _: &SwapItemRight, window: &mut Window, cx: &mut Context<Self>) {
         let index = self.active_item_index;
         if index + 1 >= self.items.len() {
             return;
@@ -1357,12 +1354,12 @@ impl Pane {
         self.activate_item(index + 1, true, true, window, cx);
     }
 
-    pub fn activate_last_item(&mut self, _: &ActivateLastItem, window: &mut Window, cx: &mut Context<Self>) {
+    fn activate_last_item(&mut self, _: &ActivateLastItem, window: &mut Window, cx: &mut Context<Self>) {
         let index = self.items.len().saturating_sub(1);
         self.activate_item(index, true, true, window, cx);
     }
 
-    pub fn close_active_item(
+    pub(crate) fn close_active_item(
         &mut self,
         action: &CloseActiveItem,
         window: &mut Window,
@@ -1419,13 +1416,13 @@ impl Pane {
         self.close_items(window, cx, save_intent, &move |view_id| view_id == item_id_to_close)
     }
 
-    pub fn close_items_for_project_path(
-        &mut self,
+    pub(crate) fn close_items_for_project_path(
+        &self,
         project_path: &ProjectPath,
         save_intent: SaveIntent,
         close_pinned: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
+        window: &Window,
+        cx: &Context<Self>,
     ) -> Task<Result<()>> {
         let pinned_item_ids = self.pinned_item_ids();
         let matching_item_ids: Vec<_> = self
@@ -1438,12 +1435,12 @@ impl Pane {
         })
     }
 
-    pub fn close_other_items(
+    pub(crate) fn close_other_items(
         &mut self,
         action: &CloseOtherItems,
         target_item_id: Option<EntityId>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
+        window: &Window,
+        cx: &Context<Self>,
     ) -> Task<Result<()>> {
         if self.items.is_empty() {
             return Task::ready(Ok(()));
@@ -1463,11 +1460,11 @@ impl Pane {
         })
     }
 
-    pub fn close_multibuffer_items(
-        &mut self,
+    fn close_multibuffer_items(
+        &self,
         action: &CloseMultibufferItems,
-        window: &mut Window,
-        cx: &mut Context<Self>,
+        window: &Window,
+        cx: &Context<Self>,
     ) -> Task<Result<()>> {
         if self.items.is_empty() {
             return Task::ready(Ok(()));
@@ -1481,33 +1478,33 @@ impl Pane {
         })
     }
 
-    pub fn close_items_to_the_left_by_id(
-        &mut self,
+    fn close_items_to_the_left_by_id(
+        &self,
         item_id: Option<EntityId>,
         action: &CloseItemsToTheLeft,
-        window: &mut Window,
-        cx: &mut Context<Self>,
+        window: &Window,
+        cx: &Context<Self>,
     ) -> Task<Result<()>> {
         self.close_items_to_the_side_by_id(item_id, Side::Left, action.close_pinned, window, cx)
     }
 
-    pub fn close_items_to_the_right_by_id(
-        &mut self,
+    fn close_items_to_the_right_by_id(
+        &self,
         item_id: Option<EntityId>,
         action: &CloseItemsToTheRight,
-        window: &mut Window,
-        cx: &mut Context<Self>,
+        window: &Window,
+        cx: &Context<Self>,
     ) -> Task<Result<()>> {
         self.close_items_to_the_side_by_id(item_id, Side::Right, action.close_pinned, window, cx)
     }
 
-    pub fn close_items_to_the_side_by_id(
-        &mut self,
+    fn close_items_to_the_side_by_id(
+        &self,
         item_id: Option<EntityId>,
         side: Side,
         close_pinned: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
+        window: &Window,
+        cx: &Context<Self>,
     ) -> Task<Result<()>> {
         if self.items.is_empty() {
             return Task::ready(Ok(()));
@@ -1522,11 +1519,11 @@ impl Pane {
         })
     }
 
-    pub fn close_all_items(
-        &mut self,
+    pub(crate) fn close_all_items(
+        &self,
         action: &CloseAllItems,
-        window: &mut Window,
-        cx: &mut Context<Self>,
+        window: &Window,
+        cx: &Context<Self>,
     ) -> Task<Result<()>> {
         if self.items.is_empty() {
             return Task::ready(Ok(()));
@@ -1585,10 +1582,10 @@ impl Pane {
         }
     }
 
-    pub fn close_items(
+    fn close_items(
         &self,
-        window: &mut Window,
-        cx: &mut Context<Pane>,
+        window: &Window,
+        cx: &Context<Pane>,
         mut save_intent: SaveIntent,
         should_close: &dyn Fn(EntityId) -> bool,
     ) -> Task<Result<()>> {
@@ -1729,7 +1726,7 @@ impl Pane {
         self.remove_item_at(item_index, activate_pane, close_pane_if_empty, None, window, cx);
     }
 
-    pub fn remove_item_and_focus_on_pane(
+    pub(crate) fn remove_item_and_focus_on_pane(
         &mut self,
         item_index: usize,
         activate_pane: bool,
@@ -2014,7 +2011,7 @@ impl Pane {
         }))
     }
 
-    pub fn autosave_item(
+    pub(crate) fn autosave_item(
         item: &dyn ItemHandle,
         project: Entity<Project>,
         window: &mut Window,
@@ -2027,7 +2024,7 @@ impl Pane {
         }
     }
 
-    pub fn focus_active_item(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn focus_active_item(&self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(active_item) = self.active_item() {
             let focus_handle = active_item.item_focus_handle(cx);
             window.focus(&focus_handle, cx);
@@ -2056,7 +2053,11 @@ impl Pane {
         &self.toolbar
     }
 
-    pub fn remove_navigation_history_paths(&mut self, project_paths: &FxHashSet<ProjectPath>, cx: &mut Context<Self>) {
+    pub(crate) fn remove_navigation_history_paths(
+        &self,
+        project_paths: &FxHashSet<ProjectPath>,
+        cx: &mut Context<Self>,
+    ) {
         let open_item_ids = self.items.iter().map(|item| item.item_id()).collect::<FxHashSet<_>>();
         let mut item_ids = FxHashSet::default();
         self.nav_history.for_each_entry(cx, &mut |entry, (path, _)| {
@@ -2071,7 +2072,7 @@ impl Pane {
         self.nav_history.0.lock().did_update(cx);
     }
 
-    pub fn handle_deleted_project_item(
+    pub(crate) fn handle_deleted_project_item(
         &mut self,
         entry_id: ProjectEntryId,
         window: &mut Window,
@@ -2851,7 +2852,7 @@ impl Pane {
         self.drag_split_direction = direction;
     }
 
-    pub fn handle_tab_drop(
+    fn handle_tab_drop(
         &mut self,
         dragged_tab: &DraggedTab,
         ix: usize,
@@ -3032,7 +3033,7 @@ impl Pane {
         self.drag_split_direction
     }
 
-    pub const fn set_empty_pane_hints(&mut self, empty_pane_hints: EmptyPaneHints) {
+    pub(crate) const fn set_empty_pane_hints(&mut self, empty_pane_hints: EmptyPaneHints) {
         self.empty_pane_hints = empty_pane_hints;
     }
 
@@ -3065,7 +3066,7 @@ pub fn render_tab_bar_pane_buttons(pane: &Pane, cx: &mut Context<Pane>) -> Vec<A
 }
 
 /// The Zoom button alone, for panes that can zoom but never split.
-pub fn render_tab_bar_zoom_button(pane: &Pane, cx: &mut Context<Pane>) -> AnyElement {
+fn render_tab_bar_zoom_button(pane: &Pane, cx: &Context<Pane>) -> AnyElement {
     let zoomed = pane.is_zoomed();
     top_row_icon_button("toggle_zoom", IconName::Maximize)
         .toggle_state(zoomed)
@@ -3079,7 +3080,7 @@ pub fn render_tab_bar_zoom_button(pane: &Pane, cx: &mut Context<Pane>) -> AnyEle
 
 /// Which actions an empty pane offers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EmptyPaneHints {
+pub(crate) enum EmptyPaneHints {
     /// Editor panes: opening files.
     Files,
     /// Terminal mode panes: a new terminal.
@@ -3108,7 +3109,7 @@ fn empty_pane_hints(hints: EmptyPaneHints) -> Vec<(&'static str, &'static str, I
 /// Center (editor) panes get a "+" left of the shared buttons that opens an
 /// untitled file in the pane: a top-row tab bar's empty space acts as a
 /// titlebar, so a double click there can't create one.
-pub fn set_editor_tab_bar_buttons(pane: &mut Pane, cx: &mut Context<Pane>) {
+pub(crate) fn set_editor_tab_bar_buttons(pane: &mut Pane, cx: &mut Context<Pane>) {
     pane.set_render_tab_bar_buttons(cx, |pane, window, cx| {
         if !pane.has_focus(window, cx) {
             return (None, None);
@@ -3472,7 +3473,7 @@ impl ItemNavHistory {
 }
 
 impl NavHistory {
-    pub fn new(workspace: WeakEntity<Workspace>, next_timestamp: Arc<AtomicUsize>) -> NavHistory {
+    pub(crate) fn new(workspace: WeakEntity<Workspace>, next_timestamp: Arc<AtomicUsize>) -> NavHistory {
         NavHistory(Arc::new(Mutex::new(NavHistoryState {
             mode: NavigationMode::Normal,
             backward_stack: VecDeque::default(),
@@ -3487,11 +3488,11 @@ impl NavHistory {
         })))
     }
 
-    pub fn can_go_back(&self) -> bool {
+    pub(crate) fn can_go_back(&self) -> bool {
         !self.0.lock().backward_stack.is_empty()
     }
 
-    pub fn can_go_forward(&self) -> bool {
+    pub(crate) fn can_go_forward(&self) -> bool {
         !self.0.lock().forward_stack.is_empty()
     }
 
@@ -3508,7 +3509,7 @@ impl NavHistory {
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn for_each_entry(&self, cx: &App, f: &mut dyn FnMut(&NavigationEntry, (ProjectPath, Option<PathBuf>))) {
+    pub(crate) fn for_each_entry(&self, cx: &App, f: &mut dyn FnMut(&NavigationEntry, (ProjectPath, Option<PathBuf>))) {
         let borrowed_history = self.0.lock();
         borrowed_history
             .forward_stack
@@ -3526,23 +3527,23 @@ impl NavHistory {
             });
     }
 
-    pub fn set_mode(&mut self, mode: NavigationMode) {
+    pub(crate) fn set_mode(&self, mode: NavigationMode) {
         self.0.lock().mode = mode;
     }
 
-    pub fn mode(&self) -> NavigationMode {
+    fn mode(&self) -> NavigationMode {
         self.0.lock().mode
     }
 
-    pub fn disable(&mut self) {
+    pub(crate) fn disable(&self) {
         self.0.lock().mode = NavigationMode::Disabled;
     }
 
-    pub fn enable(&mut self) {
+    pub(crate) fn enable(&self) {
         self.0.lock().mode = NavigationMode::Normal;
     }
 
-    pub fn clear(&mut self, cx: &mut App) {
+    pub(crate) fn clear(&self, cx: &mut App) {
         let mut state = self.0.lock();
 
         if state.backward_stack.is_empty()
@@ -3564,7 +3565,7 @@ impl NavHistory {
         state.did_update(cx);
     }
 
-    pub fn pop(&mut self, mode: NavigationMode, cx: &mut App) -> Option<NavigationEntry> {
+    pub(crate) fn pop(&self, mode: NavigationMode, cx: &mut App) -> Option<NavigationEntry> {
         let mut state = self.0.lock();
         let entry = match mode {
             NavigationMode::Normal | NavigationMode::Disabled | NavigationMode::ClosingItem => {
@@ -3581,8 +3582,8 @@ impl NavHistory {
         entry
     }
 
-    pub fn push<D: 'static + Any + Send + Sync>(
-        &mut self,
+    fn push<D: 'static + Any + Send + Sync>(
+        &self,
         data: Option<D>,
         item: Arc<dyn WeakItemHandle + Send + Sync>,
         is_preview: bool,
@@ -3656,13 +3657,13 @@ impl NavHistory {
         state.did_update(cx);
     }
 
-    pub fn remove_item(&mut self, item_id: EntityId) {
+    pub(crate) fn remove_item(&self, item_id: EntityId) {
         let mut state = self.0.lock();
         state.paths_by_item.remove(&item_id);
         state.retain_entries(|id| id != item_id);
     }
 
-    pub fn remove_items(&mut self, item_ids: &FxHashSet<EntityId>) {
+    fn remove_items(&self, item_ids: &FxHashSet<EntityId>) {
         let mut state = self.0.lock();
         for item_id in item_ids {
             state.paths_by_item.remove(item_id);
@@ -3679,11 +3680,11 @@ impl NavHistory {
         }
     }
 
-    pub fn path_for_item(&self, item_id: EntityId) -> Option<(ProjectPath, Option<PathBuf>)> {
+    pub(crate) fn path_for_item(&self, item_id: EntityId) -> Option<(ProjectPath, Option<PathBuf>)> {
         self.0.lock().paths_by_item.get(&item_id).cloned()
     }
 
-    pub fn push_tag(&mut self, origin: NavigationEntry, target: NavigationEntry) {
+    fn push_tag(&self, origin: NavigationEntry, target: NavigationEntry) {
         let mut state = self.0.lock();
         let truncate_to = state.tag_stack_pos;
         state.tag_stack.truncate(truncate_to);
@@ -3691,7 +3692,7 @@ impl NavHistory {
         state.tag_stack_pos = state.tag_stack.len();
     }
 
-    pub fn pop_tag(&mut self, mode: TagNavigationMode) -> Option<NavigationEntry> {
+    pub(crate) fn pop_tag(&self, mode: TagNavigationMode) -> Option<NavigationEntry> {
         let mut state = self.0.lock();
         match mode {
             TagNavigationMode::Older => {
@@ -3715,7 +3716,7 @@ impl NavHistory {
 
 impl NavHistoryState {
     /// Redraws the workspace, whose title bar shows whether back and forward can go anywhere.
-    pub(crate) fn did_update(&self, cx: &mut App) {
+    fn did_update(&self, cx: &mut App) {
         if let Some(workspace) = self.workspace.upgrade() {
             cx.defer(move |cx| workspace.update(cx, |_, cx| cx.notify()));
         }

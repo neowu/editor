@@ -67,7 +67,7 @@ const NEWLINES: &[u8; rope::Chunk::MASK_BITS] = &[b'\n'; _];
 /// Tracks custom blocks such as diagnostics that should be displayed within buffer.
 ///
 /// See the [`display_map` module documentation](crate::display_map) for more information.
-pub struct BlockMap {
+pub(crate) struct BlockMap {
     pub(super) wrap_snapshot: RefCell<WrapSnapshot>,
     next_block_id: AtomicUsize,
     custom_blocks: Vec<Arc<CustomBlock>>,
@@ -81,8 +81,8 @@ pub struct BlockMap {
 }
 
 pub(crate) struct BlockMapReader<'a> {
-    pub blocks: &'a Vec<Arc<CustomBlock>>,
-    pub snapshot: BlockSnapshot,
+    blocks: &'a Vec<Arc<CustomBlock>>,
+    pub(crate) snapshot: BlockSnapshot,
 }
 
 pub(crate) struct BlockMapWriter<'a> {
@@ -109,7 +109,7 @@ pub struct BlockSnapshot {
     transforms: SumTree<Transform>,
     custom_blocks_by_id: TreeMap<CustomBlockId, Arc<CustomBlock>>,
     pub(super) buffer_header_height: u32,
-    pub(super) excerpt_header_height: u32,
+    excerpt_header_height: u32,
     pub(super) buffers_with_disabled_headers: FxHashSet<BufferId>,
 }
 
@@ -122,7 +122,7 @@ impl Deref for BlockSnapshot {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CustomBlockId(pub usize);
+pub struct CustomBlockId(usize);
 
 impl From<CustomBlockId> for ElementId {
     fn from(val: CustomBlockId) -> Self {
@@ -131,26 +131,32 @@ impl From<CustomBlockId> for ElementId {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SpacerId(pub usize);
+pub struct SpacerId(usize);
 
 /// A zero-indexed point in a text buffer consisting of a row and column
 /// adjusted for inserted blocks, wrapped rows, tabs, folds and inlays.
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
-pub struct BlockPoint(pub Point);
+pub(crate) struct BlockPoint(pub(crate) Point);
 
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
-pub struct BlockRow(pub u32);
+pub(crate) struct BlockRow(pub(crate) u32);
 
 impl_for_row_types! {
     BlockRow => RowDelta
 }
 
+impl BlockRow {
+    const fn saturating_sub(self, other: RowDelta) -> BlockRow {
+        BlockRow(self.0.saturating_sub(other.0))
+    }
+}
+
 impl BlockPoint {
-    pub const fn row(&self) -> BlockRow {
+    const fn row(self) -> BlockRow {
         BlockRow(self.0.row)
     }
 
-    pub const fn new(row: BlockRow, column: u32) -> Self {
+    pub(crate) const fn new(row: BlockRow, column: u32) -> Self {
         Self(Point::new(row.0, column))
     }
 }
@@ -159,18 +165,18 @@ impl BlockPoint {
 /// tree position across calls. This is the streaming equivalent of
 /// [`BlockSnapshot::to_block_point`]; callers must provide non-decreasing wrap
 /// points.
-pub struct BlockPointCursor<'a> {
+pub(crate) struct BlockPointCursor<'a> {
     snapshot: &'a BlockSnapshot,
     cursor: sum_tree::Cursor<'a, 'static, Transform, Dimensions<WrapRow, BlockRow>>,
 }
 
 impl BlockPointCursor<'_> {
     /// Resets the cursor to the start so it can seek backward again.
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.cursor.reset();
     }
 
-    pub fn map(&mut self, wrap_point: WrapPoint) -> BlockPoint {
+    pub(crate) fn map(&mut self, wrap_point: WrapPoint) -> BlockPoint {
         let cursor = &mut self.cursor;
         if cursor.did_seek() {
             cursor.seek_forward(&wrap_point.row(), Bias::Right);
@@ -208,7 +214,7 @@ pub enum BlockPlacement<T> {
 }
 
 impl<T> BlockPlacement<T> {
-    pub const fn start(&self) -> &T {
+    const fn start(&self) -> &T {
         match self {
             BlockPlacement::Above(position) => position,
             BlockPlacement::Below(position) => position,
@@ -303,10 +309,10 @@ impl BlockPlacement<Anchor> {
     }
 }
 
-pub struct CustomBlock {
-    pub id: CustomBlockId,
-    pub placement: BlockPlacement<Anchor>,
-    pub height: Option<u32>,
+pub(crate) struct CustomBlock {
+    pub(crate) id: CustomBlockId,
+    pub(crate) placement: BlockPlacement<Anchor>,
+    pub(crate) height: Option<u32>,
     style: BlockStyle,
     render: Arc<Mutex<RenderBlock>>,
     priority: usize,
@@ -347,8 +353,8 @@ pub enum BlockStyle {
 #[derive(Debug, Default, Copy, Clone)]
 pub struct EditorMargins {
     pub gutter: GutterDimensions,
-    pub right: Pixels,
-    pub extended_right: Pixels,
+    pub(crate) right: Pixels,
+    pub(crate) extended_right: Pixels,
 }
 
 #[derive(gpui::AppContext, gpui::VisualContext)]
@@ -357,16 +363,14 @@ pub struct BlockContext<'a, 'b> {
     pub window: &'a mut Window,
     #[app]
     pub app: &'b mut App,
-    pub anchor_x: Pixels,
-    pub max_width: Pixels,
+    pub(crate) anchor_x: Pixels,
     pub margins: &'b EditorMargins,
     pub em_width: Pixels,
     pub line_height: Pixels,
     pub block_id: BlockId,
-    pub height: u32,
-    pub selected: bool,
-    pub editor_style: &'b EditorStyle,
-    pub indent_guide_padding: Pixels,
+    pub(crate) height: u32,
+    pub(crate) editor_style: &'b EditorStyle,
+    pub(crate) indent_guide_padding: Pixels,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -411,7 +415,7 @@ struct Transform {
 }
 
 #[derive(Clone)]
-pub enum Block {
+pub(crate) enum Block {
     Custom(Arc<CustomBlock>),
     FoldedBuffer { first_excerpt: ExcerptBoundaryInfo, height: u32 },
     ExcerptBoundary { excerpt: ExcerptBoundaryInfo, height: u32 },
@@ -420,7 +424,7 @@ pub enum Block {
 }
 
 impl Block {
-    pub fn id(&self) -> BlockId {
+    pub(crate) fn id(&self) -> BlockId {
         match self {
             Block::Custom(block) => BlockId::Custom(block.id),
             Block::ExcerptBoundary { excerpt: next_excerpt, .. } => BlockId::ExcerptBoundary(next_excerpt.start_anchor),
@@ -430,7 +434,7 @@ impl Block {
         }
     }
 
-    pub fn has_height(&self) -> bool {
+    pub(crate) fn has_height(&self) -> bool {
         match self {
             Block::Custom(block) => block.height.is_some(),
             Block::ExcerptBoundary { .. }
@@ -440,7 +444,7 @@ impl Block {
         }
     }
 
-    pub fn height(&self) -> u32 {
+    pub(crate) fn height(&self) -> u32 {
         match self {
             Block::Custom(block) => block.height.unwrap_or(0),
             Block::ExcerptBoundary { height, .. }
@@ -450,7 +454,7 @@ impl Block {
         }
     }
 
-    pub fn style(&self) -> BlockStyle {
+    pub(crate) fn style(&self) -> BlockStyle {
         match self {
             Block::Custom(block) => block.style,
             Block::ExcerptBoundary { .. } | Block::FoldedBuffer { .. } | Block::BufferHeader { .. } => {
@@ -470,7 +474,7 @@ impl Block {
         }
     }
 
-    pub fn place_near(&self) -> bool {
+    pub(crate) fn place_near(&self) -> bool {
         match self {
             Block::Custom(block) => matches!(block.placement, BlockPlacement::Near(_)),
             Block::FoldedBuffer { .. } => false,
@@ -510,7 +514,7 @@ impl Block {
         }
     }
 
-    pub const fn is_buffer_header(&self) -> bool {
+    pub(crate) const fn is_buffer_header(&self) -> bool {
         match self {
             Block::Custom(_) => false,
             Block::FoldedBuffer { .. } => true,
@@ -550,7 +554,7 @@ struct TransformSummary {
     has_replacement_blocks: bool,
 }
 
-pub struct BlockChunks<'a> {
+pub(crate) struct BlockChunks<'a> {
     transforms: sum_tree::Cursor<'a, 'static, Transform, Dimensions<BlockRow, WrapRow>>,
     input_chunks: wrap_map::WrapChunks<'a>,
     input_chunk: Chunk<'a>,
@@ -568,7 +572,7 @@ pub(super) struct BlockRows<'a> {
 }
 
 #[derive(Clone, Copy)]
-pub struct CompanionView<'a> {
+pub(crate) struct CompanionView<'a> {
     display_map_id: EntityId,
     companion_wrap_snapshot: &'a WrapSnapshot,
     companion_wrap_edits: &'a WrapPatch,
@@ -608,7 +612,7 @@ impl<'a> From<&'a CompanionViewMut<'a>> for CompanionView<'a> {
     }
 }
 
-pub struct CompanionViewMut<'a> {
+pub(crate) struct CompanionViewMut<'a> {
     display_map_id: EntityId,
     companion_display_map_id: EntityId,
     companion_wrap_snapshot: &'a WrapSnapshot,
@@ -641,7 +645,7 @@ impl<'a> CompanionViewMut<'a> {
 }
 
 impl BlockMap {
-    pub fn new(wrap_snapshot: WrapSnapshot, buffer_header_height: u32, excerpt_header_height: u32) -> Self {
+    pub(crate) fn new(wrap_snapshot: WrapSnapshot, buffer_header_height: u32, excerpt_header_height: u32) -> Self {
         let row_count = wrap_snapshot.max_point().row() + WrapRow(1);
         let mut transforms = SumTree::default();
         push_isomorphic(&mut transforms, row_count - WrapRow(0), &wrap_snapshot);
@@ -1096,7 +1100,7 @@ impl BlockMap {
         *transforms = new_transforms;
     }
 
-    pub fn replace_blocks(&mut self, mut renderers: FxHashMap<CustomBlockId, RenderBlock>) {
+    pub(crate) fn replace_blocks(&mut self, mut renderers: FxHashMap<CustomBlockId, RenderBlock>) {
         for block in &mut self.custom_blocks {
             if let Some(render) = renderers.remove(&block.id) {
                 *block.render.lock() = render;
@@ -1954,7 +1958,7 @@ impl BlockSnapshot {
     }
 
     #[inline(always)]
-    pub fn has_replacement_blocks(&self) -> bool {
+    pub(crate) fn has_replacement_blocks(&self) -> bool {
         self.transforms.summary().has_replacement_blocks
     }
 
@@ -2008,7 +2012,7 @@ impl BlockSnapshot {
         }
     }
 
-    pub fn blocks_in_range(&self, rows: Range<BlockRow>) -> impl Iterator<Item = (BlockRow, &Block)> {
+    pub(crate) fn blocks_in_range(&self, rows: Range<BlockRow>) -> impl Iterator<Item = (BlockRow, &Block)> {
         let mut cursor = self.transforms.cursor::<BlockRow>(());
         cursor.seek(&rows.start, Bias::Left);
         while *cursor.start() < rows.start && cursor.end() <= rows.start {
@@ -2050,7 +2054,7 @@ impl BlockSnapshot {
         None
     }
 
-    pub fn block_for_id(&self, block_id: BlockId) -> Option<Block> {
+    pub(crate) fn block_for_id(&self, block_id: BlockId) -> Option<Block> {
         let buffer = self.wrap_snapshot.buffer_snapshot();
         let wrap_point = match block_id {
             BlockId::Custom(custom_block_id) => {
@@ -2087,12 +2091,12 @@ impl BlockSnapshot {
         None
     }
 
-    pub fn max_point(&self) -> BlockPoint {
+    pub(crate) fn max_point(&self) -> BlockPoint {
         let row = self.transforms.summary().output_rows.saturating_sub(RowDelta(1));
         BlockPoint::new(row, self.line_len(row))
     }
 
-    pub fn longest_row(&self) -> BlockRow {
+    pub(crate) fn longest_row(&self) -> BlockRow {
         self.transforms.summary().longest_row
     }
 
@@ -2120,7 +2124,7 @@ impl BlockSnapshot {
         item.is_some_and(|transform| transform.block.as_ref().is_some_and(|block| block.is_replacement()))
     }
 
-    pub fn clip_point(&self, point: BlockPoint, bias: Bias) -> BlockPoint {
+    pub(crate) fn clip_point(&self, point: BlockPoint, bias: Bias) -> BlockPoint {
         let mut cursor = self.transforms.cursor::<Dimensions<BlockRow, WrapRow>>(());
         cursor.seek(&BlockRow(point.row), Bias::Right);
 
@@ -2173,11 +2177,11 @@ impl BlockSnapshot {
         }
     }
 
-    pub fn block_point_cursor(&self) -> BlockPointCursor<'_> {
+    pub(crate) fn block_point_cursor(&self) -> BlockPointCursor<'_> {
         BlockPointCursor { snapshot: self, cursor: self.transforms.cursor::<Dimensions<WrapRow, BlockRow>>(()) }
     }
 
-    pub fn to_block_point(&self, wrap_point: WrapPoint) -> BlockPoint {
+    pub(crate) fn to_block_point(&self, wrap_point: WrapPoint) -> BlockPoint {
         let (start, _, item) =
             self.transforms.find::<Dimensions<WrapRow, BlockRow>, _>((), &wrap_point.row(), Bias::Right);
         if let Some(transform) = item {
@@ -2195,7 +2199,7 @@ impl BlockSnapshot {
         }
     }
 
-    pub fn to_wrap_point(&self, block_point: BlockPoint, bias: Bias) -> WrapPoint {
+    pub(crate) fn to_wrap_point(&self, block_point: BlockPoint, bias: Bias) -> WrapPoint {
         let (start, end, item) =
             self.transforms.find::<Dimensions<BlockRow, WrapRow>, _>((), &BlockRow(block_point.row), Bias::Right);
         if let Some(transform) = item {
@@ -2250,8 +2254,8 @@ impl BlockChunks<'_> {
     }
 }
 
-pub struct StickyHeaderExcerpt<'a> {
-    pub excerpt: &'a ExcerptBoundaryInfo,
+pub(crate) struct StickyHeaderExcerpt<'a> {
+    pub(crate) excerpt: &'a ExcerptBoundaryInfo,
 }
 
 impl<'a> Iterator for BlockChunks<'a> {
@@ -2431,23 +2435,19 @@ impl DerefMut for BlockContext<'_, '_> {
 }
 
 impl CustomBlock {
-    pub fn render(&self, cx: &mut BlockContext) -> AnyElement {
+    pub(crate) fn render(&self, cx: &mut BlockContext) -> AnyElement {
         self.render.lock()(cx)
     }
 
-    pub const fn start(&self) -> Anchor {
+    pub(crate) const fn start(&self) -> Anchor {
         *self.placement.start()
     }
 
-    pub const fn end(&self) -> Anchor {
+    const fn end(&self) -> Anchor {
         *self.placement.end()
     }
 
-    pub const fn style(&self) -> BlockStyle {
-        self.style
-    }
-
-    pub fn properties(&self) -> BlockProperties<Anchor> {
+    pub(crate) fn properties(&self) -> BlockProperties<Anchor> {
         BlockProperties {
             placement: self.placement.clone(),
             height: self.height,

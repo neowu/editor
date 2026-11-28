@@ -16,7 +16,7 @@ use workspace::status_item_color;
 
 use crate::ProjectSearchView;
 
-pub const SEARCH_ICON: IconName = IconName::MagnifyingGlass;
+const SEARCH_ICON: IconName = IconName::MagnifyingGlass;
 
 pub struct SearchButton {
     pane_item_focus_handle: Option<FocusHandle>,

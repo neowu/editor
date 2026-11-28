@@ -8,7 +8,7 @@ use gpui::Pixels;
 /// - parent_border: border width of the parent element
 /// - parent_padding: padding of the parent element
 /// - self_border: border width of this child element (for content inset)
-pub fn inner_corner_radius(
+pub(crate) fn inner_corner_radius(
     parent_radius: Pixels,
     parent_border: Pixels,
     parent_padding: Pixels,

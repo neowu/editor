@@ -11,7 +11,7 @@ use crate::util::chars::is_space;
 
 /// JavaScript's `parseInt` with no radix: optional whitespace and sign, then decimal digits, or
 /// hex digits after `0x`. `NaN` when there are no digits.
-pub(crate) fn parse_int(text: &str) -> f64 {
+fn parse_int(text: &str) -> f64 {
     let text = trim_start(text);
     let (negative, text) = match text.as_bytes().first() {
         Some(b'-') => (true, text.get(1..).unwrap_or("")),
@@ -262,9 +262,9 @@ pub(crate) enum ElementRef {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct C4Db {
     /// The accessible description.
-    pub(crate) acc_descr: Option<String>,
+    acc_descr: Option<String>,
     /// The accessible title. Mermaid's grammar never sets it.
-    pub(crate) acc_title: Option<String>,
+    acc_title: Option<String>,
     /// Boundaries. The first is the unnamed one that holds everything at the top level.
     pub(crate) boundaries: Vec<C4Element>,
     /// The top-level boundary is not listed, so a boundary a diagram names `global` is its own

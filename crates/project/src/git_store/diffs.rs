@@ -5,7 +5,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use buffer_diff::BufferDiff;
+use buffer_diff::DiffHunk;
 use buffer_diff::DiffHunkSecondaryStatus;
+use buffer_diff::PendingHunk;
 use buffer_diff::PendingSense;
 use futures::FutureExt;
 use futures::future;
@@ -30,11 +32,19 @@ use super::buffer_git_state::BufferGitState;
 use super::buffer_git_state::DiffBasesChange;
 use super::buffer_git_state::GitDiffOperations;
 use super::buffer_git_state::IndexTextFile;
-use super::buffer_git_state::pending_hunks;
 use super::conflict_set::ConflictSet;
 
+fn pending_hunks(hunks: &[DiffHunk], version: &clock::Global, sense: PendingSense) -> Vec<PendingHunk> {
+    hunks
+        .iter()
+        .map(|hunk| {
+            PendingHunk::new(hunk.buffer_range.clone(), hunk.diff_base_byte_range.clone(), version.clone(), sense)
+        })
+        .collect()
+}
+
 impl GitStore {
-    pub fn open_unstaged_diff(
+    pub(crate) fn open_unstaged_diff(
         &mut self,
         buffer: Entity<Buffer>,
         cx: &mut Context<Self>,
@@ -96,7 +106,7 @@ impl GitStore {
 
     /// Opens the staged (HEAD-vs-index) diff for the given buffer, along with
     /// the index text buffer that is the diff's main buffer.
-    pub fn open_staged_diff(
+    pub(crate) fn open_staged_diff(
         &mut self,
         buffer: Entity<Buffer>,
         cx: &mut Context<Self>,
@@ -158,8 +168,8 @@ impl GitStore {
     /// worktree->index projection is needed. Optimistically suppresses the staged
     /// hunks from the unstaged diff and, if the uncommitted diff happens to be
     /// open, marks the corresponding uncommitted hunks as staging.
-    pub fn stage_hunks(
-        &mut self,
+    pub(crate) fn stage_hunks(
+        &self,
         buffer: Entity<Buffer>,
         unstaged_diff: Entity<BufferDiff>,
         worktree_ranges: Vec<Range<Anchor>>,
@@ -249,8 +259,8 @@ impl GitStore {
     /// given uncommitted (HEAD-vs-worktree) diff, invoked from the uncommitted
     /// (gutter) controls. Uses the worktree->index projection (the hard part)
     /// because the acted-on hunks are HEAD-vs-worktree.
-    pub fn unstage_uncommitted_hunks(
-        &mut self,
+    pub(crate) fn unstage_uncommitted_hunks(
+        &self,
         buffer: Entity<Buffer>,
         uncommitted_diff: Entity<BufferDiff>,
         worktree_ranges: Vec<Range<Anchor>>,
@@ -298,8 +308,8 @@ impl GitStore {
     /// invoked from the staged-changes view. The acted-on hunks already carry
     /// an index range, so no projection is needed; optimistically suppresses
     /// them from the staged diff.
-    pub fn unstage_staged_hunks(
-        &mut self,
+    pub(crate) fn unstage_staged_hunks(
+        &self,
         staged_diff: Entity<BufferDiff>,
         index_ranges: Vec<Range<Anchor>>,
         cx: &mut Context<Self>,
@@ -348,7 +358,7 @@ impl GitStore {
         self.write_index_text_for_buffer_id(buffer_id, new_index_text, cx);
     }
 
-    pub fn open_diff_since(
+    pub(crate) fn open_diff_since(
         &mut self,
         oid: Option<git::Oid>,
         buffer: Entity<Buffer>,
@@ -653,7 +663,7 @@ impl GitStore {
         .await
     }
 
-    pub fn get_uncommitted_diff(&self, buffer_id: BufferId, cx: &App) -> Option<Entity<BufferDiff>> {
+    fn get_uncommitted_diff(&self, buffer_id: BufferId, cx: &App) -> Option<Entity<BufferDiff>> {
         let diff_state = self.diffs.get(&buffer_id)?;
         diff_state.read(cx).uncommitted_diff.as_ref()?.upgrade()
     }
@@ -699,7 +709,7 @@ impl GitStore {
         })
     }
 
-    pub fn recalculate_buffer_diffs(
+    pub(crate) fn recalculate_buffer_diffs(
         &mut self,
         buffers: Vec<Entity<Buffer>>,
         cx: &mut Context<Self>,

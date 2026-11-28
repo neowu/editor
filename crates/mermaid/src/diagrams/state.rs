@@ -1,13 +1,13 @@
 //! State diagrams: Mermaid's `stateDiagram` and `stateDiagram-v2`. Port of Pele's
 //! `src/diagrams/state/index.ts`.
 
-pub(crate) mod db;
-pub(crate) mod graph;
-pub(crate) mod lexer;
-pub(crate) mod parser;
-pub(crate) mod render;
-pub(crate) mod tokens;
-pub(crate) mod types;
+mod db;
+mod graph;
+mod lexer;
+mod parser;
+mod render;
+mod tokens;
+mod types;
 
 use super::Diagram;
 use super::Input;
@@ -33,7 +33,7 @@ pub(crate) use db::StateDb as Model;
 ///
 /// Returns a syntax error for input Mermaid rejects, and a semantic error for a composite state
 /// with a description.
-pub(crate) fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
+fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
     let mut db = Model::default();
     if let Some(title) = title.filter(|title| !title.is_empty()) {
         db.title = Some(title.to_owned());

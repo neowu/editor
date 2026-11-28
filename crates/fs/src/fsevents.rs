@@ -86,8 +86,8 @@ unsafe extern "C" {
 /// One changed path with its raw (possibly coalesced) FSEvents flags.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Event {
-    pub path: PathBuf,
-    pub flags: u32,
+    pub(crate) path: PathBuf,
+    pub(crate) flags: u32,
 }
 
 impl Event {

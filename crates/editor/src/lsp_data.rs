@@ -15,7 +15,7 @@ use super::LspDataKind;
 use crate::inlays::inlay_hints::InlayHintRefreshReason;
 
 impl Editor {
-    pub const fn lsp_data_enabled(&self) -> bool {
+    pub(crate) const fn lsp_data_enabled(&self) -> bool {
         self.enable_lsp_data && self.mode().is_full()
     }
 
@@ -167,7 +167,7 @@ impl Editor {
         self.enable_runnables = false;
     }
 
-    pub(super) fn update_data_on_scroll(&mut self, debounce: bool, window: &mut Window, cx: &mut Context<'_, Self>) {
+    pub(super) fn update_data_on_scroll(&mut self, debounce: bool, window: &Window, cx: &mut Context<'_, Self>) {
         if debounce {
             self.post_scroll_update = cx.spawn_in(window, async move |editor, cx| {
                 cx.background_executor().timer(Duration::from_millis(50)).await;
@@ -183,7 +183,7 @@ impl Editor {
         }
     }
 
-    fn do_update_data_on_scroll(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) {
+    fn do_update_data_on_scroll(&mut self, window: &Window, cx: &mut Context<'_, Self>) {
         self.register_visible_buffers(cx);
         self.refresh_spell_check(cx);
         self.refresh_inlay_hints(InlayHintRefreshReason::NewLinesShown, cx);

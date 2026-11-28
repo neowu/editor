@@ -20,13 +20,13 @@ where
     V: Clone;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct MapEntry<K, V> {
+struct MapEntry<K, V> {
     key: K,
     value: V,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct MapKey<K>(Option<K>);
+struct MapKey<K>(Option<K>);
 
 impl<K> Default for MapKey<K> {
     fn default() -> Self {
@@ -35,7 +35,7 @@ impl<K> Default for MapKey<K> {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct MapKeyRef<'a, K>(Option<&'a K>);
+struct MapKeyRef<'a, K>(Option<&'a K>);
 
 impl<K> Default for MapKeyRef<'_, K> {
     fn default() -> Self {
@@ -80,7 +80,7 @@ impl<K: Clone + Ord, V: Clone> TreeMap<K, V> {
         self.0.insert_or_replace(MapEntry { key, value }, ()).map(|it| it.value)
     }
 
-    pub fn extend(&mut self, iter: impl IntoIterator<Item = (K, V)>) {
+    fn extend(&mut self, iter: impl IntoIterator<Item = (K, V)>) {
         let edits: Vec<_> = iter.into_iter().map(|(key, value)| Edit::Insert(MapEntry { key, value })).collect();
         self.0.edit(edits, ());
     }
@@ -113,7 +113,7 @@ impl<K: Clone + Ord, V: Clone> TreeMap<K, V> {
         cursor.item().map(|item| (&item.key, &item.value))
     }
 
-    pub fn iter_from<'a>(&'a self, from: &K) -> impl Iterator<Item = (&'a K, &'a V)> + 'a {
+    fn iter_from<'a>(&'a self, from: &K) -> impl Iterator<Item = (&'a K, &'a V)> + 'a {
         let mut cursor = self.0.cursor::<MapKeyRef<'_, K>>(());
         let from_key = MapKeyRef(Some(from));
         cursor.seek(&from_key, Bias::Left);

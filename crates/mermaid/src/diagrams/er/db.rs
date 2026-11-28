@@ -57,9 +57,9 @@ impl<V> Ordered<V> {
 #[derive(Debug)]
 pub(crate) struct ErDb {
     /// The accessible description.
-    pub(crate) acc_descr: Option<String>,
+    acc_descr: Option<String>,
     /// The accessible title.
-    pub(crate) acc_title: Option<String>,
+    acc_title: Option<String>,
     /// Names already placed in a subgraph.
     claimed: BTreeSet<String>,
     /// Class definitions by name.

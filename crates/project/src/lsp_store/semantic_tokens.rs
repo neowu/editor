@@ -214,7 +214,7 @@ impl LspStore {
         task
     }
 
-    pub(super) fn fetch_semantic_tokens_for_buffer(
+    fn fetch_semantic_tokens_for_buffer(
         &mut self,
         buffer: &Entity<Buffer>,
         for_server: Option<LanguageServerId>,
@@ -286,7 +286,7 @@ impl LspStore {
         &mut self,
         server_id: LanguageServerId,
         buffer: &Entity<Buffer>,
-        cx: &mut App,
+        cx: &App,
     ) -> Option<SharedString> {
         self.latest_lsp_data(buffer, cx).semantic_tokens.as_ref()?.raw_tokens.servers.get(&server_id)?.result_id.clone()
     }
@@ -365,7 +365,7 @@ pub struct BufferSemanticTokens {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TokenType(pub u32);
+pub struct TokenType(u32);
 
 #[derive(Debug, Clone)]
 pub struct BufferSemanticToken {
@@ -385,7 +385,7 @@ pub struct SemanticTokenStylizer {
 }
 
 impl SemanticTokenStylizer {
-    pub fn new(
+    fn new(
         server_id: LanguageServerId,
         legend: &lsp_types::SemanticTokensLegend,
         language_rules: &SemanticTokenRules,
@@ -504,8 +504,8 @@ async fn raw_to_buffer_semantic_tokens(
 
 #[derive(Default, Debug)]
 pub(super) struct SemanticTokensData {
-    pub(super) raw_tokens: RawSemanticTokens,
-    pub(super) pending_refreshes: FxHashSet<LanguageServerId>,
+    raw_tokens: RawSemanticTokens,
+    pending_refreshes: FxHashSet<LanguageServerId>,
     fetched_servers: FxHashSet<LanguageServerId>,
     update: Option<(Global, SemanticTokensTask)>,
     /// Bumped on every eviction so that fetches started against the evicted state
@@ -535,13 +535,13 @@ impl SemanticTokensData {
 /// This aggregates semantic tokens from multiple language servers in a specific order.
 /// Semantic tokens later in the list will override earlier ones in case of overlap.
 #[derive(Default, Debug, Clone)]
-pub(super) struct RawSemanticTokens {
-    pub servers: FxHashMap<LanguageServerId, Arc<ServerSemanticTokens>>,
+struct RawSemanticTokens {
+    servers: FxHashMap<LanguageServerId, Arc<ServerSemanticTokens>>,
 }
 
 /// All the semantic tokens for a buffer, from a single language server.
 #[derive(Debug, Clone)]
-pub(super) struct ServerSemanticTokens {
+struct ServerSemanticTokens {
     /// Each value is:
     /// data[5*i] - deltaLine: token line number, relative to the start of the previous token
     /// data[5*i+1] - deltaStart: token start character, relative to the start of the previous token (relative to 0 or the previous token’s start if they are on the same line)
@@ -552,10 +552,10 @@ pub(super) struct ServerSemanticTokens {
     /// See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/ for more.
     data: Vec<u32>,
 
-    pub(crate) result_id: Option<SharedString>,
+    result_id: Option<SharedString>,
 }
 
-pub(super) struct SemanticTokensIter<'a> {
+struct SemanticTokensIter<'a> {
     prev: Option<(u32, u32)>,
     data: Iter<'a, [u32; 5]>,
 }
@@ -571,20 +571,20 @@ struct SemanticTokenValue {
 
 /// A semantic token, independent of its position.
 #[derive(Debug, PartialEq, Eq)]
-pub(super) struct SemanticToken {
-    pub line: u32,
-    pub start: u32,
-    pub length: u32,
-    pub token_type: TokenType,
-    pub token_modifiers: u32,
+struct SemanticToken {
+    line: u32,
+    start: u32,
+    length: u32,
+    token_type: TokenType,
+    token_modifiers: u32,
 }
 
 impl ServerSemanticTokens {
-    pub(super) const fn from_full(data: Vec<u32>, result_id: Option<SharedString>) -> Self {
+    const fn from_full(data: Vec<u32>, result_id: Option<SharedString>) -> Self {
         ServerSemanticTokens { data, result_id }
     }
 
-    pub(crate) fn apply(&mut self, edits: &[SemanticTokensEdit]) {
+    fn apply(&mut self, edits: &[SemanticTokensEdit]) {
         for edit in edits {
             let start = (edit.start as usize).min(self.data.len());
             let end = (start + edit.delete_count as usize).min(self.data.len());
@@ -592,7 +592,7 @@ impl ServerSemanticTokens {
         }
     }
 
-    pub(super) fn tokens(&self) -> SemanticTokensIter<'_> {
+    fn tokens(&self) -> SemanticTokensIter<'_> {
         SemanticTokensIter { prev: None, data: self.data.as_chunks::<5>().0.iter() }
     }
 }

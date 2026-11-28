@@ -7,18 +7,18 @@ use serde_json::Value;
 
 #[derive(Clone, Debug)]
 pub(crate) struct PackageJson {
-    pub mtime: SystemTime,
-    pub data: PackageJsonData,
+    pub(crate) mtime: SystemTime,
+    pub(crate) data: PackageJsonData,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PackageJsonData {
-    pub jest_package_path: Option<Arc<Path>>,
-    pub mocha_package_path: Option<Arc<Path>>,
-    pub vitest_package_path: Option<Arc<Path>>,
-    pub jasmine_package_path: Option<Arc<Path>>,
-    pub bun_package_path: Option<Arc<Path>>,
-    pub node_package_path: Option<Arc<Path>>,
+    pub(crate) jest_package_path: Option<Arc<Path>>,
+    pub(crate) mocha_package_path: Option<Arc<Path>>,
+    pub(crate) vitest_package_path: Option<Arc<Path>>,
+    pub(crate) jasmine_package_path: Option<Arc<Path>>,
+    pub(crate) bun_package_path: Option<Arc<Path>>,
+    pub(crate) node_package_path: Option<Arc<Path>>,
     pub package_manager: Option<&'static str>,
 }
 

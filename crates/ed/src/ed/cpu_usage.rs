@@ -5,13 +5,13 @@ use std::time::Instant;
 /// Cumulative CPU counters at one moment.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct CpuSample {
-    pub wall: Option<Instant>,
-    pub process_user_ns: u64,
-    pub process_system_ns: u64,
-    pub instructions: u64,
-    pub cycles: u64,
+    wall: Option<Instant>,
+    process_user_ns: u64,
+    process_system_ns: u64,
+    instructions: u64,
+    cycles: u64,
     /// CPU time of the calling thread.
-    pub thread_ns: u64,
+    thread_ns: u64,
 }
 
 impl CpuSample {

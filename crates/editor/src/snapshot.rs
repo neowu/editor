@@ -65,7 +65,7 @@ impl EditorSnapshot {
         self.display_snapshot.buffer_snapshot().language_at(position)
     }
 
-    pub fn display_row_for_inline_code_action(&self, buffer_point: Point) -> Option<DisplayRow> {
+    pub(crate) fn display_row_for_inline_code_action(&self, buffer_point: Point) -> Option<DisplayRow> {
         if self.is_line_folded(MultiBufferRow(buffer_point.row)) {
             return None;
         }
@@ -169,23 +169,23 @@ impl EditorSnapshot {
         self.is_focused
     }
 
-    pub fn placeholder_text(&self) -> Option<String> {
+    pub(crate) fn placeholder_text(&self) -> Option<String> {
         self.placeholder_display_snapshot.as_ref().map(|display_map| display_map.text())
     }
 
-    pub fn scroll_position(&self) -> gpui::Point<ScrollOffset> {
+    pub(crate) fn scroll_position(&self) -> gpui::Point<ScrollOffset> {
         self.scroll_anchor.scroll_position(&self.display_snapshot)
     }
 
-    pub fn max_line_number_width(&self, ch_advance: Pixels) -> Pixels {
+    fn max_line_number_width(&self, ch_advance: Pixels) -> Pixels {
         line_number_width(self.widest_line_number(), ch_advance)
     }
 
-    pub fn gutter_dimensions(
+    pub(crate) fn gutter_dimensions(
         &self,
         font_id: FontId,
         font_size: Pixels,
-        window: &mut Window,
+        window: &Window,
         cx: &App,
     ) -> GutterDimensions {
         if self.show_gutter {

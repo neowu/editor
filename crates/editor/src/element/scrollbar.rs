@@ -290,12 +290,12 @@ impl ScrollbarLayoutInformation {
 /// markers live on the minimap.
 #[derive(Clone)]
 pub(super) struct EditorScrollbars {
-    pub horizontal: Option<ScrollbarLayout>,
-    pub visible: bool,
+    pub(crate) horizontal: Option<ScrollbarLayout>,
+    pub(crate) visible: bool,
 }
 
 impl EditorScrollbars {
-    pub(super) fn new(
+    fn new(
         layout_information: &ScrollbarLayoutInformation,
         content_offset: gpui::Point<Pixels>,
         scroll_position: gpui::Point<f64>,
@@ -336,12 +336,12 @@ impl EditorScrollbars {
         Self { horizontal, visible: show_scrollbars }
     }
 
-    pub(super) fn iter_scrollbars(&self) -> impl Iterator<Item = (&ScrollbarLayout, ScrollbarAxis)> + '_ {
+    fn iter_scrollbars(&self) -> impl Iterator<Item = (&ScrollbarLayout, ScrollbarAxis)> + '_ {
         self.horizontal.iter().map(|scrollbar| (scrollbar, ScrollbarAxis::Horizontal))
     }
 
     /// Returns the currently hovered scrollbar axis, if any.
-    pub(super) fn get_hovered_axis(&self, window: &Window) -> Option<(&ScrollbarLayout, ScrollbarAxis)> {
+    fn get_hovered_axis(&self, window: &Window) -> Option<(&ScrollbarLayout, ScrollbarAxis)> {
         self.iter_scrollbars().find(|s| s.0.hitbox.is_hovered(window))
     }
 }

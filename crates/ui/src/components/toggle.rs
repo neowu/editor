@@ -30,7 +30,6 @@ use crate::prelude::Pixels;
 use crate::prelude::SharedString;
 use crate::prelude::h_flex;
 use crate::prelude::px;
-use crate::utils::is_light;
 
 // TODO: Checkbox, CheckboxWithLabel, and Switch could all be
 // restructured to use a ToggleLike, similar to Button/Buttonlike, Label/Labellike
@@ -335,7 +334,7 @@ pub struct Switch {
 
 impl Switch {
     /// Creates a new [`Switch`].
-    pub fn new(id: impl Into<ElementId>, state: ToggleState) -> Self {
+    fn new(id: impl Into<ElementId>, state: ToggleState) -> Self {
         Self {
             id: id.into(),
             toggle_state: state,
@@ -406,6 +405,11 @@ impl Switch {
         self.tab_index = Some(tab_index.into());
         self
     }
+}
+
+/// Returns true if the current theme is light or vibrant light.
+fn is_light() -> bool {
+    theme::theme().appearance.is_light()
 }
 
 impl RenderOnce for Switch {

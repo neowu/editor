@@ -148,21 +148,21 @@ impl LabelLike {
     });
 
     /// Truncates overflowing text with an ellipsis (`…`) at the start if needed.
-    pub const fn truncate_start(mut self) -> Self {
+    pub(crate) const fn truncate_start(mut self) -> Self {
         self.truncate_start = true;
         self
     }
 
     /// Truncates overflowing text with an ellipsis (`…`) in the middle if needed.
     /// Preserves the start and end of the text. Useful for filenames.
-    pub const fn truncate_middle(mut self) -> Self {
+    pub(crate) const fn truncate_middle(mut self) -> Self {
         self.truncate_middle = true;
         self
     }
 
     /// Wraps the text and truncates it with an ellipsis (`…`) at the end of
     /// the last visible line if it exceeds the given number of lines.
-    pub fn line_clamp(mut self, lines: usize) -> Self {
+    pub(crate) fn line_clamp(mut self, lines: usize) -> Self {
         // `line_clamp` alone hard-cuts the text; the ellipsis on the last
         // visible line is only rendered when a text overflow style is set.
         self.base = self.base.line_clamp(lines).text_ellipsis();

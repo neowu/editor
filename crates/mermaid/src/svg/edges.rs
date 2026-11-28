@@ -46,7 +46,7 @@ const CORNER: f64 = 12.0;
 /// which makes the turn fuller.
 const HANDLE: f64 = 0.62;
 /// How far an edge runs straight before a marker at its end, where it has the room.
-pub(crate) const LEAD: f64 = 6.0;
+const LEAD: f64 = 6.0;
 
 /// JavaScript's `Math.sign`: zero for zero and `NaN` for `NaN`.
 fn js_sign(value: f64) -> f64 {

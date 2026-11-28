@@ -227,6 +227,7 @@ impl Parser<'_, '_> {
             T::Str => LabelType::String,
             T::MdStr => LabelType::Markdown,
             t if is_text(t) => LabelType::Text,
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => {
                 let mut expected = String::from(TEXT_TOKENS);
                 expected.push_str(", 'TAGEND', 'STR', 'MD_STR'");
@@ -250,6 +251,7 @@ impl Parser<'_, '_> {
             T::Str => LabelType::String,
             T::MdStr => LabelType::Markdown,
             T::EdgeText | T::UnicodeText => LabelType::Text,
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => return Err(self.fail("'EDGE_TEXT', 'STR', 'MD_STR'")),
         };
         let mut text = self.take();
@@ -265,6 +267,7 @@ impl Parser<'_, '_> {
             T::Str => LabelType::Text,
             T::MdStr => LabelType::Markdown,
             t if is_no_tags(t) => LabelType::Text,
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => return Err(self.fail("'NODE_STRING', 'STR', 'MD_STR'")),
         };
         let mut text = self.take();
@@ -381,6 +384,7 @@ impl Parser<'_, '_> {
                 };
                 self.db.add_vertex(&id, Some(label), Some(shape), None, None, None)?;
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => self.db.add_vertex(&id, None, None, None, None, None)?,
         }
         Ok(id)
@@ -583,6 +587,7 @@ impl Parser<'_, '_> {
                 self.i += 1;
                 self.link_tail()
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => {
                 self.alpha_num()?;
                 if self.kind() == T::Space {
@@ -671,6 +676,7 @@ impl Parser<'_, '_> {
                     T::DirectionBt => "BT",
                     T::DirectionRl => "RL",
                     T::DirectionLr => "LR",
+                    // lint: expect(wildcard_match) only a few variants of `T` matter here
                     _ => "TD",
                 };
                 Ok(Some(DocItem::Dir(value)))
@@ -692,6 +698,7 @@ impl Parser<'_, '_> {
                 self.db.set_acc_description(&value);
                 Ok(Some(DocItem::Str(value)))
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => {
                 if !is_id(t) {
                     return Err(self.fail(STATEMENT_START));

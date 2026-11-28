@@ -56,7 +56,7 @@ use crate::pane::top_row_icon_button;
 /// Where tab bar start content begins, from the window's left edge, when the
 /// pane is not after a sidebar: `CARD_GAP`, the folder tab bar's 10px inset,
 /// then the start slot's 6px padding.
-pub(crate) const TAB_BAR_START_OFFSET: Pixels = px(24.);
+const TAB_BAR_START_OFFSET: Pixels = px(24.);
 
 /// Width of the empty room left for the traffic lights by an element that
 /// starts `offset` from the window's left edge. Fullscreen windows hide them.
@@ -355,7 +355,7 @@ impl Workspace {
     /// The region is a toolbar so region navigation (FocusNextPart) can reach
     /// its controls: it lands on the first control, Tab steps through them,
     /// and arrow keys move between them once focus is inside.
-    pub(crate) fn render_titlebar_region(&self) -> Option<AnyElement> {
+    fn render_titlebar_region(&self) -> Option<AnyElement> {
         let item = self.titlebar_item.clone()?;
         let workspace = self.weak_self.clone();
         Some(

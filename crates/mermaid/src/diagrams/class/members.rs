@@ -23,15 +23,15 @@ pub(crate) struct ClassMember {
     /// `$` (static), `*` (abstract), or empty.
     pub(crate) classifier: String,
     /// The name, or for an attribute everything but its markers.
-    pub(crate) id: String,
+    id: String,
     /// Whether the member is a method or an attribute.
     pub(crate) member_type: MemberType,
     /// A method's parameters.
-    pub(crate) parameters: String,
+    parameters: String,
     /// A method's return type.
-    pub(crate) return_type: String,
+    return_type: String,
     /// `#`, `+`, `~`, `-`, or empty.
-    pub(crate) visibility: String,
+    visibility: String,
 }
 
 /// Whether `c` is a visibility marker.

@@ -16,7 +16,7 @@ use rustc_hash::FxHashMap;
 use crate::LanguageDef;
 use crate::npx;
 
-pub(crate) struct TombiLspAdapter;
+struct TombiLspAdapter;
 
 impl TombiLspAdapter {
     const PACKAGE_NAME: &str = "tombi";
@@ -38,7 +38,7 @@ impl LspAdapter for TombiLspAdapter {
 }
 
 /// Settings for TOML.
-pub(crate) fn settings() -> LanguageSettings {
+fn settings() -> LanguageSettings {
     LanguageSettings {
         tab_size: NonZeroU32::new(4).expect("non-zero"),
         hard_tabs: false,

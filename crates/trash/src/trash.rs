@@ -22,11 +22,11 @@ use macos as platform;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrashItem {
     /// Path to the item inside the trash.
-    pub id: OsString,
+    id: OsString,
     /// Name of the item at the time of trashing.
-    pub name: OsString,
+    name: OsString,
     /// Absolute path to the parent directory at the time of trashing.
-    pub original_parent: PathBuf,
+    original_parent: PathBuf,
 }
 
 impl TrashItem {

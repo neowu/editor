@@ -383,10 +383,6 @@ impl SpellCheckActions {
 }
 
 impl CodeActionProvider for SpellCheckActions {
-    fn id(&self) -> Arc<str> {
-        "spell_check".into()
-    }
-
     fn code_actions(
         &self,
         buffer: &Entity<Buffer>,

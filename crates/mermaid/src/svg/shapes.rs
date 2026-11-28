@@ -19,9 +19,9 @@ pub(crate) struct ShapeSize {
 }
 
 /// Space beside a label in a box.
-pub(crate) const PAD_X: f64 = 18.0;
+const PAD_X: f64 = 18.0;
 /// Space above and below a label in a box.
-pub(crate) const PAD_Y: f64 = 12.0;
+const PAD_Y: f64 = 12.0;
 
 /// Kept clear at each end of a straight side, for the corner.
 const CORNER: f64 = 12.0;
@@ -1183,11 +1183,6 @@ pub(crate) fn shape_span(shape: &str, w: f64, h: f64, sideways: bool) -> f64 {
     0.0_f64.max(span)
 }
 
-/// Whether `shape` holds a label.
-pub(crate) fn shape_has_label(shape: &str) -> bool {
-    !matches!(shape, "sm-circ" | "f-circ" | "fr-circ" | "fork" | "hourglass" | "cross-circ" | "bolt")
-}
-
 /// The side of a node's layout box that a route end at `at` lies on: 0 top, 1 right, 2 bottom,
 /// 3 left, or -1 for none.
 pub(crate) fn end_side(route: &[f64], at: usize, c: &CNode) -> i32 {
@@ -1200,27 +1195,4 @@ pub(crate) fn end_side(route: &[f64], at: usize, c: &CNode) -> i32 {
         return if dx < 0.0 { 3 } else { 1 };
     }
     -1
-}
-
-/// Moves a route end at `at` from node `c`'s layout box onto the outline of `shape`, drawn `w` by
-/// `h` in it. Groups have no outline to move onto.
-pub(crate) fn inset_route(route: &mut [f64], at: usize, shape: &str, w: f64, h: f64, c: &CNode) {
-    if c.is_group {
-        return;
-    }
-
-    let side = end_side(route, at, c);
-    if side == 0 || side == 2 {
-        let t = route.get(at).copied().unwrap_or(f64::NAN) - c.x;
-        let amount = shape_inset(shape, w, h, if side == 0 { 0 } else { 2 }, t) + (c.h - h) / 2.0;
-        if let Some(y) = route.get_mut(at + 1) {
-            *y += if side == 0 { amount } else { -amount };
-        }
-    } else if side >= 0 {
-        let t = route.get(at + 1).copied().unwrap_or(f64::NAN) - c.y;
-        let amount = shape_inset(shape, w, h, if side == 3 { 3 } else { 1 }, t) + (c.w - w) / 2.0;
-        if let Some(x) = route.get_mut(at) {
-            *x += if side == 3 { amount } else { -amount };
-        }
-    }
 }

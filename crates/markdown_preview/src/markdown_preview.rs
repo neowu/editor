@@ -13,23 +13,23 @@ actions!(
     markdown,
     [
         /// Scrolls up by one page in the markdown preview.
-        ScrollPageUp,
+        pub ScrollPageUp,
         /// Scrolls down by one page in the markdown preview.
-        ScrollPageDown,
+        pub ScrollPageDown,
         /// Scrolls up by approximately one visual line.
-        ScrollUp,
+        pub ScrollUp,
         /// Scrolls down by approximately one visual line.
-        ScrollDown,
+        pub ScrollDown,
         /// Scrolls up by one markdown element in the markdown preview
-        ScrollUpByItem,
+        pub ScrollUpByItem,
         /// Scrolls down by one markdown element in the markdown preview
-        ScrollDownByItem,
+        pub ScrollDownByItem,
         /// Scrolls to the top of the markdown preview.
-        ScrollToTop,
+        pub ScrollToTop,
         /// Scrolls to the bottom of the markdown preview.
-        ScrollToBottom,
+        pub ScrollToBottom,
         /// Closes the markdown preview and returns focus to the source editor.
-        CloseAndReturnToEditor
+        pub CloseAndReturnToEditor
     ]
 );
 

@@ -1,34 +1,32 @@
 //! Diagram types and the contract each one implements.
 
-pub(crate) mod common {
+mod common {
     pub(crate) mod acc_descr;
-    pub(crate) mod caseless;
     pub(crate) mod fit;
     pub(crate) mod fit_text;
     pub(crate) mod generics;
-    pub(crate) mod icon;
-    pub(crate) mod literal_label;
+    mod literal_label;
     pub(crate) mod outline;
     pub(crate) mod scan;
     pub(crate) mod tokens;
 }
 
-pub(crate) mod architecture;
-pub(crate) mod c4;
-pub(crate) mod class;
-pub(crate) mod er;
-pub(crate) mod eventmodeling;
-pub(crate) mod flowchart;
-pub(crate) mod mindmap;
-pub(crate) mod radar;
-pub(crate) mod railroad;
-pub(crate) mod requirement;
-pub(crate) mod sequence;
-pub(crate) mod state;
-pub(crate) mod timeline;
-pub(crate) mod treemap;
-pub(crate) mod usecase;
-pub(crate) mod xychart;
+mod architecture;
+mod c4;
+mod class;
+mod er;
+mod eventmodeling;
+mod flowchart;
+mod mindmap;
+mod radar;
+mod railroad;
+mod requirement;
+mod sequence;
+mod state;
+mod timeline;
+mod treemap;
+mod usecase;
+mod xychart;
 
 use crate::Options;
 use crate::error::Error;

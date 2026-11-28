@@ -38,9 +38,9 @@ pub(crate) struct Options {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct FlowDb {
     /// The accessible description.
-    pub(crate) acc_descr: Option<String>,
+    acc_descr: Option<String>,
     /// The accessible title.
-    pub(crate) acc_title: Option<String>,
+    acc_title: Option<String>,
     /// Class definitions, in insertion order.
     pub(crate) classes: Vec<FlowClassDef>,
     /// Styles from `linkStyle default`.

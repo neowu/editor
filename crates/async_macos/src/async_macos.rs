@@ -9,8 +9,6 @@ pub mod net;
 use std::future::poll_fn;
 use std::task::Poll;
 
-pub use gcd::AsyncFd;
-pub use gcd::ProcessExit;
 pub use gcd::unblock;
 
 /// Yields to the executor once so other tasks can run.

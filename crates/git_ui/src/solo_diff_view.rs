@@ -87,7 +87,7 @@ use workspace::searchable::SearchableItemHandle;
 use crate::git_panel::GitStatusEntry;
 use crate::git_status_icon;
 
-pub struct SoloDiffView {
+pub(crate) struct SoloDiffView {
     repository: Entity<Repository>,
     repository_id: RepositoryId,
     repo_path: RepoPath,
@@ -100,7 +100,7 @@ pub struct SoloDiffView {
 }
 
 impl SoloDiffView {
-    pub fn open_or_focus(
+    pub(crate) fn open_or_focus(
         entry: GitStatusEntry,
         repository: Entity<Repository>,
         workspace: WeakEntity<Workspace>,

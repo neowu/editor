@@ -29,7 +29,7 @@ pub struct DocumentLinkOptions {
     pub resolve_provider: Option<bool>,
 
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]

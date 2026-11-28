@@ -48,7 +48,7 @@ pub struct WorkDoneProgressCancelParams {
 #[serde(rename_all = "camelCase")]
 pub struct WorkDoneProgressParams {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub work_done_token: Option<ProgressToken>,
+    work_done_token: Option<ProgressToken>,
 }
 
 #[derive(Debug, PartialEq, Eq, Default, Deserialize, Serialize, Clone)]
@@ -117,7 +117,7 @@ pub struct WorkDoneProgressEnd {
     /// Examples: "3/25 files", "project/src/module2", "node_modules/some_dep".
     /// If unset, the previous progress message (if any) is still valid.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub message: Option<String>,
+    message: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone)]

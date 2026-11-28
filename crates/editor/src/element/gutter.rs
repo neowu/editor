@@ -541,6 +541,7 @@ impl EditorElement {
                                 Corners::all(1. * line_height),
                                 *status,
                             ),
+                            // lint: expect(wildcard_match) only some variants matter here
                             _ => (hunk_hitbox.bounds, color, Corners::all(px(0.)), *status),
                         }
                     }),
@@ -834,7 +835,7 @@ pub(super) fn mark_active_rows(
     }
 }
 
-pub(super) fn render_blame_entry(
+fn render_blame_entry(
     ix: usize,
     blame: &Entity<GitBlame>,
     blame_entry: BlameEntry,

@@ -181,7 +181,7 @@ impl LabelCommon for HighlightedLabel {
     }
 }
 
-pub fn highlight_ranges(text: &str, indices: &[usize], style: HighlightStyle) -> Vec<(Range<usize>, HighlightStyle)> {
+fn highlight_ranges(text: &str, indices: &[usize], style: HighlightStyle) -> Vec<(Range<usize>, HighlightStyle)> {
     let mut highlight_indices = indices.iter().copied().peekable();
     let mut highlights: Vec<(Range<usize>, HighlightStyle)> = Vec::new();
 

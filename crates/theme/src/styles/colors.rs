@@ -16,7 +16,7 @@ pub struct ThemeColors {
     /// Border color. Used for focused elements, like keyboard focused list item.
     pub border_focused: Hsla,
     /// Border color. Used for selected elements, like an active search filter or selected checkbox.
-    pub border_selected: Hsla,
+    pub(crate) border_selected: Hsla,
     /// Border color. Used for transparent borders. Used for placeholder borders when an element gains a border on state change.
     pub border_transparent: Hsla,
     /// Border color. Used for disabled elements, like a disabled input or button.
@@ -92,7 +92,7 @@ pub struct ThemeColors {
     /// Fill Color. Used for the muted or deemphasized fill color of an icon.
     ///
     /// This might be used to show an icon in an inactive pane, or to deemphasize a series of icons to give them less visual weight.
-    pub icon_muted: Hsla,
+    pub(crate) icon_muted: Hsla,
     /// Fill Color. Used for the disabled fill color of an icon.
     ///
     /// Disabled states are shown when a user cannot interact with an element, like a icon button.
@@ -100,18 +100,18 @@ pub struct ThemeColors {
     /// Fill Color. Used for the placeholder fill color of an icon.
     ///
     /// This might be used to show an icon in an input that disappears when the user enters text.
-    pub icon_placeholder: Hsla,
+    pub(crate) icon_placeholder: Hsla,
     /// Fill Color. Used for the accent fill color of an icon.
     ///
     /// This might be used to show when a toggleable icon button is selected.
-    pub icon_accent: Hsla,
+    pub(crate) icon_accent: Hsla,
 
     // ===
     // UI Elements
     // ===
     pub status_bar_background: Hsla,
     pub title_bar_background: Hsla,
-    pub title_bar_inactive_background: Hsla,
+    pub(crate) title_bar_inactive_background: Hsla,
     pub toolbar_background: Hsla,
     pub tab_bar_background: Hsla,
     pub tab_inactive_background: Hsla,
@@ -129,8 +129,8 @@ pub struct ThemeColors {
     /// The color of the overlay surface on top of panel when hovered over.
     pub panel_overlay_hover: Hsla,
 
-    pub pane_focused_border: Hsla,
-    pub pane_group_border: Hsla,
+    pub(crate) pane_focused_border: Hsla,
+    pub(crate) pane_group_border: Hsla,
     /// The color of the scrollbar thumb.
     pub scrollbar_thumb_background: Hsla,
     /// The color of the scrollbar thumb when hovered over.
@@ -138,11 +138,11 @@ pub struct ThemeColors {
     /// The color of the scrollbar thumb whilst being actively dragged.
     pub scrollbar_thumb_active_background: Hsla,
     /// The border color of the scrollbar thumb.
-    pub scrollbar_thumb_border: Hsla,
+    pub(crate) scrollbar_thumb_border: Hsla,
     /// The background color of the scrollbar track.
-    pub scrollbar_track_background: Hsla,
+    pub(crate) scrollbar_track_background: Hsla,
     /// The border color of the scrollbar track.
-    pub scrollbar_track_border: Hsla,
+    pub(crate) scrollbar_track_border: Hsla,
     /// The color of the minimap thumb.
     pub minimap_thumb_background: Hsla,
     /// The color of the minimap thumb when hovered over.
@@ -177,8 +177,8 @@ pub struct ThemeColors {
     pub editor_invisible: Hsla,
     pub editor_wrap_guide: Hsla,
     pub editor_active_wrap_guide: Hsla,
-    pub editor_indent_guide: Hsla,
-    pub editor_indent_guide_active: Hsla,
+    pub(crate) editor_indent_guide: Hsla,
+    pub(crate) editor_indent_guide_active: Hsla,
     /// Read-access of a symbol, like reading a variable.
     ///
     /// A document highlight is a range inside a text document which deserves
@@ -311,19 +311,19 @@ impl ThemeColors {
 pub struct ThemeStyles {
     /// The background appearance of the window.
     pub window_background_appearance: WindowBackgroundAppearance,
-    pub system: SystemColors,
+    pub(crate) system: SystemColors,
     /// An array of colors used for theme elements that iterate through a series of colors.
     ///
     /// Example: git blame and indent guides, etc.
-    pub accents: AccentColors,
+    pub(crate) accents: AccentColors,
 
-    pub colors: ThemeColors,
+    pub(crate) colors: ThemeColors,
 
-    pub status: StatusColors,
+    pub(crate) status: StatusColors,
 
-    pub cursor_colors: CursorColors,
+    pub(crate) cursor_colors: CursorColors,
 
-    pub syntax: SyntaxTheme,
+    pub(crate) syntax: SyntaxTheme,
 }
 
 #[cfg(test)]

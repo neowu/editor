@@ -1,10 +1,10 @@
 //! Timelines: time periods with their events, grouped in sections. Port of Pele's
 //! `src/diagrams/timeline/index.ts`.
 
-pub(crate) mod db;
-pub(crate) mod lexer;
-pub(crate) mod parser;
-pub(crate) mod render;
+mod db;
+mod lexer;
+mod parser;
+mod render;
 
 use super::Diagram;
 use super::Input;
@@ -30,7 +30,7 @@ pub(crate) use db::TimelineDb as Model;
 ///
 /// Returns a syntax error for input Mermaid rejects, and a semantic error for an event before any
 /// period.
-pub(crate) fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
+fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
     let mut db = Model::default();
     db.title = title.map(str::to_owned);
     parser::parse_timeline(source, &mut db)?;

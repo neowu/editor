@@ -16,7 +16,7 @@ impl SyntaxTheme {
         &EMPTY
     }
 
-    pub fn new(highlights: impl IntoIterator<Item = (String, HighlightStyle)>) -> Self {
+    pub(crate) fn new(highlights: impl IntoIterator<Item = (String, HighlightStyle)>) -> Self {
         let (capture_names, highlights) = highlights.into_iter().unzip();
 
         Self { capture_name_map: Self::create_capture_name_map(capture_names), highlights }

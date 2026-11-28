@@ -49,7 +49,7 @@ actions!(
     language_selector,
     [
         /// Toggles the language selector modal.
-        Toggle
+        pub(crate) Toggle
     ]
 );
 
@@ -57,7 +57,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions) {
     LanguageSelector::register(workspace_actions);
 }
 
-pub struct LanguageSelector {
+struct LanguageSelector {
     picker: Entity<Picker<LanguageSelectorDelegate>>,
 }
 
@@ -114,7 +114,7 @@ impl Focusable for LanguageSelector {
 impl EventEmitter<DismissEvent> for LanguageSelector {}
 impl ModalView for LanguageSelector {}
 
-pub struct LanguageSelectorDelegate {
+struct LanguageSelectorDelegate {
     language_selector: WeakEntity<LanguageSelector>,
     buffer: Entity<Buffer>,
     project: Entity<Project>,

@@ -122,7 +122,7 @@ impl StatusBar {
             .children(self.right_items.iter().rev().map(|item| item.to_any()))
     }
 
-    pub fn new(active_pane: &Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub(crate) fn new(active_pane: &Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let this = Self {
             left_items: Vec::default(),
             right_items: Vec::default(),
@@ -167,7 +167,7 @@ impl StatusBar {
         cx.notify();
     }
 
-    pub fn set_active_pane(&mut self, active_pane: &Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn set_active_pane(&mut self, active_pane: &Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) {
         self.active_pane = active_pane.clone();
         self._observe_active_pane =
             cx.observe_in(active_pane, window, |this, _, window, cx| this.update_active_pane_item(window, cx));

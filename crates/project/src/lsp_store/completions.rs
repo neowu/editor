@@ -183,7 +183,7 @@ impl From<lsp_types::Documentation> for CompletionDocumentation {
 /// breaking the completions menu presentation.
 ///
 /// Sanitize the text to ensure there are no newlines, or, if there are some, remove them and also remove long space sequences if there were newlines.
-pub fn ensure_uniform_list_compatible_label(label: &mut CodeLabel) {
+fn ensure_uniform_list_compatible_label(label: &mut CodeLabel) {
     let mut new_text = String::with_capacity(label.text.len());
     let mut offset_map = vec![0; label.text.len() + 1];
     let mut last_char_was_space = false;
@@ -285,7 +285,7 @@ fn completion_context_for_triggers(mut context: CompletionContext, triggers: &BT
 
 impl LspStore {
     #[inline(never)]
-    pub fn completions(
+    pub(crate) fn completions(
         &self,
         buffer: &Entity<Buffer>,
         position: PointUtf16,

@@ -28,8 +28,8 @@ pub(crate) enum SuccessStyle {
 }
 
 pub(crate) struct SuccessMessage {
-    pub message: String,
-    pub style: SuccessStyle,
+    pub(crate) message: String,
+    pub(crate) style: SuccessStyle,
 }
 
 const AUTOSTASH_CONFLICT: &str =

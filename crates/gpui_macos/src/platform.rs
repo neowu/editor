@@ -210,7 +210,7 @@ define_class!(
 
 pub struct MacPlatform(Mutex<MacPlatformState>, MainThreadMarker);
 
-pub(crate) struct MacPlatformState {
+struct MacPlatformState {
     background_executor: BackgroundExecutor,
     foreground_executor: ForegroundExecutor,
     text_system: Arc<dyn PlatformTextSystem>,

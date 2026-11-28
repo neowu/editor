@@ -10,7 +10,6 @@ use workspace::Toast;
 use workspace::notifications::NotificationId;
 
 mod blame_ui;
-pub mod clone;
 
 use actions::menu::Cancel;
 use actions::menu::Confirm;
@@ -93,24 +92,24 @@ use crate::text_diff_view::TextDiffView;
 pub mod branch_diff;
 pub mod branch_picker;
 mod commit_context_menu;
-pub mod commit_details_panel;
-pub mod commit_tooltip;
+mod commit_details_panel;
+mod commit_tooltip;
 pub mod commit_view;
 mod conflict_view;
 mod diff_multibuffer;
 pub mod git_graph;
 pub mod git_panel;
 mod git_panel_view_options;
-pub mod git_picker;
+mod git_picker;
 pub mod multi_diff_view;
-pub mod picker_prompt;
+mod picker_prompt;
 pub mod project_diff;
 pub(crate) mod remote_output;
 mod revision_semantics;
 pub mod solo_diff_view;
 pub mod staged_diff;
 pub mod stash_picker;
-pub mod text_diff_view;
+mod text_diff_view;
 pub mod unstaged_diff;
 
 pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
@@ -388,7 +387,7 @@ fn open_modified_files(workspace: &mut Workspace, window: &mut Window, cx: &mut 
     }
 }
 
-pub fn git_status_icon(status: FileStatus) -> impl IntoElement {
+fn git_status_icon(status: FileStatus) -> impl IntoElement {
     GitStatusIcon::new(status)
 }
 
@@ -1202,12 +1201,12 @@ pub(crate) fn render_split_button_chevron_trigger(id: impl Into<ElementId>, menu
 
 /// A visual representation of a file's Git status.
 #[derive(IntoElement)]
-pub struct GitStatusIcon {
+struct GitStatusIcon {
     status: FileStatus,
 }
 
 impl GitStatusIcon {
-    pub const fn new(status: FileStatus) -> Self {
+    const fn new(status: FileStatus) -> Self {
         Self { status }
     }
 }

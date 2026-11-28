@@ -152,39 +152,39 @@ actions!(
     outline_panel,
     [
         /// Collapses all entries in the outline tree.
-        CollapseAllEntries,
+        pub(crate) CollapseAllEntries,
         /// Collapses the currently selected entry.
-        CollapseSelectedEntry,
+        pub CollapseSelectedEntry,
         /// Expands all entries in the outline tree.
-        ExpandAllEntries,
+        pub(crate) ExpandAllEntries,
         /// Expands the currently selected entry.
-        ExpandSelectedEntry,
+        pub ExpandSelectedEntry,
         /// Folds the selected directory.
-        FoldDirectory,
+        pub(crate) FoldDirectory,
         /// Opens the selected entry in the editor.
-        OpenSelectedEntry,
+        pub OpenSelectedEntry,
         /// Reveals the selected item in the system file manager.
-        RevealInFileManager,
+        pub RevealInFileManager,
         /// Scroll half a page upwards
-        ScrollUp,
+        pub(crate) ScrollUp,
         /// Scroll half a page downwards
-        ScrollDown,
+        pub(crate) ScrollDown,
         /// Scroll until the cursor displays at the center
-        ScrollCursorCenter,
+        pub(crate) ScrollCursorCenter,
         /// Scroll until the cursor displays at the top
-        ScrollCursorTop,
+        pub(crate) ScrollCursorTop,
         /// Scroll until the cursor displays at the bottom
-        ScrollCursorBottom,
+        pub(crate) ScrollCursorBottom,
         /// Selects the parent of the current entry.
-        SelectParent,
+        pub(crate) SelectParent,
         /// Toggles the pin status of the active editor.
-        ToggleActiveEditorPin,
+        pub(crate) ToggleActiveEditorPin,
         /// Unfolds the selected directory.
-        UnfoldDirectory,
+        pub(crate) UnfoldDirectory,
         /// Toggles the outline panel.
-        Toggle,
+        pub(crate) Toggle,
         /// Toggles focus on the outline panel.
-        ToggleFocus,
+        pub ToggleFocus,
     ]
 );
 
@@ -942,6 +942,7 @@ fn is_parent_row(entry: &PanelEntry, worktree_id: WorktreeId, parent_path: &RelP
             folded_dirs.worktree_id == worktree_id
                 && folded_dirs.entries.last().is_some_and(|dir| dir.path.as_ref() == parent_path)
         }
+        // lint: expect(wildcard_match) only some variants matter here
         _ => false,
     }
 }
@@ -971,7 +972,7 @@ struct ActiveItem {
 }
 
 #[derive(Debug)]
-pub enum Event {
+enum Event {
     Focus,
 }
 
@@ -1351,6 +1352,7 @@ impl OutlinePanel {
                         external_file.buffer_id == excerpt.context.start.buffer_id
                             && external_file.excerpts.contains(excerpt)
                     }
+                    // lint: expect(wildcard_match) only some variants matter here
                     _ => false,
                 }),
                 PanelEntry::Outline(OutlineEntry::Outline(outline)) => previous_entries.find(|entry| {
@@ -1454,6 +1456,7 @@ impl OutlinePanel {
             PanelEntry::Fs(FsEntry::Directory(FsEntryDirectory { worktree_id, entry: directory_entry, .. })) => {
                 (*worktree_id, Some(directory_entry))
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => return false,
         };
         let Some(directory_entry) = directory_entry else {
@@ -1598,7 +1601,7 @@ impl OutlinePanel {
         }
     }
 
-    pub fn expand_all_entries(&mut self, _: &ExpandAllEntries, window: &mut Window, cx: &mut Context<Self>) {
+    fn expand_all_entries(&mut self, _: &ExpandAllEntries, window: &mut Window, cx: &mut Context<Self>) {
         let Some(active_editor) = self.active_editor() else {
             return;
         };
@@ -1660,7 +1663,7 @@ impl OutlinePanel {
         }
     }
 
-    pub fn collapse_all_entries(&mut self, _: &CollapseAllEntries, window: &mut Window, cx: &mut Context<Self>) {
+    fn collapse_all_entries(&mut self, _: &CollapseAllEntries, window: &mut Window, cx: &mut Context<Self>) {
         let Some(active_editor) = self.active_editor() else {
             return;
         };
@@ -1884,6 +1887,7 @@ impl OutlinePanel {
                                     || !(excerpt.contains(&range.start, &snapshot)
                                         || excerpt.contains(&range.end, &snapshot))
                             }
+                            // lint: expect(wildcard_match) only some variants matter here
                             _ => true,
                         });
                     }
@@ -1892,6 +1896,7 @@ impl OutlinePanel {
                     FsEntry::File(file) if file.buffer_id == buffer_id => {
                         Some(ProjectPath { worktree_id: file.worktree_id, path: Arc::clone(&file.entry.path) })
                     }
+                    // lint: expect(wildcard_match) only some variants matter here
                     _ => None,
                 });
                 let reveal_buffer_contents = matches!(entry, PanelEntry::Outline(_) | PanelEntry::Search(_));
@@ -2309,6 +2314,7 @@ impl OutlinePanel {
     ) -> Stateful<Div> {
         let is_deleted = match &rendered_entry {
             PanelEntry::Fs(FsEntry::File(file)) => file.is_deleted,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => false,
         };
         div()
@@ -2575,6 +2581,7 @@ impl OutlinePanel {
                         CollapsedEntry::Dir(worktree_id, path) => {
                             directories.contains_key(&ProjectPath { worktree_id: *worktree_id, path: Arc::clone(path) })
                         }
+                        // lint: expect(wildcard_match) only some variants matter here
                         _ => true,
                     });
                     unfolded_dirs.retain(|worktree_id, paths| {
@@ -2898,6 +2905,7 @@ impl OutlinePanel {
                         None
                     }
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => None,
             })?,
         };
@@ -3111,6 +3119,7 @@ impl OutlinePanel {
                                     .buffers
                                     .get(&outline.buffer_id())
                                     .is_some_and(BufferOutlines::should_fetch_outlines),
+                                // lint: expect(wildcard_match) only some variants matter here
                                 _ => false,
                             };
                             outline_panel.select_entry(new_selected_entry, false, window, cx);
@@ -3142,6 +3151,7 @@ impl OutlinePanel {
                 (directory.worktree_id, &directory.entry.path, directory.first_buffer_id)
             }
             PanelEntry::FoldedDirs(group) => (group.worktree_id, &group.entries.last()?.path, group.first_buffer_id),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => return None,
         };
         let mut first_section = None;
@@ -3163,6 +3173,7 @@ impl OutlinePanel {
                     selected_section = current_section;
                     break;
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             }
         }
@@ -3178,6 +3189,7 @@ impl OutlinePanel {
                     && group.first_buffer_id == selected_section
                     && group.entries.iter().any(|entry| entry.path == *path)
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => false,
         })
     }
@@ -3577,6 +3589,7 @@ impl OutlinePanel {
                 PanelEntry::Fs(fs_entry) => {
                     let candidate_label = match fs_entry {
                         FsEntry::Directory(directory) => directory.entry.path.file_name().map(str::to_owned),
+                        // lint: expect(wildcard_match) only some variants matter here
                         _ => self.fs_entry_label(fs_entry, cx),
                     };
                     if let Some(file_name) = candidate_label {
@@ -3705,6 +3718,7 @@ impl OutlinePanel {
             if changed {
                 let previous_matches = match &mut self.mode {
                     ItemsDisplayMode::Search(current) if current.kind == kind => current.matches.drain(..).collect(),
+                    // lint: expect(wildcard_match) only some variants matter here
                     _ => FxHashMap::default(),
                 };
                 self.mode = ItemsDisplayMode::Search(SearchState::new(
@@ -3931,7 +3945,7 @@ impl OutlinePanel {
         self.active_item().is_none_or(|active_item| !self.pinned && active_item.item_id() != new_active_item.item_id())
     }
 
-    pub fn toggle_active_editor_pin(&mut self, _: &ToggleActiveEditorPin, window: &mut Window, cx: &mut Context<Self>) {
+    fn toggle_active_editor_pin(&mut self, _: &ToggleActiveEditorPin, window: &mut Window, cx: &mut Context<Self>) {
         self.pinned = !self.pinned;
         if !self.pinned
             && let Some((active_item, active_editor)) =
@@ -4217,6 +4231,7 @@ impl OutlinePanel {
                 {
                     Some(file.buffer_id)
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => None,
             })
             .collect()
@@ -4542,6 +4557,7 @@ fn subscribe_for_editor_events(
             EditorEvent::TitleChanged => {
                 outline_panel.update_fs_entries(editor.clone(), debounce, window, cx);
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     })

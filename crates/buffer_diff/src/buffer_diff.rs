@@ -35,7 +35,7 @@ use text::ToOffset as _;
 use text::ToPoint as _;
 use util::ResultExt as _;
 
-pub const MAX_WORD_DIFF_LINE_COUNT: usize = 5;
+const MAX_WORD_DIFF_LINE_COUNT: usize = 5;
 
 pub struct BufferDiff {
     pub buffer_id: BufferId,
@@ -429,7 +429,7 @@ impl BufferDiffSnapshot {
         self.hunks_intersecting_range(Anchor::min_max_range_for_buffer(buffer_snapshot.buffer_id()), buffer_snapshot)
     }
 
-    pub fn range_to_hunk_range(
+    fn range_to_hunk_range(
         &self,
         range: Range<Anchor>,
         buffer: &text::BufferSnapshot,

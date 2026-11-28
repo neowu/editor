@@ -7,13 +7,13 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathWithRange {
     pub path: Arc<str>,
-    pub range: Option<Range<LineCol>>,
+    range: Option<Range<LineCol>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct LineCol {
-    pub line: u32,
-    pub col: Option<u32>,
+struct LineCol {
+    line: u32,
+    col: Option<u32>,
 }
 
 impl Debug for LineCol {
@@ -26,7 +26,7 @@ impl Debug for LineCol {
 }
 
 impl LineCol {
-    pub fn new(str: impl AsRef<str>) -> Option<Self> {
+    fn new(str: impl AsRef<str>) -> Option<Self> {
         let str = str.as_ref();
         match str.split_once(':') {
             Some((line, col)) => match (line.parse::<u32>(), col.parse::<u32>()) {
@@ -56,7 +56,7 @@ impl PathWithRange {
     // - https://mdxjs.com/guides/syntax-highlighting/#syntax-highlighting-with-the-meta-field
     // - https://docusaurus.io/docs/markdown-features/code-blocks
     // - https://spec.commonmark.org/0.31.2/#example-143
-    pub fn new(str: impl AsRef<str>) -> Self {
+    pub(crate) fn new(str: impl AsRef<str>) -> Self {
         let str = str.as_ref();
         // Sometimes the model will include a language at the start,
         // e.g. "```rust zed/crates/markdown/src/markdown.rs#L1"

@@ -20,8 +20,8 @@ pub(crate) fn supports(language: Option<&Language>) -> bool {
 
 /// The program and leading arguments used to invoke Biome.
 pub(crate) struct BiomeCommand {
-    pub program: PathBuf,
-    pub args: Vec<OsString>,
+    pub(crate) program: PathBuf,
+    pub(crate) args: Vec<OsString>,
 }
 
 /// Resolves Biome, in order: the nearest `node_modules/.bin/biome` above `start_dir`,
@@ -48,6 +48,7 @@ pub(crate) fn resolve_command(start_dir: Option<&Path>, path_env: Option<&str>) 
 
 /// The path passed as `--stdin-file-path`; Biome picks the language and config from it.
 /// Unsaved buffers get a synthetic name from the language's first path suffix.
+// lint: expect(misplaced_item) part of the Biome CLI invocation with resolve_command
 pub(crate) fn stdin_file_path(abs_path: Option<&Path>, language: Option<&Language>) -> PathBuf {
     if let Some(path) = abs_path {
         path.to_path_buf()

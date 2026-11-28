@@ -77,15 +77,15 @@ use crate::lsp_command::GetDocumentDiagnostics;
 use crate::lsp_command::file_path_to_lsp_url;
 
 #[derive(Debug)]
-pub struct DocumentDiagnosticsUpdate<'a, D> {
-    pub diagnostics: D,
-    pub result_id: Option<SharedString>,
-    pub registration_id: Option<SharedString>,
-    pub server_id: LanguageServerId,
-    pub disk_based_sources: Cow<'a, [String]>,
+pub(crate) struct DocumentDiagnosticsUpdate<'a, D> {
+    pub(crate) diagnostics: D,
+    pub(crate) result_id: Option<SharedString>,
+    pub(crate) registration_id: Option<SharedString>,
+    pub(crate) server_id: LanguageServerId,
+    pub(crate) disk_based_sources: Cow<'a, [String]>,
 }
 
-pub struct DocumentDiagnostics {
+struct DocumentDiagnostics {
     diagnostics: Vec<DiagnosticEntry<Unclipped<PointUtf16>>>,
     document_abs_path: PathBuf,
     version: Option<i32>,
@@ -330,7 +330,7 @@ fn workspace_diagnostic_options(options: &DiagnosticServerCapabilities) -> Optio
     diagnostic_options.workspace_diagnostics.then_some(diagnostic_options)
 }
 
-pub struct WorkspaceRefreshTask {
+pub(crate) struct WorkspaceRefreshTask {
     refresh_tx: mpsc::Sender<Option<oneshot::Sender<bool>>>,
     pub(super) progress_tx: mpsc::Sender<()>,
     pub(super) current_request_token: Option<String>,
@@ -344,7 +344,7 @@ pub struct DiagnosticSummary {
 }
 
 impl DiagnosticSummary {
-    pub fn new<'a, T: 'a>(diagnostics: impl IntoIterator<Item = &'a DiagnosticEntry<T>>) -> Self {
+    fn new<'a, T: 'a>(diagnostics: impl IntoIterator<Item = &'a DiagnosticEntry<T>>) -> Self {
         let mut this = Self { error_count: 0, warning_count: 0 };
 
         for entry in diagnostics {
@@ -360,7 +360,7 @@ impl DiagnosticSummary {
         this
     }
 
-    pub const fn is_empty(&self) -> bool {
+    const fn is_empty(&self) -> bool {
         self.error_count == 0 && self.warning_count == 0
     }
 }
@@ -497,10 +497,10 @@ impl LocalLspStore {
 }
 
 impl LspStore {
-    pub fn refresh_background_diagnostics_for_buffers(
+    fn refresh_background_diagnostics_for_buffers(
         &mut self,
         buffers: FxHashSet<BufferId>,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Shared<Task<()>> {
         let local = &mut self.local;
         for buffer in buffers {
@@ -539,8 +539,8 @@ impl LspStore {
         })
     }
 
-    pub fn pull_diagnostics(
-        &mut self,
+    fn pull_diagnostics(
+        &self,
         buffer: Entity<Buffer>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Option<Vec<LspPullDiagnostics>>>> {
@@ -714,7 +714,7 @@ impl LspStore {
         })
     }
 
-    pub fn diagnostic_summary(&self, include_ignored: bool, cx: &App) -> DiagnosticSummary {
+    pub(crate) fn diagnostic_summary(&self, include_ignored: bool, cx: &App) -> DiagnosticSummary {
         let mut summary = DiagnosticSummary::default();
         for (_, _, path_summary) in self.diagnostic_summaries(include_ignored, cx) {
             summary.error_count += path_summary.error_count;
@@ -724,7 +724,7 @@ impl LspStore {
     }
 
     /// Returns the diagnostic summary for a specific project path.
-    pub fn diagnostic_summary_for_path(&self, project_path: &ProjectPath, _: &App) -> DiagnosticSummary {
+    pub(crate) fn diagnostic_summary_for_path(&self, project_path: &ProjectPath, _: &App) -> DiagnosticSummary {
         if let Some(summaries) =
             self.diagnostic_summaries.get(&project_path.worktree_id).and_then(|map| map.get(&project_path.path))
         {
@@ -739,7 +739,7 @@ impl LspStore {
         }
     }
 
-    pub fn diagnostic_summaries<'a>(
+    pub(crate) fn diagnostic_summaries<'a>(
         &'a self,
         include_ignored: bool,
         cx: &'a App,
@@ -836,7 +836,7 @@ impl LspStore {
             .log_err();
     }
 
-    pub fn merge_diagnostic_entries(
+    fn merge_diagnostic_entries(
         &mut self,
         diagnostic_updates: Vec<DocumentDiagnosticsUpdate<'_, DocumentDiagnostics>>,
         merge: impl Fn(&lsp_types::Uri, &Diagnostic, &App) -> bool + Clone,
@@ -971,7 +971,11 @@ impl LspStore {
         !old_summary.is_empty() || !new_summary.is_empty()
     }
 
-    pub fn disk_based_diagnostics_started(&mut self, language_server_id: LanguageServerId, cx: &mut Context<Self>) {
+    pub(crate) fn disk_based_diagnostics_started(
+        &mut self,
+        language_server_id: LanguageServerId,
+        cx: &mut Context<Self>,
+    ) {
         if let Some(language_server_status) = self.language_server_statuses.get_mut(&language_server_id) {
             language_server_status.has_pending_diagnostic_updates = true;
         }
@@ -979,7 +983,11 @@ impl LspStore {
         cx.emit(LspStoreEvent::DiskBasedDiagnosticsStarted { language_server_id });
     }
 
-    pub fn disk_based_diagnostics_finished(&mut self, language_server_id: LanguageServerId, cx: &mut Context<Self>) {
+    pub(crate) fn disk_based_diagnostics_finished(
+        &mut self,
+        language_server_id: LanguageServerId,
+        cx: &mut Context<Self>,
+    ) {
         if let Some(language_server_status) = self.language_server_statuses.get_mut(&language_server_id) {
             language_server_status.has_pending_diagnostic_updates = false;
         }
@@ -1029,7 +1037,7 @@ impl LspStore {
         }
     }
 
-    pub fn merge_lsp_diagnostics(
+    pub(crate) fn merge_lsp_diagnostics(
         &mut self,
         source_kind: DiagnosticSourceKind,
         lsp_diagnostics: Vec<DocumentDiagnosticsUpdate<lsp_types::PublishDiagnosticsParams>>,
@@ -1193,13 +1201,17 @@ impl LspStore {
         DocumentDiagnostics { diagnostics, document_abs_path, version: lsp_diagnostics.version }
     }
 
-    pub fn language_servers_running_disk_based_diagnostics(&self) -> impl Iterator<Item = LanguageServerId> + '_ {
+    pub(crate) fn language_servers_running_disk_based_diagnostics(
+        &self,
+    ) -> impl Iterator<Item = LanguageServerId> + '_ {
         self.language_server_statuses
             .iter()
             .filter_map(|(id, status)| status.has_pending_diagnostic_updates.then_some(*id))
     }
 
-    pub fn result_id_for_buffer_pull(
+    // The map is keyed by `Option<SharedString>`; taking `Option<&SharedString>` would force a clone for the lookup.
+    #[allow(clippy::ref_option)]
+    fn result_id_for_buffer_pull(
         &self,
         server_id: LanguageServerId,
         buffer_id: BufferId,
@@ -1238,7 +1250,9 @@ impl LspStore {
         }
     }
 
-    pub fn result_ids_for_workspace_refresh(
+    // The map is keyed by `Option<SharedString>`; taking `Option<&SharedString>` would force a clone for the lookup.
+    #[allow(clippy::ref_option)]
+    fn result_ids_for_workspace_refresh(
         &self,
         server_id: LanguageServerId,
         registration_id: &Option<SharedString>,
@@ -1263,7 +1277,7 @@ impl LspStore {
             .collect()
     }
 
-    pub fn pull_workspace_diagnostics(&mut self, server_id: LanguageServerId) {
+    pub(crate) fn pull_workspace_diagnostics(&mut self, server_id: LanguageServerId) {
         if let Some(LanguageServerState::Running { workspace_diagnostics_refresh_tasks, .. }) =
             self.local.language_servers.get_mut(&server_id)
         {
@@ -1276,11 +1290,11 @@ impl LspStore {
     /// Refreshes `textDocument/diagnostic` for all open buffers associated with the given server.
     /// This is called in response to `workspace/diagnostic/refresh` to comply with the LSP spec,
     /// which requires refreshing both workspace and document diagnostics.
-    pub fn pull_document_diagnostics_for_server(
+    pub(crate) fn pull_document_diagnostics_for_server(
         &mut self,
         server_id: LanguageServerId,
         source_buffer_id: Option<BufferId>,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Shared<Task<()>> {
         let local = &mut self.local;
         let mut buffers_to_refresh = FxHashSet::default();

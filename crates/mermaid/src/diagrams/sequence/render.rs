@@ -127,22 +127,22 @@ const CENTRAL_R: f64 = 4.0;
 const DASH: &str = " stroke-dasharray=\"4 4\"";
 
 /// The numbers of the message lines.
-pub(crate) struct Numbering {
+struct Numbering {
     /// The number each message line carries, whether or not it is shown. NaN for everything else.
-    pub(crate) index: Vec<f64>,
+    index: Vec<f64>,
     /// Whether each message's number is shown.
-    pub(crate) shown: Vec<bool>,
+    shown: Vec<bool>,
     /// Whether numbers are on after the last statement.
-    pub(crate) visible: bool,
+    visible: bool,
 }
 
 /// Whether a message kind is drawn as a line.
-pub(crate) fn is_line_message(r#type: Option<u8>) -> bool {
+fn is_line_message(r#type: Option<u8>) -> bool {
     r#type.and_then(style_of).is_some()
 }
 
 /// Counts message lines the way Mermaid's renderer does while it draws.
-pub(crate) fn number_messages(messages: &[SeqMessage], always: bool) -> Numbering {
+fn number_messages(messages: &[SeqMessage], always: bool) -> Numbering {
     let mut index = vec![f64::NAN; messages.len()];
     let mut shown = vec![false; messages.len()];
     let mut current = 1.0;
@@ -320,6 +320,7 @@ fn trim_of(r#type: Head) -> f64 {
     match r#type {
         Head::Arrow => ARROW - 1.0,
         Head::Cross => 4.0,
+        // lint: expect(wildcard_match) only a few variants of `Head` matter here
         _ => 0.0,
     }
 }

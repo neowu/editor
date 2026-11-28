@@ -66,13 +66,13 @@ impl WorktreePaths {
     }
 
     /// Iterate the (main_worktree_path, folder_path) pairs in insertion order.
-    pub fn ordered_pairs(&self) -> impl Iterator<Item = (&PathBuf, &PathBuf)> {
+    fn ordered_pairs(&self) -> impl Iterator<Item = (&PathBuf, &PathBuf)> {
         self.main_paths.ordered_paths().zip(self.paths.ordered_paths())
     }
 }
 
 #[derive(Clone)]
-pub struct WorktreeIdCounter(Arc<AtomicU64>);
+pub(crate) struct WorktreeIdCounter(Arc<AtomicU64>);
 
 impl Default for WorktreeIdCounter {
     fn default() -> Self {
@@ -81,7 +81,7 @@ impl Default for WorktreeIdCounter {
 }
 
 impl WorktreeIdCounter {
-    pub fn get(cx: &mut App) -> Self {
+    pub(crate) fn get(cx: &mut App) -> Self {
         cx.default_global::<Self>().clone()
     }
 
@@ -91,28 +91,6 @@ impl WorktreeIdCounter {
 }
 
 impl Global for WorktreeIdCounter {}
-
-/// Summarizes worktree ownership and current snapshot sizes.
-#[derive(Debug, Default)]
-pub struct WorktreeStoreDiagnostics {
-    pub worktree_slots: usize,
-    pub live_worktrees: usize,
-    pub visible_worktrees: usize,
-    pub strong_handles: usize,
-    pub dead_weak_handles: usize,
-    pub loading_worktrees: usize,
-    pub total_entries: usize,
-    pub visible_entries: usize,
-    pub largest_worktree: Option<LargestWorktreeDiagnostics>,
-}
-
-/// Identifies the worktree with the largest current snapshot.
-#[derive(Debug)]
-pub struct LargestWorktreeDiagnostics {
-    pub path: PathBuf,
-    pub entries: usize,
-    pub visible_entries: usize,
-}
 
 pub struct WorktreeStore {
     next_entry_id: Arc<AtomicUsize>,
@@ -131,20 +109,19 @@ pub struct WorktreeStore {
 }
 
 #[derive(Debug)]
-pub enum WorktreeStoreEvent {
-    WorktreeAdded(Entity<Worktree>),
-    WorktreeRemoved(EntityId, WorktreeId),
-    WorktreeReleased(EntityId, WorktreeId),
-    WorktreeOrderChanged,
-    WorktreeUpdatedEntries(WorktreeId, UpdatedEntriesSet),
-    WorktreeUpdatedGitRepositories(WorktreeId, UpdatedGitRepositoriesSet),
-    WorktreeDeletedEntry(WorktreeId, ProjectEntryId),
+pub(crate) enum WorktreeStoreEvent {
+    Added(Entity<Worktree>),
+    Removed(EntityId, WorktreeId),
+    OrderChanged,
+    UpdatedEntries(WorktreeId, UpdatedEntriesSet),
+    UpdatedGitRepositories(WorktreeId, UpdatedGitRepositoriesSet),
+    DeletedEntry(WorktreeId, ProjectEntryId),
 }
 
 impl EventEmitter<WorktreeStoreEvent> for WorktreeStore {}
 
 impl WorktreeStore {
-    pub fn local(retain_worktrees: bool, fs: Arc<Fs>, next_worktree_id: WorktreeIdCounter) -> Self {
+    pub(crate) fn local(retain_worktrees: bool, fs: Arc<Fs>, next_worktree_id: WorktreeIdCounter) -> Self {
         Self {
             next_entry_id: Arc::default(),
             next_worktree_id,
@@ -162,13 +139,13 @@ impl WorktreeStore {
         Arc::clone(&self.next_entry_id)
     }
 
-    pub fn next_worktree_id(&self) -> WorktreeId {
+    fn next_worktree_id(&self) -> WorktreeId {
         WorktreeId::from_usize(self.next_worktree_id.next() as usize)
     }
 
     /// Returns a future that resolves when all visible worktrees have completed
     /// their initial scan (entries populated, git repos detected).
-    pub fn wait_for_initial_scan(&self) -> impl Future<Output = ()> + use<> {
+    pub(crate) fn wait_for_initial_scan(&self) -> impl Future<Output = ()> + use<> {
         let mut rx = self.initial_scan_complete.1.clone();
         async move {
             while !*watch::Receiver::borrow(&mut rx) {
@@ -207,61 +184,16 @@ impl WorktreeStore {
         .detach();
     }
 
-    /// Returns worktree ownership and current snapshot size diagnostics.
-    pub fn diagnostics(&self, cx: &App) -> WorktreeStoreDiagnostics {
-        let mut diagnostics = WorktreeStoreDiagnostics {
-            worktree_slots: self.worktrees.len(),
-            loading_worktrees: self.loading_worktrees.len(),
-            ..WorktreeStoreDiagnostics::default()
-        };
-
-        for handle in &self.worktrees {
-            let worktree = match handle {
-                WorktreeHandle::Strong(worktree) => {
-                    diagnostics.strong_handles += 1;
-                    Some(worktree.clone())
-                }
-                WorktreeHandle::Weak(worktree) => {
-                    let worktree = worktree.upgrade();
-                    if worktree.is_none() {
-                        diagnostics.dead_weak_handles += 1;
-                    }
-                    worktree
-                }
-            };
-            let Some(worktree) = worktree else {
-                continue;
-            };
-
-            diagnostics.live_worktrees += 1;
-            let worktree = worktree.read(cx);
-            diagnostics.visible_worktrees += usize::from(worktree.is_visible());
-            let snapshot = worktree.snapshot();
-            let entries = snapshot.entry_count();
-            let visible_entries = snapshot.visible_entry_count();
-            diagnostics.total_entries += entries;
-            diagnostics.visible_entries += visible_entries;
-
-            let is_largest = diagnostics.largest_worktree.as_ref().is_none_or(|largest| entries > largest.entries);
-            if is_largest {
-                diagnostics.largest_worktree = Some(LargestWorktreeDiagnostics {
-                    path: worktree.abs_path().to_path_buf(),
-                    entries,
-                    visible_entries,
-                });
-            }
-        }
-
-        diagnostics
-    }
-
     /// Iterates through all worktrees, including ones that don't appear in the project panel.
     pub fn worktrees(&self) -> impl '_ + DoubleEndedIterator<Item = Entity<Worktree>> {
         self.worktrees.iter().filter_map(WorktreeHandle::upgrade)
     }
 
     /// Iterates through all user-visible worktrees, the ones that appear in the project panel.
-    pub fn visible_worktrees<'a>(&'a self, cx: &'a App) -> impl 'a + DoubleEndedIterator<Item = Entity<Worktree>> {
+    pub(crate) fn visible_worktrees<'a>(
+        &'a self,
+        cx: &'a App,
+    ) -> impl 'a + DoubleEndedIterator<Item = Entity<Worktree>> {
         self.worktrees().filter(|worktree| worktree.read(cx).is_visible())
     }
 
@@ -277,11 +209,15 @@ impl WorktreeStore {
         self.worktrees().find(|worktree| worktree.read(cx).id() == id)
     }
 
-    pub fn worktree_for_entry(&self, entry_id: ProjectEntryId, cx: &App) -> Option<Entity<Worktree>> {
+    pub(crate) fn worktree_for_entry(&self, entry_id: ProjectEntryId, cx: &App) -> Option<Entity<Worktree>> {
         self.worktrees().find(|worktree| worktree.read(cx).contains_entry(entry_id))
     }
 
-    pub fn find_worktree(&self, abs_path: impl AsRef<Path>, cx: &App) -> Option<(Entity<Worktree>, Arc<RelPath>)> {
+    pub(crate) fn find_worktree(
+        &self,
+        abs_path: impl AsRef<Path>,
+        cx: &App,
+    ) -> Option<(Entity<Worktree>, Arc<RelPath>)> {
         let abs_path = SanitizedPath::new(abs_path.as_ref());
         for tree in self.worktrees() {
             if let Some(relative_path) = abs_path
@@ -296,21 +232,21 @@ impl WorktreeStore {
         None
     }
 
-    pub fn project_path_for_absolute_path(&self, abs_path: &Path, cx: &App) -> Option<ProjectPath> {
+    pub(crate) fn project_path_for_absolute_path(&self, abs_path: &Path, cx: &App) -> Option<ProjectPath> {
         self.find_worktree(abs_path, cx)
             .map(|(worktree, relative_path)| ProjectPath { worktree_id: worktree.read(cx).id(), path: relative_path })
     }
 
-    pub fn absolutize(&self, project_path: &ProjectPath, cx: &App) -> Option<PathBuf> {
+    pub(crate) fn absolutize(&self, project_path: &ProjectPath, cx: &App) -> Option<PathBuf> {
         let worktree = self.worktree_for_id(project_path.worktree_id, cx)?;
         Some(worktree.read(cx).absolutize(&project_path.path))
     }
 
-    pub fn find_or_create_worktree(
+    pub(crate) fn find_or_create_worktree(
         &mut self,
         abs_path: impl AsRef<Path>,
         visible: bool,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Task<Result<(Entity<Worktree>, Arc<RelPath>)>> {
         let abs_path = abs_path.as_ref();
         if let Some((tree, relative_path)) = self.find_worktree(abs_path, cx) {
@@ -334,11 +270,11 @@ impl WorktreeStore {
         }
     }
 
-    pub fn entry_for_id<'a>(&'a self, entry_id: ProjectEntryId, cx: &'a App) -> Option<&'a Entry> {
+    pub(crate) fn entry_for_id<'a>(&'a self, entry_id: ProjectEntryId, cx: &'a App) -> Option<&'a Entry> {
         self.worktrees().find_map(|worktree| worktree.read(cx).entry_for_id(entry_id))
     }
 
-    pub fn worktree_and_entry_for_id<'a>(
+    pub(crate) fn worktree_and_entry_for_id<'a>(
         &'a self,
         entry_id: ProjectEntryId,
         cx: &'a App,
@@ -346,15 +282,15 @@ impl WorktreeStore {
         self.worktrees().find_map(|worktree| worktree.read(cx).entry_for_id(entry_id).map(|e| (worktree.clone(), e)))
     }
 
-    pub fn entry_for_path<'a>(&'a self, path: &ProjectPath, cx: &'a App) -> Option<&'a Entry> {
+    pub(crate) fn entry_for_path<'a>(&'a self, path: &ProjectPath, cx: &'a App) -> Option<&'a Entry> {
         self.worktree_for_id(path.worktree_id, cx)?.read(cx).entry_for_path(&path.path)
     }
 
-    pub fn copy_entry(
-        &mut self,
+    pub(crate) fn copy_entry(
+        &self,
         entry_id: ProjectEntryId,
         new_project_path: ProjectPath,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Task<Result<Option<Entry>>> {
         let Some(old_worktree) = self.worktree_for_entry(entry_id, cx) else {
             return Task::ready(Err(anyhow!("no such worktree")));
@@ -384,11 +320,11 @@ impl WorktreeStore {
         }
     }
 
-    pub fn rename_entry(
-        &mut self,
+    pub(crate) fn rename_entry(
+        &self,
         entry_id: ProjectEntryId,
         new_project_path: ProjectPath,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Task<Result<CreatedEntry>> {
         let Some(old_worktree) = self.worktree_for_entry(entry_id, cx) else {
             return Task::ready(Err(anyhow!("no such worktree")));
@@ -478,11 +414,11 @@ impl WorktreeStore {
         }
     }
 
-    pub fn create_worktree(
+    pub(crate) fn create_worktree(
         &mut self,
         abs_path: impl AsRef<Path>,
         visible: bool,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Task<Result<Entity<Worktree>>> {
         // Anything inside a library joins its library worktree, even when opened
         // as a visible path (e.g. a file passed on the command line). Opening the
@@ -577,7 +513,7 @@ impl WorktreeStore {
         })
     }
 
-    pub fn add(&mut self, worktree: &Entity<Worktree>, cx: &mut Context<Self>) {
+    fn add(&mut self, worktree: &Entity<Worktree>, cx: &mut Context<Self>) {
         let push_strong_handle = self.retain_worktrees || worktree.read(cx).is_visible();
         let handle = if push_strong_handle {
             WorktreeHandle::Strong(worktree.clone())
@@ -586,20 +522,20 @@ impl WorktreeStore {
         };
         self.worktrees.push(handle);
 
-        cx.emit(WorktreeStoreEvent::WorktreeAdded(worktree.clone()));
+        cx.emit(WorktreeStoreEvent::Added(worktree.clone()));
 
         let handle_id = worktree.entity_id();
         cx.subscribe(worktree, |_, worktree, event, cx| {
             let worktree_id = worktree.read(cx).id();
             match event {
                 worktree::Event::UpdatedEntries(changes) => {
-                    cx.emit(WorktreeStoreEvent::WorktreeUpdatedEntries(worktree_id, Arc::clone(changes)));
+                    cx.emit(WorktreeStoreEvent::UpdatedEntries(worktree_id, Arc::clone(changes)));
                 }
                 worktree::Event::UpdatedGitRepositories(set) => {
-                    cx.emit(WorktreeStoreEvent::WorktreeUpdatedGitRepositories(worktree_id, Arc::clone(set)));
+                    cx.emit(WorktreeStoreEvent::UpdatedGitRepositories(worktree_id, Arc::clone(set)));
                 }
                 worktree::Event::DeletedEntry(id) => {
-                    cx.emit(WorktreeStoreEvent::WorktreeDeletedEntry(worktree_id, *id));
+                    cx.emit(WorktreeStoreEvent::DeletedEntry(worktree_id, *id));
                 }
                 worktree::Event::Deleted => {
                     // The worktree root itself has been deleted (for single-file worktrees)
@@ -609,18 +545,17 @@ impl WorktreeStore {
         })
         .detach();
         cx.observe_release(worktree, move |_, worktree, cx| {
-            cx.emit(WorktreeStoreEvent::WorktreeReleased(handle_id, worktree.id()));
-            cx.emit(WorktreeStoreEvent::WorktreeRemoved(handle_id, worktree.id()));
+            cx.emit(WorktreeStoreEvent::Removed(handle_id, worktree.id()));
         })
         .detach();
     }
 
-    pub fn is_library_shown(&self, worktree_id: WorktreeId) -> bool {
+    pub(crate) fn is_library_shown(&self, worktree_id: WorktreeId) -> bool {
         self.shown_libraries.contains(&worktree_id)
     }
 
     /// Lists the library worktree in the project panel and keeps it alive.
-    pub fn show_library(&mut self, worktree_id: WorktreeId, cx: &mut Context<Self>) {
+    pub(crate) fn show_library(&mut self, worktree_id: WorktreeId, cx: &mut Context<Self>) {
         if self.shown_libraries.contains(&worktree_id) {
             return;
         }
@@ -636,15 +571,15 @@ impl WorktreeStore {
                 *handle = WorktreeHandle::Strong(worktree.clone());
             }
         }
-        cx.emit(WorktreeStoreEvent::WorktreeOrderChanged);
+        cx.emit(WorktreeStoreEvent::OrderChanged);
     }
 
-    pub fn remove_worktree(&mut self, id_to_remove: WorktreeId, cx: &mut Context<Self>) {
+    pub(crate) fn remove_worktree(&mut self, id_to_remove: WorktreeId, cx: &mut Context<Self>) {
         self.shown_libraries.remove(&id_to_remove);
         self.worktrees.retain(|worktree| {
             if let Some(worktree) = worktree.upgrade() {
                 if worktree.read(cx).id() == id_to_remove {
-                    cx.emit(WorktreeStoreEvent::WorktreeRemoved(worktree.entity_id(), id_to_remove));
+                    cx.emit(WorktreeStoreEvent::Removed(worktree.entity_id(), id_to_remove));
                     false
                 } else {
                     true
@@ -656,7 +591,12 @@ impl WorktreeStore {
         self.update_initial_scan_state(cx);
     }
 
-    pub fn move_worktree(&mut self, source: WorktreeId, destination: WorktreeId, cx: &mut Context<Self>) -> Result<()> {
+    pub(crate) fn move_worktree(
+        &mut self,
+        source: WorktreeId,
+        destination: WorktreeId,
+        cx: &mut Context<Self>,
+    ) -> Result<()> {
         if source == destination {
             return Ok(());
         }
@@ -689,7 +629,7 @@ impl WorktreeStore {
 
         let worktree_to_move = self.worktrees.remove(source_index);
         self.worktrees.insert(destination_index, worktree_to_move);
-        cx.emit(WorktreeStoreEvent::WorktreeOrderChanged);
+        cx.emit(WorktreeStoreEvent::OrderChanged);
         cx.notify();
         Ok(())
     }
@@ -708,7 +648,7 @@ impl WorktreeStore {
         Arc::clone(&self.fs)
     }
 
-    pub fn paths(&self, cx: &App) -> WorktreePaths {
+    pub(crate) fn paths(&self, cx: &App) -> WorktreePaths {
         let (mains, folders): (Vec<PathBuf>, Vec<PathBuf>) = self
             .visible_worktrees(cx)
             .map(|worktree| {

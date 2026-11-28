@@ -112,14 +112,14 @@ enum Direction {
 }
 
 /// A non-blocking file descriptor whose readiness is delivered by GCD.
-pub struct AsyncFd {
+pub(crate) struct AsyncFd {
     fd: Arc<OwnedFd>,
     read: OnceLock<Arc<Readiness>>,
     write: OnceLock<Arc<Readiness>>,
 }
 
 impl AsyncFd {
-    pub fn new(fd: OwnedFd) -> io::Result<Self> {
+    pub(crate) fn new(fd: OwnedFd) -> io::Result<Self> {
         let raw = fd.as_raw_fd();
         // SAFETY: plain fcntl calls on a descriptor we own.
         unsafe {
@@ -165,7 +165,7 @@ impl AsyncFd {
         }
     }
 
-    pub fn poll_read(&self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    pub(crate) fn poll_read(&self, cx: &Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         self.poll_io(
             Direction::Read,
             cx,
@@ -175,7 +175,7 @@ impl AsyncFd {
         )
     }
 
-    pub fn poll_write(&self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    pub(crate) fn poll_write(&self, cx: &Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
         self.poll_io(
             Direction::Write,
             cx,
@@ -186,7 +186,7 @@ impl AsyncFd {
     }
 
     /// Accepts a connection on a listening socket.
-    pub fn poll_accept(&self, cx: &mut Context<'_>) -> Poll<io::Result<OwnedFd>> {
+    pub(crate) fn poll_accept(&self, cx: &Context<'_>) -> Poll<io::Result<OwnedFd>> {
         use std::os::fd::FromRawFd as _;
         self.poll_io(
             Direction::Read,
@@ -198,7 +198,7 @@ impl AsyncFd {
         )
     }
 
-    pub fn as_raw_fd(&self) -> RawFd {
+    pub(crate) fn as_raw_fd(&self) -> RawFd {
         self.fd.as_raw_fd()
     }
 }
@@ -235,7 +235,7 @@ impl AsyncWrite for AsyncFd {
 ///
 /// The watcher keeps itself alive until the process is reaped, so dropping the
 /// handle never leaves a zombie.
-pub struct ProcessExit {
+pub(crate) struct ProcessExit {
     pid: libc::pid_t,
     status: Mutex<Option<ExitStatus>>,
     waker: AtomicWaker,
@@ -243,7 +243,7 @@ pub struct ProcessExit {
 }
 
 impl ProcessExit {
-    pub fn watch(pid: u32) -> Arc<Self> {
+    pub(crate) fn watch(pid: u32) -> Arc<Self> {
         let pid = pid.cast_signed();
         // SAFETY: a proc source only needs a pid; one that already exited fires immediately.
         let source = unsafe {
@@ -265,11 +265,11 @@ impl ProcessExit {
         this
     }
 
-    pub fn try_status(&self) -> Option<ExitStatus> {
+    pub(crate) fn try_status(&self) -> Option<ExitStatus> {
         *self.status.lock().unwrap()
     }
 
-    pub fn poll_status(&self, cx: &mut Context<'_>) -> Poll<ExitStatus> {
+    pub(crate) fn poll_status(&self, cx: &Context<'_>) -> Poll<ExitStatus> {
         self.waker.register(cx.waker());
         match self.try_status() {
             Some(status) => Poll::Ready(status),
@@ -279,7 +279,7 @@ impl ProcessExit {
 
     /// Sends `signal` unless the process was already reaped, in which case the
     /// pid may belong to someone else.
-    pub fn signal(&self, signal: libc::c_int, group: bool) {
+    pub(crate) fn signal(&self, signal: libc::c_int, group: bool) {
         let status = self.status.lock().unwrap();
         if status.is_none() {
             // SAFETY: the pid is still ours while the lock is held and no status is stored.
@@ -355,8 +355,8 @@ mod tests {
         let (reader, writer) = io::pipe().unwrap();
         let reader = AsyncFd::new(reader.into()).unwrap();
         let mut writer = AsyncFd::new(writer.into()).unwrap();
-        let mut cx = Context::from_waker(std::task::Waker::noop());
-        assert!(reader.poll_read(&mut cx, &mut [0; 8]).is_pending());
+        let cx = Context::from_waker(std::task::Waker::noop());
+        assert!(reader.poll_read(&cx, &mut [0; 8]).is_pending());
         drop(reader);
         // The read end closes asynchronously, after which writes fail.
         let error = loop {

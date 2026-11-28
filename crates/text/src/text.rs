@@ -3,7 +3,7 @@ use std::fmt::Formatter;
 use std::hash::Hash;
 use std::iter;
 mod anchor;
-pub mod locator;
+mod locator;
 mod patch;
 mod selection;
 pub mod subscription;
@@ -77,7 +77,7 @@ pub type TransactionId = Lamport;
 pub struct Buffer {
     snapshot: BufferSnapshot,
     history: History,
-    pub lamport_clock: Lamport,
+    lamport_clock: Lamport,
     subscriptions: Topic<usize>,
 }
 
@@ -148,7 +148,7 @@ pub struct HistoryEntry {
 pub struct Transaction {
     pub id: TransactionId,
     pub edit_ids: Vec<Lamport>,
-    pub start: clock::Global,
+    start: clock::Global,
 }
 
 impl HistoryEntry {
@@ -429,7 +429,7 @@ impl<D> Edit<D>
 where
     D: PartialEq,
 {
-    pub fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.old.start == self.old.end && self.new.start == self.new.end
     }
 }
@@ -513,13 +513,13 @@ struct UndoOperation {
 /// Stores information about the indentation of a line (tabs and spaces).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LineIndent {
-    pub tabs: u32,
-    pub spaces: u32,
-    pub line_blank: bool,
+    tabs: u32,
+    spaces: u32,
+    line_blank: bool,
 }
 
 impl LineIndent {
-    pub fn from_chunks(chunks: &mut Chunks) -> Self {
+    fn from_chunks(chunks: &mut Chunks) -> Self {
         let mut tabs = 0;
         let mut spaces = 0;
         let mut line_blank = true;
@@ -812,7 +812,7 @@ impl Buffer {
         self.history.redo_stack.last()
     }
 
-    pub fn start_transaction(&mut self) -> Option<TransactionId> {
+    fn start_transaction(&mut self) -> Option<TransactionId> {
         self.start_transaction_at(Instant::now())
     }
 
@@ -820,7 +820,7 @@ impl Buffer {
         self.history.start_transaction(self.version.clone(), now, &mut self.lamport_clock)
     }
 
-    pub fn end_transaction(&mut self) -> Option<(TransactionId, clock::Global)> {
+    fn end_transaction(&mut self) -> Option<(TransactionId, clock::Global)> {
         self.end_transaction_at(Instant::now())
     }
 
@@ -1346,11 +1346,11 @@ impl BufferSnapshot {
         self.visible_text.point_utf16_to_offset(point)
     }
 
-    pub fn unclipped_point_utf16_to_offset(&self, point: Unclipped<PointUtf16>) -> usize {
+    fn unclipped_point_utf16_to_offset(&self, point: Unclipped<PointUtf16>) -> usize {
         self.visible_text.unclipped_point_utf16_to_offset(point)
     }
 
-    pub fn unclipped_point_utf16_to_point(&self, point: Unclipped<PointUtf16>) -> Point {
+    fn unclipped_point_utf16_to_point(&self, point: Unclipped<PointUtf16>) -> Point {
         self.visible_text.unclipped_point_utf16_to_point(point)
     }
 
@@ -2384,7 +2384,7 @@ pub enum LineEnding {
 }
 
 impl LineEnding {
-    pub const fn as_str(&self) -> &'static str {
+    const fn as_str(self) -> &'static str {
         match self {
             LineEnding::Unix => "\n",
             LineEnding::Windows => "\r\n",

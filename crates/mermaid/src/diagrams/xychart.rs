@@ -1,12 +1,12 @@
 //! XY charts: lines and bars over a category or numeric x axis. Port of Pele's
 //! `src/diagrams/xychart/index.ts`.
 
-pub(crate) mod db;
-pub(crate) mod lexer;
-pub(crate) mod parser;
-pub(crate) mod render;
-pub(crate) mod ticks;
-pub(crate) mod tokens;
+mod db;
+mod lexer;
+mod parser;
+mod render;
+mod ticks;
+mod tokens;
 
 use super::Diagram;
 use super::Input;
@@ -31,7 +31,7 @@ pub(crate) use db::XyChartDb as Model;
 /// # Errors
 ///
 /// Returns a syntax error for input Mermaid rejects.
-pub(crate) fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
+fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
     let mut db = Model::default();
     db.title = title.map(str::to_owned);
     parser::parse_xychart(source, &mut db)?;

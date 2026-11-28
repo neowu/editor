@@ -26,8 +26,10 @@ pub struct DecodedText {
     /// The decoded UTF-8 text.
     pub text: String,
     /// The encoding the bytes were decoded from.
+    // lint: expect(excess_visibility) read by tests only; kept to verify detection
     pub encoding: &'static Encoding,
     /// Whether the bytes started with a byte order mark.
+    // lint: expect(excess_visibility) read by tests only; kept to verify detection
     pub has_bom: bool,
 }
 
@@ -224,7 +226,7 @@ impl ByteContent {
 /// Heuristic check using null byte distribution plus a generic text-likeness
 /// heuristic. This prefers UTF-16 when many bytes are NUL and otherwise
 /// distinguishes between text-like and binary-like content.
-pub fn analyze_byte_content(bytes: &[u8]) -> ByteContent {
+fn analyze_byte_content(bytes: &[u8]) -> ByteContent {
     if bytes.len() < 2 {
         return ByteContent::Unknown;
     }

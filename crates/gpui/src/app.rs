@@ -111,7 +111,7 @@ mod entity_map;
 
 /// The duration for which native applications wait for futures returned from
 /// [Context::on_app_quit] before fully quitting.
-pub const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(200);
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(200);
 
 /// Temporary(?) wrapper around [`RefCell<App>`] to help us debug any double borrows.
 /// Strongly consider removing after stabilization.
@@ -123,28 +123,28 @@ fn track_thread_borrow(event: &str) {
 }
 
 #[doc(hidden)]
-pub struct AppCell {
+pub(crate) struct AppCell {
     app: RefCell<App>,
 }
 
 impl AppCell {
     #[doc(hidden)]
     #[track_caller]
-    pub fn borrow(&self) -> AppRef<'_> {
+    fn borrow(&self) -> AppRef<'_> {
         track_thread_borrow("borrowed");
         AppRef(self.app.borrow())
     }
 
     #[doc(hidden)]
     #[track_caller]
-    pub fn borrow_mut(&self) -> AppRefMut<'_> {
+    pub(crate) fn borrow_mut(&self) -> AppRefMut<'_> {
         track_thread_borrow("borrowed");
         AppRefMut(self.app.borrow_mut())
     }
 
     #[doc(hidden)]
     #[track_caller]
-    pub fn try_borrow_mut(&self) -> Result<AppRefMut<'_>, BorrowMutError> {
+    fn try_borrow_mut(&self) -> Result<AppRefMut<'_>, BorrowMutError> {
         track_thread_borrow("borrowed");
         Ok(AppRefMut(self.app.try_borrow_mut()?))
     }
@@ -152,7 +152,7 @@ impl AppCell {
 
 #[doc(hidden)]
 #[derive(Deref, DerefMut)]
-pub struct AppRef<'a>(Ref<'a, App>);
+struct AppRef<'a>(Ref<'a, App>);
 
 impl Drop for AppRef<'_> {
     fn drop(&mut self) {
@@ -162,7 +162,7 @@ impl Drop for AppRef<'_> {
 
 #[doc(hidden)]
 #[derive(Deref, DerefMut)]
-pub struct AppRefMut<'a>(RefMut<'a, App>);
+pub(crate) struct AppRefMut<'a>(RefMut<'a, App>);
 
 impl Drop for AppRefMut<'_> {
     fn drop(&mut self) {
@@ -265,34 +265,34 @@ type NewEntityListener = Box<dyn FnMut(AnyEntity, &mut Option<&mut Window>, &mut
 /// Other [Context] derefs to this type.
 /// You need a reference to an `App` to access the state of a [Entity].
 pub struct App {
-    pub(crate) this: Weak<AppCell>,
+    this: Weak<AppCell>,
     pub(crate) platform: Rc<dyn Platform>,
     text_system: Arc<TextSystem>,
 
     pub(crate) actions: Rc<ActionRegistry>,
     pub(crate) active_drag: Option<AnyDrag>,
-    pub(crate) background_executor: BackgroundExecutor,
-    pub(crate) foreground_executor: ForegroundExecutor,
+    background_executor: BackgroundExecutor,
+    foreground_executor: ForegroundExecutor,
     pub(crate) entities: EntityMap,
-    pub(crate) new_entity_observers: SubscriberSet<TypeId, NewEntityListener>,
+    new_entity_observers: SubscriberSet<TypeId, NewEntityListener>,
     pub(crate) windows: SlotMap<WindowId, Option<Box<Window>>>,
-    pub(crate) window_handles: FxHashMap<WindowId, AnyWindowHandle>,
+    window_handles: FxHashMap<WindowId, AnyWindowHandle>,
     pub(crate) focus_handles: Arc<RwLock<FocusMap>>,
     pub(crate) keymap: Rc<RefCell<Keymap>>,
     /// One listener per action type; registering again replaces the previous one.
     pub(crate) global_action_listeners: HashMap<TypeId, Rc<dyn Fn(&dyn Any, &mut Self)>, TypeIdHashBuilder>,
     pending_effects: VecDeque<Effect>,
 
-    pub(crate) observers: SubscriberSet<EntityId, Handler>,
-    pub(crate) event_listeners: SubscriberSet<EntityId, (TypeId, Listener)>,
+    observers: SubscriberSet<EntityId, Handler>,
+    event_listeners: SubscriberSet<EntityId, (TypeId, Listener)>,
     /// The connected displays, as of the platform's last display change
     /// notification.
     displays: FxHashMap<DisplayId, Option<Duration>>,
-    pub(crate) system_sleep_observers: SingleSubscriberSet<Handler>,
-    pub(crate) system_wake_observers: SingleSubscriberSet<Handler>,
+    system_sleep_observers: SingleSubscriberSet<Handler>,
+    system_wake_observers: SingleSubscriberSet<Handler>,
     pub(crate) release_listeners: SubscriberSet<EntityId, ReleaseListener>,
     pub(crate) global_observers: SubscriberSet<TypeId, Handler>,
-    pub(crate) quit_observers: SingleSubscriberSet<QuitHandler>,
+    quit_observers: SingleSubscriberSet<QuitHandler>,
 
     /// Per-App element arena. This isolates element allocations between different
     /// App instances.
@@ -303,28 +303,28 @@ pub struct App {
     /// exclusively, which is undefined behavior.
     pub(crate) element_arena: Rc<RefCell<Arena>>,
     /// Per-App event arena.
-    pub(crate) event_arena: Arena,
+    event_arena: Arena,
 
     // Drop globals last, after all tasks owned by entities and callbacks are
     // marked cancelled.
-    pub(crate) globals_by_type: HashMap<TypeId, Box<dyn Any>, TypeIdHashBuilder>,
+    globals_by_type: HashMap<TypeId, Box<dyn Any>, TypeIdHashBuilder>,
 
     // assets
-    pub(crate) loading_assets: FxHashMap<(TypeId, u64), Box<dyn Any>>,
+    loading_assets: FxHashMap<(TypeId, u64), Box<dyn Any>>,
     asset_source: Arc<dyn AssetSource>,
     pub(crate) svg_renderer: SvgRenderer,
 
     // below is plain data, the drop order is insignificant here
-    pub(crate) pending_notifications: FxHashSet<EntityId>,
-    pub(crate) pending_global_notifications: HashSet<TypeId, TypeIdHashBuilder>,
+    pending_notifications: FxHashSet<EntityId>,
+    pending_global_notifications: HashSet<TypeId, TypeIdHashBuilder>,
     pub(crate) layout_id_buffer: Vec<LayoutId>, // We recycle this memory across layout requests.
     pub(crate) propagate_event: bool,
     pub(crate) ui_snapshots: bool,
-    pub(crate) window_invalidators_by_entity: FxHashMap<EntityId, FxHashMap<WindowId, WindowInvalidator>>,
-    pub(crate) tracked_entities: FxHashMap<WindowId, FxHashSet<EntityId>>,
-    pub(crate) current_window_by_entity: FxHashMap<EntityId, WindowId>,
+    window_invalidators_by_entity: FxHashMap<EntityId, FxHashMap<WindowId, WindowInvalidator>>,
+    tracked_entities: FxHashMap<WindowId, FxHashSet<EntityId>>,
+    current_window_by_entity: FxHashMap<EntityId, WindowId>,
 
-    pub(crate) window_update_stack: Vec<WindowId>,
+    window_update_stack: Vec<WindowId>,
     /// Origin of the shared clock that phase-locks synced repeating animations.
     pub(crate) synced_animation_epoch: Instant,
     pending_updates: usize,
@@ -332,7 +332,7 @@ pub struct App {
 }
 
 impl App {
-    pub(crate) fn new_app(platform: Rc<dyn Platform>, asset_source: Arc<dyn AssetSource>) -> Rc<AppCell> {
+    fn new_app(platform: Rc<dyn Platform>, asset_source: Arc<dyn AssetSource>) -> Rc<AppCell> {
         let background_executor = platform.background_executor();
         let foreground_executor = platform.foreground_executor();
         assert!(background_executor.is_main_thread(), "must construct App on main thread");
@@ -447,7 +447,7 @@ impl App {
     ///
     /// Native applications give handlers registered with [`Context::on_app_quit`]
     /// [`SHUTDOWN_TIMEOUT`] to complete.
-    pub fn shutdown(&mut self) {
+    fn shutdown(&mut self) {
         // Requested first so the final hang poll overlaps with the quit
         // handlers. It's awaited alongside them, within `SHUTDOWN_TIMEOUT`.
 
@@ -518,12 +518,12 @@ impl App {
         result
     }
 
-    pub(crate) const fn start_update(&mut self) {
+    const fn start_update(&mut self) {
         self.pending_updates += 1;
     }
 
     #[inline(never)]
-    pub(crate) fn finish_update(&mut self) {
+    fn finish_update(&mut self) {
         if self.pending_updates == 1 {
             self.flush_effects();
         }
@@ -531,7 +531,7 @@ impl App {
     }
 
     /// Arrange a callback to be invoked when the given entity calls `notify` on its respective context.
-    pub fn observe<W>(
+    pub(crate) fn observe<W>(
         &mut self,
         entity: &Entity<W>,
         mut on_notify: impl FnMut(Entity<W>, &mut App) + 'static,
@@ -584,7 +584,7 @@ impl App {
         subscription
     }
 
-    pub(crate) fn observe_internal<W>(
+    fn observe_internal<W>(
         &mut self,
         entity: &Entity<W>,
         mut on_notify: impl FnMut(Entity<W>, &mut App) -> bool + 'static,
@@ -602,7 +602,7 @@ impl App {
 
     /// Arrange for the given callback to be invoked whenever the given entity emits an event of a given type.
     /// The callback is provided a handle to the emitting entity and a reference to the emitted event.
-    pub fn subscribe<T, Event>(
+    fn subscribe<T, Event>(
         &mut self,
         entity: &Entity<T>,
         mut on_event: impl FnMut(Entity<T>, &Event, &mut App) + 'static,
@@ -622,7 +622,7 @@ impl App {
         self.defer(move |_| activate());
         subscription
     }
-    pub(crate) fn subscribe_internal<T, Evt>(
+    fn subscribe_internal<T, Evt>(
         &mut self,
         entity: &Entity<T>,
         mut on_event: impl FnMut(Entity<T>, &Evt, &mut App) -> bool + 'static,
@@ -725,7 +725,7 @@ impl App {
     }
 
     /// Returns the list of currently active displays.
-    pub fn displays(&self) -> Vec<Rc<dyn PlatformDisplay>> {
+    fn displays(&self) -> Vec<Rc<dyn PlatformDisplay>> {
         self.platform.displays()
     }
 
@@ -736,7 +736,7 @@ impl App {
     }
 
     /// Returns the display with the given ID, if one exists.
-    pub fn find_display(&self, id: DisplayId) -> Option<Rc<dyn PlatformDisplay>> {
+    pub(crate) fn find_display(&self, id: DisplayId) -> Option<Rc<dyn PlatformDisplay>> {
         self.displays().iter().find(|display| display.id() == id).cloned()
     }
 
@@ -900,6 +900,7 @@ impl App {
             {
                 return;
             }
+            // lint: expect(wildcard_match) only a few variants of `Effect` matter here
             _ => {}
         }
 
@@ -1069,7 +1070,7 @@ impl App {
     }
 
     #[inline(always)]
-    pub(crate) fn update_window_id<T, F>(&mut self, id: WindowId, update: F) -> Result<T>
+    fn update_window_id<T, F>(&mut self, id: WindowId, update: F) -> Result<T>
     where
         F: FnOnce(AnyView, &mut Window, &mut App) -> T,
     {
@@ -1128,7 +1129,7 @@ impl App {
     }
 
     /// Accessor for the application's asset source, which is provided when constructing the `App`.
-    pub fn asset_source(&self) -> &Arc<dyn AssetSource> {
+    pub(crate) fn asset_source(&self) -> &Arc<dyn AssetSource> {
         &self.asset_source
     }
 
@@ -1220,7 +1221,7 @@ impl App {
         self.globals_by_type.insert(global_type, lease.global);
     }
 
-    pub(crate) fn new_entity_observer(&self, key: TypeId, value: NewEntityListener) -> Subscription {
+    fn new_entity_observer(&self, key: TypeId, value: NewEntityListener) -> Subscription {
         self.new_entity_observers.insert(key, value)
     }
 
@@ -1262,7 +1263,7 @@ impl App {
 
     /// Observe the release of a entity. The callback is invoked after the entity
     /// has no more strong references but before it has been dropped.
-    pub fn observe_release_in<T>(
+    fn observe_release_in<T>(
         &self,
         handle: &Entity<T>,
         window: &Window,
@@ -1346,7 +1347,7 @@ impl App {
 
     /// Checks if the given action is bound in the current context, as defined by the app's current focus,
     /// the bindings in the element tree, and any global action listeners.
-    pub fn is_action_available(&mut self, action: &dyn Action) -> bool {
+    pub(crate) fn is_action_available(&mut self, action: &dyn Action) -> bool {
         let action_available = self
             .active_window()
             .and_then(|window| window.update(self, |_, window, cx| window.is_action_available(action, cx)).ok())
@@ -1417,7 +1418,7 @@ impl App {
     }
 
     /// Remove an asset from GPUI's cache.
-    pub fn remove_asset<A: Asset>(&mut self, source: &A::Source) {
+    pub(crate) fn remove_asset<A: Asset>(&mut self, source: &A::Source) {
         let asset_id = (TypeId::of::<A>(), hash(source));
         self.loading_assets.remove(&asset_id);
     }
@@ -1748,40 +1749,40 @@ impl<G: Global> DerefMut for GlobalLease<G> {
 
 /// Contains state associated with an active drag operation, started by dragging an element
 /// within the window.
-pub struct AnyDrag {
+pub(crate) struct AnyDrag {
     /// The view used to render this drag.
-    pub view: AnyView,
+    pub(crate) view: AnyView,
 
     /// The value of the dragged item, to be dropped.
-    pub value: Arc<dyn Any>,
+    pub(crate) value: Arc<dyn Any>,
 
     /// This is used to render the dragged item in the same place
     /// on the original element that the drag was initiated.
-    pub cursor_offset: Point<Pixels>,
+    pub(crate) cursor_offset: Point<Pixels>,
 
     /// The cursor style to use while dragging.
-    pub cursor_style: Option<CursorStyle>,
+    pub(crate) cursor_style: Option<CursorStyle>,
 }
 
 /// Contains state associated with a tooltip. You'll only need this struct if you're implementing
 /// tooltip behavior on a custom element. Otherwise, use [Div::tooltip](crate::Interactivity::tooltip).
 #[derive(Clone)]
-pub struct AnyTooltip {
+pub(crate) struct AnyTooltip {
     /// The view used to display the tooltip.
-    pub view: AnyView,
+    pub(crate) view: AnyView,
 
     /// The absolute position of the mouse when the tooltip was deployed.
-    pub mouse_position: Point<Pixels>,
+    pub(crate) mouse_position: Point<Pixels>,
 
     /// Given the bounds of the tooltip, checks whether the tooltip should still be visible and
     /// updates its state accordingly. This is needed atop the hovered element's mouse move handler
     /// to handle the case where the element is not painted (e.g. via use of `visible_on_hover`).
-    pub check_visible_and_update: Rc<dyn Fn(Bounds<Pixels>, &mut Window, &mut App) -> bool>,
+    pub(crate) check_visible_and_update: Rc<dyn Fn(Bounds<Pixels>, &mut Window, &mut App) -> bool>,
 }
 
 /// Whether a keystroke should prefer character input or key bindings.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum InputPreference {
+pub(crate) enum InputPreference {
     /// Prefer typing text over triggering key bindings.
     CharacterInput,
     /// Dispatch key bindings normally, if any match.

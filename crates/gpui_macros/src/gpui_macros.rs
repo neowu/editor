@@ -3,7 +3,6 @@ mod derive_app_context;
 mod derive_into_element;
 mod derive_render;
 mod derive_visual_context;
-mod register_action;
 mod styles;
 
 use proc_macro::TokenStream;

@@ -93,17 +93,17 @@ actions!(
     terminal_panel,
     [
         /// Toggles the terminal panel.
-        Toggle,
+        pub Toggle,
         /// Toggles focus on the terminal panel.
         ToggleFocus,
         /// Shows a shell terminal (not task output) in the terminal panel,
         /// opening one if there is none, or hides the panel when a shell is
         /// already shown.
-        ToggleShell
+        pub ToggleShell
     ]
 );
 
-pub fn init(workspace_actions: &mut WorkspaceActions) {
+pub(crate) fn init(workspace_actions: &mut WorkspaceActions) {
     workspace_actions.register_action(TerminalPanel::new_terminal);
     workspace_actions.register_action(TerminalPanel::open_terminal);
     workspace_actions.register_action(|workspace, _: &ToggleFocus, window, cx| {
@@ -128,7 +128,7 @@ pub struct TerminalPanel {
 }
 
 impl TerminalPanel {
-    pub fn new(workspace: &Workspace, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn new(workspace: &Workspace, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let project = workspace.project();
         let pane = new_terminal_pane(workspace.weak_handle(), project.clone(), false, window, cx);
         let mut center = PaneGroup::new(pane.clone());
@@ -234,6 +234,7 @@ impl TerminalPanel {
                 self.active_pane = pane.clone();
             }
 
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }
@@ -335,7 +336,7 @@ impl TerminalPanel {
     }
 
     /// "Open in Terminal" opens a shell in that directory in terminal mode.
-    pub fn open_terminal(
+    fn open_terminal(
         workspace: &mut Workspace,
         action: &workspace::OpenTerminal,
         window: &mut Window,
@@ -344,10 +345,10 @@ impl TerminalPanel {
         workspace.open_terminal_mode_shell(Some(action.working_directory.clone()), window, cx);
     }
 
-    pub fn spawn_task(
+    fn spawn_task(
         &mut self,
         task: &SpawnInTerminal,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<WeakEntity<Terminal>>> {
         let task = task.clone();
@@ -436,10 +437,10 @@ impl TerminalPanel {
         pane.update(cx, |pane, cx| pane.activate_item(item_index, true, focus, window, cx));
     }
 
-    pub fn add_terminal_task(
+    fn add_terminal_task(
         &mut self,
         task: SpawnInTerminal,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<WeakEntity<Terminal>>> {
         let workspace = self.workspace.clone();
@@ -597,7 +598,7 @@ impl TerminalPanel {
     }
 
     /// Returns all panes in the terminal panel.
-    pub fn panes(&self) -> Vec<&Entity<Pane>> {
+    pub(crate) fn panes(&self) -> Vec<&Entity<Pane>> {
         self.center.panes()
     }
 
@@ -668,7 +669,7 @@ pub(crate) fn set_terminal_tab_bar_buttons(pane: &mut Pane, with_splits: bool, c
     });
 }
 
-pub fn new_terminal_pane(
+pub(crate) fn new_terminal_pane(
     workspace: WeakEntity<Workspace>,
     project: Entity<Project>,
     zoomed: bool,

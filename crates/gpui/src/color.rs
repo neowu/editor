@@ -59,7 +59,7 @@ impl fmt::Debug for Rgba {
 
 impl Rgba {
     /// Create a new [`Rgba`] color by blending this and another color together.
-    pub fn blend(&self, other: Rgba) -> Self {
+    fn blend(&self, other: Rgba) -> Self {
         if other.a >= 1.0 {
             other
         } else if other.a <= 0.0 {
@@ -345,7 +345,7 @@ pub const fn blue() -> Hsla {
 }
 
 /// The color green in [`Hsla`].
-pub const fn green() -> Hsla {
+const fn green() -> Hsla {
     Hsla { h: 0.333_333_34, s: 1., l: 0.25, a: 1. }
 }
 
@@ -391,7 +391,7 @@ impl Hsla {
     }
 
     /// Returns true if the HSLA color is fully transparent, false otherwise.
-    pub fn is_transparent(&self) -> bool {
+    pub(crate) fn is_transparent(&self) -> bool {
         self.a == 0.0
     }
 
@@ -542,9 +542,9 @@ impl Display for ColorSpace {
 #[repr(C)]
 pub struct Background {
     pub(crate) tag: BackgroundTag,
-    pub(crate) color_space: ColorSpace,
+    color_space: ColorSpace,
     pub(crate) solid: Hsla,
-    pub(crate) gradient_angle_or_pattern_height: f32,
+    gradient_angle_or_pattern_height: f32,
     pub(crate) colors: [LinearColorStop; 2],
     /// Padding for alignment for repr(C) layout.
     pad: u32,
@@ -635,9 +635,9 @@ pub fn linear_gradient(angle: f32, from: impl Into<LinearColorStop>, to: impl In
 #[repr(C)]
 pub struct LinearColorStop {
     /// The color of the color stop.
-    pub color: Hsla,
+    pub(crate) color: Hsla,
     /// The percentage of the gradient, in the range 0.0 to 1.0.
-    pub percentage: f32,
+    percentage: f32,
 }
 
 /// Creates a new linear color stop.
@@ -649,7 +649,7 @@ pub fn linear_color_stop(color: impl Into<Hsla>, percentage: f32) -> LinearColor
 
 impl LinearColorStop {
     /// Returns a new color stop with the same color, but with a modified alpha value.
-    pub fn opacity(&self, factor: f32) -> Self {
+    fn opacity(&self, factor: f32) -> Self {
         Self { percentage: self.percentage, color: self.color.opacity(factor) }
     }
 }
@@ -664,7 +664,7 @@ impl Background {
     }
 
     /// Returns a new background color with the same hue, saturation, and lightness, but with a modified alpha value.
-    pub fn opacity(&self, factor: f32) -> Self {
+    pub(crate) fn opacity(&self, factor: f32) -> Self {
         let mut background = *self;
         background.solid = background.solid.opacity(factor);
         background.colors = [self.colors[0].opacity(factor), self.colors[1].opacity(factor)];
@@ -672,7 +672,7 @@ impl Background {
     }
 
     /// Returns whether the background color is transparent.
-    pub fn is_transparent(&self) -> bool {
+    pub(crate) fn is_transparent(&self) -> bool {
         match self.tag {
             BackgroundTag::Solid => self.solid.is_transparent(),
             BackgroundTag::LinearGradient => self.colors.iter().all(|c| c.color.is_transparent()),

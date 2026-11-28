@@ -43,7 +43,7 @@ impl<T> TableRow<T> {
     ///
     /// This is a fallible alternative to `from_vec`, allowing you to handle inconsistent row lengths gracefully.
     /// Returns `Ok(TableRow)` if the length matches, or an `Err` with a descriptive message otherwise.
-    pub fn try_from_vec(data: Vec<T>, expected_len: usize) -> Result<Self, String> {
+    fn try_from_vec(data: Vec<T>, expected_len: usize) -> Result<Self, String> {
         if data.len() == expected_len {
             Ok(Self(data))
         } else {
@@ -63,7 +63,7 @@ impl<T> TableRow<T> {
         &mut self.0
     }
 
-    pub fn into_vec(self) -> Vec<T> {
+    pub(crate) fn into_vec(self) -> Vec<T> {
         self.0
     }
 
@@ -76,7 +76,7 @@ impl<T> TableRow<T> {
     /// - `map_cloned` takes `&self`, clones each element, and applies `f(T) -> U`.
     /// - [`map`] takes `self` by value and applies `f(T) -> U` directly, consuming the row.
     /// - [`map_ref`] takes `&self` and applies `f(&T) -> U` to references of each element.
-    pub fn map_cloned<F, U>(&self, f: F) -> TableRow<U>
+    pub(crate) fn map_cloned<F, U>(&self, f: F) -> TableRow<U>
     where
         F: FnMut(T) -> U,
         T: Clone,
@@ -90,7 +90,7 @@ impl<T> TableRow<T> {
     /// - `map` takes ownership of the row (`self`) and applies `f(T) -> U` to each element.
     /// - Use this when you want to transform and consume the row in one step.
     /// - See also [`map_cloned`] (for mapping over a borrowed row with cloning) and [`map_ref`] (for mapping over references).
-    pub fn map<F, U>(self, f: F) -> TableRow<U>
+    pub(crate) fn map<F, U>(self, f: F) -> TableRow<U>
     where
         F: FnMut(T) -> U,
     {
@@ -103,7 +103,7 @@ impl<T> TableRow<T> {
     /// - `map_ref` takes `&self` and applies `f(&T) -> U` to each element by reference.
     /// - Use this when you want to map over a borrowed row without cloning or consuming it.
     /// - See also [`map`] (for consuming the row) and [`map_cloned`] (for mapping with cloning).
-    pub fn map_ref<F, U>(&self, f: F) -> TableRow<U>
+    pub(crate) fn map_ref<F, U>(&self, f: F) -> TableRow<U>
     where
         F: FnMut(&T) -> U,
     {
@@ -111,13 +111,13 @@ impl<T> TableRow<T> {
     }
 
     /// Number of columns (alias to `len()` with more semantic meaning).
-    pub const fn cols(&self) -> usize {
+    pub(crate) const fn cols(&self) -> usize {
         self.0.len()
     }
 }
 
 ///// Convenience traits /////
-pub trait IntoTableRow<T> {
+pub(crate) trait IntoTableRow<T> {
     fn into_table_row(self, expected_length: usize) -> TableRow<T>;
 }
 impl<T> IntoTableRow<T> for Vec<T> {

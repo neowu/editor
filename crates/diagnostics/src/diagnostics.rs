@@ -90,7 +90,7 @@ actions!(
     diagnostics,
     [
         /// Opens the project diagnostics view.
-        Deploy,
+        pub Deploy,
     ]
 );
 
@@ -101,7 +101,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
 }
 
 pub(crate) struct ProjectDiagnosticsEditor {
-    pub project: Entity<Project>,
+    project: Entity<Project>,
     focus_handle: FocusHandle,
     editor: Entity<Editor>,
     diagnostics: FxHashMap<BufferId, Vec<DiagnosticEntry<text::Anchor>>>,
@@ -180,6 +180,7 @@ impl ProjectDiagnosticsEditor {
                     );
                     this.update_stale_excerpts(window, cx);
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             });
 
@@ -207,6 +208,7 @@ impl ProjectDiagnosticsEditor {
                 EditorEvent::Blurred => this.close_diagnosticless_buffers(cx, false),
                 EditorEvent::Saved => this.close_diagnosticless_buffers(cx, true),
                 EditorEvent::SelectionsChanged { .. } => this.close_diagnosticless_buffers(cx, true),
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             }
         })

@@ -10,15 +10,13 @@ use crate::prelude::ElementId;
 use crate::prelude::px;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AnimationDuration {
-    Instant = 50,
+enum AnimationDuration {
     Fast = 150,
-    Slow = 300,
 }
 
 impl AnimationDuration {
-    pub const fn duration(&self) -> Duration {
-        Duration::from_millis(*self as u64)
+    const fn duration(self) -> Duration {
+        Duration::from_millis(self as u64)
     }
 }
 

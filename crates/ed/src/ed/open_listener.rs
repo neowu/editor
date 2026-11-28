@@ -21,9 +21,9 @@ use workspace::item::ItemHandle;
 
 #[derive(Default, Debug)]
 pub(crate) struct OpenRequest {
-    pub open_paths: Vec<String>,
-    pub diff_paths: Vec<[String; 2]>,
-    pub diff_all: bool,
+    pub(crate) open_paths: Vec<String>,
+    pub(crate) diff_paths: Vec<[String; 2]>,
+    pub(crate) diff_all: bool,
 }
 
 impl OpenRequest {
@@ -53,9 +53,9 @@ pub(crate) struct OpenListener(UnboundedSender<RawOpenRequest>);
 
 #[derive(Default)]
 pub(crate) struct RawOpenRequest {
-    pub urls: Vec<String>,
-    pub diff_paths: Vec<[String; 2]>,
-    pub diff_all: bool,
+    pub(crate) urls: Vec<String>,
+    pub(crate) diff_paths: Vec<[String; 2]>,
+    pub(crate) diff_all: bool,
 }
 
 impl Global for OpenListener {}

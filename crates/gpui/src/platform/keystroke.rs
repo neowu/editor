@@ -14,7 +14,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 /// This is a helper trait so that we can simplify the implementation of some functions.
-pub trait AsKeystroke {
+pub(crate) trait AsKeystroke {
     /// Returns the GPUI representation of the keystroke.
     fn as_keystroke(&self) -> &Keystroke;
 }
@@ -50,7 +50,7 @@ pub struct KeybindingKeystroke {
 #[derive(Debug)]
 pub struct InvalidKeystrokeError {
     /// The invalid keystroke.
-    pub keystroke: String,
+    keystroke: String,
 }
 
 impl Error for InvalidKeystrokeError {}
@@ -62,7 +62,7 @@ impl Display for InvalidKeystrokeError {
 }
 
 /// Sentence explaining what keystroke parser expects, starting with "Expected ..."
-pub(super) const KEYSTROKE_PARSE_EXPECTED_MESSAGE: &str = "Expected a sequence of modifiers \
+const KEYSTROKE_PARSE_EXPECTED_MESSAGE: &str = "Expected a sequence of modifiers \
     (`ctrl`, `alt`, `shift`, `fn`, `cmd`, `super`, or `win`) \
     followed by a key, separated by `-`.";
 
@@ -75,7 +75,7 @@ impl Keystroke {
     ///
     /// This method assumes that `self` was typed and `target' is in the keymap, and checks
     /// both possibilities for self against the target.
-    pub fn should_match(&self, target: &KeybindingKeystroke) -> bool {
+    pub(crate) fn should_match(&self, target: &KeybindingKeystroke) -> bool {
         if let Some(key_char) = self.key_char.as_ref().filter(|key_char| key_char != &&self.key) {
             let ime_modifiers =
                 Modifiers { control: self.modifiers.control, platform: self.modifiers.platform, ..Default::default() };
@@ -188,7 +188,7 @@ impl Keystroke {
     /// Returns a new keystroke with the key_char filled.
     /// This is used for dispatch_keystroke where we want users to
     /// be able to simulate typing "space", etc.
-    pub fn with_simulated_ime(mut self) -> Self {
+    pub(crate) fn with_simulated_ime(mut self) -> Self {
         if self.key_char.is_none()
             && !self.modifiers.platform
             && !self.modifiers.control
@@ -213,14 +213,14 @@ impl Keystroke {
     }
 
     /// Returns whether the key itself is a modifier.
-    pub fn is_modifier_key(&self) -> bool {
+    pub(crate) fn is_modifier_key(&self) -> bool {
         matches!(self.key.as_str(), "shift" | "control" | "alt" | "platform" | "function")
     }
 }
 
 impl KeybindingKeystroke {
     /// Create a new keybinding keystroke from the given keystroke, without any platform-specific mapping.
-    pub const fn from_keystroke(keystroke: Keystroke) -> Self {
+    pub(crate) const fn from_keystroke(keystroke: Keystroke) -> Self {
         KeybindingKeystroke { inner: keystroke }
     }
 
@@ -357,7 +357,7 @@ impl Modifiers {
     }
 
     /// Returns [`Modifiers`] with no modifiers.
-    pub fn none() -> Modifiers {
+    fn none() -> Modifiers {
         Modifiers::default()
     }
 

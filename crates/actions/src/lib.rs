@@ -5,9 +5,9 @@ actions!(
     ed,
     [
         /// Quits the application.
-        Quit,
+        pub Quit,
         /// Shows information about ed.
-        About,
+        pub About,
     ]
 );
 
@@ -15,19 +15,19 @@ actions!(
     ed,
     [
         /// Decreases the font size in the editor buffer.
-        DecreaseBufferFontSize,
+        pub DecreaseBufferFontSize,
         /// Increases the font size in the editor buffer.
-        IncreaseBufferFontSize,
+        pub IncreaseBufferFontSize,
         /// Resets the buffer font size to the default value.
-        ResetBufferFontSize,
+        pub ResetBufferFontSize,
         /// Decreases the font size of the user interface.
-        DecreaseUiFontSize,
+        pub DecreaseUiFontSize,
         /// Increases the font size of the user interface.
-        IncreaseUiFontSize,
+        pub IncreaseUiFontSize,
         /// Resets the UI font size to the default value.
-        ResetUiFontSize,
+        pub ResetUiFontSize,
         /// Resets all zoom levels (UI and buffer font sizes) to their default values.
-        ResetAllZoom,
+        pub ResetAllZoom,
     ]
 );
 
@@ -37,11 +37,11 @@ pub mod editor {
         editor,
         [
             /// Moves cursor up.
-            MoveUp,
+            pub MoveUp,
             /// Moves cursor down.
-            MoveDown,
+            pub MoveDown,
             /// Reveals the current file in the system file manager.
-            RevealInFileManager,
+            pub RevealInFileManager,
         ]
     );
 }
@@ -54,7 +54,7 @@ pub mod git_graph {
         [
             /// Switches the window to Git History mode and brings the active
             /// repository's graph to the front, even over its own commit tabs.
-            Open
+            pub Open
         ]
     );
 }
@@ -66,7 +66,7 @@ pub mod command_palette {
         command_palette,
         [
             /// Toggles the command palette.
-            Toggle,
+            pub Toggle,
         ]
     );
 }
@@ -90,15 +90,15 @@ pub mod search {
         search,
         [
             /// Focuses on the search input field.
-            FocusSearch,
+            pub FocusSearch,
             /// Selects the next search match.
-            SelectNextMatch,
+            pub SelectNextMatch,
             /// Selects the previous search match.
-            SelectPreviousMatch,
+            pub SelectPreviousMatch,
             /// Toggles case-sensitive search.
-            ToggleCaseSensitive,
+            pub ToggleCaseSensitive,
             /// Toggles searching in ignored files.
-            ToggleIncludeIgnored
+            pub ToggleIncludeIgnored
         ]
     );
 }
@@ -135,13 +135,13 @@ pub mod buffer_search {
         buffer_search,
         [
             /// Deploys the search and replace interface.
-            DeployReplace,
+            pub DeployReplace,
             /// Dismisses the search bar.
-            Dismiss,
+            pub Dismiss,
             /// Focuses back on the editor.
-            FocusEditor,
+            pub FocusEditor,
             /// Sets the search query from the selection or word under cursor.
-            UseSelectionForFind,
+            pub UseSelectionForFind,
         ]
     );
 }
@@ -159,25 +159,25 @@ pub mod menu {
         menu,
         [
             /// Cancels the current menu operation.
-            Cancel,
+            pub Cancel,
             /// Confirms the selected menu item.
-            Confirm,
+            pub Confirm,
             /// Performs secondary confirmation action.
-            SecondaryConfirm,
+            pub SecondaryConfirm,
             /// Selects the previous item in the menu.
-            SelectPrevious,
+            pub SelectPrevious,
             /// Selects the next item in the menu.
-            SelectNext,
+            pub SelectNext,
             /// Selects the first item in the menu.
-            SelectFirst,
+            pub SelectFirst,
             /// Selects the last item in the menu.
-            SelectLast,
+            pub SelectLast,
             /// Enters a submenu (navigates to child menu).
-            SelectChild,
+            pub SelectChild,
             /// Exits a submenu (navigates to parent menu).
-            SelectParent,
+            pub SelectParent,
             /// Restarts the menu from the beginning.
-            Restart,
+            pub Restart,
         ]
     );
 }

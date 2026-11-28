@@ -26,21 +26,24 @@ use ui::prelude::DefiniteLength;
 use super::EditorElement;
 use super::EditorLayout;
 use super::LineWithInvisibles;
-use crate::ContextMenuPlacement;
 use crate::DisplayPoint;
 use crate::DisplayRow;
 use crate::EditorSnapshot;
 use crate::EditorStyle;
 use crate::Point;
 use crate::RowExt as _;
-use crate::code_context_menus::MENU_ASIDE_MAX_WIDTH;
-use crate::code_context_menus::MENU_ASIDE_MIN_WIDTH;
-use crate::code_context_menus::MENU_GAP;
-use crate::hover_popover::HOVER_POPOVER_GAP;
-use crate::hover_popover::MIN_POPOVER_CHARACTER_WIDTH;
-use crate::hover_popover::MIN_POPOVER_LINE_HEIGHT;
-use crate::hover_popover::POPOVER_RIGHT_OFFSET;
 use crate::scroll::ScrollPixelOffset;
+
+const MENU_GAP: Pixels = px(4.);
+const MENU_ASIDE_MIN_WIDTH: Pixels = px(260.);
+const MENU_ASIDE_MAX_WIDTH: Pixels = px(500.);
+const MIN_POPOVER_CHARACTER_WIDTH: f32 = 20.;
+const MIN_POPOVER_LINE_HEIGHT: f32 = 4.;
+const POPOVER_RIGHT_OFFSET: Pixels = px(8.0);
+const HOVER_POPOVER_GAP: Pixels = px(10.);
+
+const MIN_MENU_LINES: f32 = 3.;
+const MAX_MENU_LINES: f32 = 12.;
 
 impl EditorElement {
     pub(super) fn layout_cursor_popovers(
@@ -63,23 +66,16 @@ impl EditorElement {
         let height_above_menu = Pixels::ZERO;
         let height_below_menu = Pixels::ZERO;
         let mut context_menu_visible = false;
-        let context_menu_placement;
 
         {
             let editor = self.editor.read(cx);
             if editor.context_menu_visible()
                 && matches!(editor.context_menu_origin(), Some(crate::ContextMenuOrigin::Cursor))
             {
-                let (min_height_in_lines, max_height_in_lines) = editor
-                    .context_menu_options
-                    .as_ref()
-                    .map_or((3, 12), |options| (options.min_entries_visible, options.max_entries_visible));
-
-                min_menu_height += line_height * min_height_in_lines as f32 + POPOVER_Y_PADDING;
-                max_menu_height += line_height * max_height_in_lines as f32 + POPOVER_Y_PADDING;
+                min_menu_height += line_height * MIN_MENU_LINES + POPOVER_Y_PADDING;
+                max_menu_height += line_height * MAX_MENU_LINES + POPOVER_Y_PADDING;
                 context_menu_visible = true;
             }
-            context_menu_placement = editor.context_menu_options.as_ref().and_then(|options| options.placement.clone());
         }
 
         let visible = context_menu_visible;
@@ -116,7 +112,6 @@ impl EditorElement {
             line_height,
             min_height,
             max_height,
-            context_menu_placement,
             text_hitbox,
             viewport_bounds,
             window,
@@ -229,13 +224,8 @@ impl EditorElement {
                 ),
             };
 
-        let (min_height_in_lines, max_height_in_lines) = editor
-            .context_menu_options
-            .as_ref()
-            .map_or((3, 12), |options| (options.min_entries_visible, options.max_entries_visible));
-
-        let min_height = line_height * min_height_in_lines as f32 + POPOVER_Y_PADDING;
-        let max_height = line_height * max_height_in_lines as f32 + POPOVER_Y_PADDING;
+        let min_height = line_height * MIN_MENU_LINES + POPOVER_Y_PADDING;
+        let max_height = line_height * MAX_MENU_LINES + POPOVER_Y_PADDING;
         let viewport_bounds = Bounds::new(gpui::Point::default(), window.viewport_size())
             .extend(Edges { right: -right_margin - MENU_GAP, ..Default::default() });
         self.layout_popovers_above_or_below_line(
@@ -243,7 +233,6 @@ impl EditorElement {
             line_height,
             min_height,
             max_height,
-            editor.context_menu_options.as_ref().and_then(|options| options.placement.clone()),
             text_hitbox,
             viewport_bounds,
             window,
@@ -265,7 +254,6 @@ impl EditorElement {
         line_height: Pixels,
         min_height: Pixels,
         max_height: Pixels,
-        placement: Option<ContextMenuPlacement>,
         text_hitbox: &Hitbox,
         viewport_bounds: Bounds<Pixels>,
         window: &mut Window,
@@ -288,31 +276,21 @@ impl EditorElement {
             let available_above = bottom_y_when_flipped - text_hitbox.top();
             let available_below = text_hitbox.bottom() - target_position.y;
             let y_overflows_below = max_height > available_below;
-            let mut y_flipped = match placement {
-                Some(ContextMenuPlacement::Above) => true,
-                Some(ContextMenuPlacement::Below) => false,
-                None => y_overflows_below && available_above > available_below,
-            };
+            let mut y_flipped = y_overflows_below && available_above > available_below;
             let mut height = cmp::min(max_height, if y_flipped { available_above } else { available_below });
 
             // If the min height doesn't fit within text bounds, instead fit within the window.
             if height < min_height {
                 let available_above = bottom_y_when_flipped;
                 let available_below = viewport_bounds.bottom() - target_position.y;
-                let (y_flipped_override, height_override) = match placement {
-                    Some(ContextMenuPlacement::Above) => (true, cmp::min(available_above, min_height)),
-                    Some(ContextMenuPlacement::Below) => (false, cmp::min(available_below, min_height)),
-                    None => {
-                        if available_below > min_height {
-                            (false, min_height)
-                        } else if available_above > min_height {
-                            (true, min_height)
-                        } else if available_above > available_below {
-                            (true, available_above)
-                        } else {
-                            (false, available_below)
-                        }
-                    }
+                let (y_flipped_override, height_override) = if available_below > min_height {
+                    (false, min_height)
+                } else if available_above > min_height {
+                    (true, min_height)
+                } else if available_above > available_below {
+                    (true, available_above)
+                } else {
+                    (false, available_below)
                 };
                 y_flipped = y_flipped_override;
                 height = height_override;
@@ -437,19 +415,14 @@ impl EditorElement {
         &self,
         line_height: Pixels,
         height: Pixels,
-        window: &mut Window,
+        window: &Window,
         cx: &mut App,
     ) -> Option<AnyElement> {
         let max_height_in_lines = ((height - POPOVER_Y_PADDING) / line_height).floor() as u32;
         self.editor.update(cx, |editor, cx| editor.render_context_menu(max_height_in_lines, window, cx))
     }
 
-    fn render_context_menu_aside(
-        &self,
-        max_size: Size<Pixels>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Option<AnyElement> {
+    fn render_context_menu_aside(&self, max_size: Size<Pixels>, window: &Window, cx: &mut App) -> Option<AnyElement> {
         if max_size.width < px(100.) || max_size.height < px(12.) {
             None
         } else {
@@ -678,6 +651,6 @@ pub(super) struct ContextMenuLayout {
     bounds: Bounds<Pixels>,
 }
 
-pub(super) enum CursorPopoverType {
+enum CursorPopoverType {
     CodeContextMenu,
 }

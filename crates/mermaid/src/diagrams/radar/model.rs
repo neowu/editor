@@ -49,9 +49,9 @@ pub(crate) struct RadarOptions {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct RadarModel {
     /// The accessible description.
-    pub(crate) acc_descr: Option<String>,
+    acc_descr: Option<String>,
     /// The accessible title.
-    pub(crate) acc_title: Option<String>,
+    acc_title: Option<String>,
     /// Axes in authored order.
     pub(crate) axes: Vec<RadarAxis>,
     /// Curves in authored order.

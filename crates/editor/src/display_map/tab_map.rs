@@ -30,10 +30,10 @@ const MAX_TABS: NonZeroU32 = NonZeroU32::new(SPACES.len() as u32).unwrap();
 /// Keeps track of hard tabs in a text buffer.
 ///
 /// See the [`display_map` module documentation](crate::display_map) for more information.
-pub struct TabMap(TabSnapshot);
+pub(crate) struct TabMap(TabSnapshot);
 
 impl TabMap {
-    pub fn new(fold_snapshot: FoldSnapshot, tab_size: NonZeroU32) -> (Self, TabSnapshot) {
+    pub(crate) fn new(fold_snapshot: FoldSnapshot, tab_size: NonZeroU32) -> (Self, TabSnapshot) {
         let snapshot = TabSnapshot {
             fold_snapshot,
             tab_size: tab_size.min(MAX_TABS),
@@ -43,7 +43,7 @@ impl TabMap {
         (Self(snapshot.clone()), snapshot)
     }
 
-    pub fn sync(
+    pub(crate) fn sync(
         &mut self,
         fold_snapshot: FoldSnapshot,
         mut fold_edits: Vec<FoldEdit>,
@@ -186,12 +186,12 @@ impl TabMap {
 
 #[derive(Clone)]
 pub struct TabSnapshot {
-    pub fold_snapshot: FoldSnapshot,
-    pub tab_size: NonZeroU32,
+    pub(crate) fold_snapshot: FoldSnapshot,
+    pub(crate) tab_size: NonZeroU32,
     /// The maximum column up to which a tab can expand.
     /// Any tab after this column will not expand.
-    pub max_expansion_column: u32,
-    pub version: usize,
+    max_expansion_column: u32,
+    pub(crate) version: usize,
 }
 
 impl Deref for TabSnapshot {
@@ -204,11 +204,11 @@ impl Deref for TabSnapshot {
 
 impl TabSnapshot {
     #[inline]
-    pub const fn buffer_snapshot(&self) -> &MultiBufferSnapshot {
+    pub(crate) const fn buffer_snapshot(&self) -> &MultiBufferSnapshot {
         &self.fold_snapshot.inlay_snapshot.buffer
     }
 
-    pub fn line_len(&self, row: u32) -> u32 {
+    pub(crate) fn line_len(&self, row: u32) -> u32 {
         let max_point = self.max_point();
         if row < max_point.row() {
             self.fold_point_to_tab_point(FoldPoint::new(row, self.fold_snapshot.line_len(row))).0.column
@@ -217,11 +217,11 @@ impl TabSnapshot {
         }
     }
 
-    pub fn text_summary(&self) -> TextSummary {
+    pub(crate) fn text_summary(&self) -> TextSummary {
         self.text_summary_for_range(TabPoint::zero()..self.max_point())
     }
 
-    pub fn text_summary_for_range(&self, range: Range<TabPoint>) -> TextSummary {
+    pub(crate) fn text_summary_for_range(&self, range: Range<TabPoint>) -> TextSummary {
         let input_start = self.tab_point_to_fold_point(range.start, Bias::Left).0;
         let input_end = self.tab_point_to_fold_point(range.end, Bias::Right).0;
         let input_summary = self.fold_snapshot.text_summary_for_range(input_start..input_end);
@@ -293,26 +293,26 @@ impl TabSnapshot {
         }
     }
 
-    pub fn rows(&self, row: u32) -> fold_map::FoldRows<'_> {
+    pub(crate) fn rows(&self, row: u32) -> fold_map::FoldRows<'_> {
         self.fold_snapshot.row_infos(row)
     }
 
-    pub fn max_point(&self) -> TabPoint {
+    pub(crate) fn max_point(&self) -> TabPoint {
         self.fold_point_to_tab_point(self.fold_snapshot.max_point())
     }
 
-    pub fn clip_point(&self, point: TabPoint, bias: Bias) -> TabPoint {
+    pub(crate) fn clip_point(&self, point: TabPoint, bias: Bias) -> TabPoint {
         self.fold_point_to_tab_point(self.fold_snapshot.clip_point(self.tab_point_to_fold_point(point, bias).0, bias))
     }
 
-    pub fn fold_point_to_tab_point(&self, input: FoldPoint) -> TabPoint {
+    pub(crate) fn fold_point_to_tab_point(&self, input: FoldPoint) -> TabPoint {
         let chunks = self.fold_snapshot.chunks_at(FoldPoint::new(input.row(), 0));
         let mut tab_cursor = TabStopCursor::new(chunks);
         let expanded = self.expand_tabs(&mut tab_cursor, &mut 0, &mut 0, input.column());
         TabPoint::new(input.row(), expanded)
     }
 
-    pub const fn tab_point_cursor(&self) -> TabPointCursor<'_> {
+    pub(crate) const fn tab_point_cursor(&self) -> TabPointCursor<'_> {
         TabPointCursor {
             snapshot: self,
             tab_stop_cursor: None,
@@ -324,7 +324,7 @@ impl TabSnapshot {
         }
     }
 
-    pub fn tab_point_to_fold_point(&self, output: TabPoint, bias: Bias) -> (FoldPoint, u32, u32) {
+    pub(crate) fn tab_point_to_fold_point(&self, output: TabPoint, bias: Bias) -> (FoldPoint, u32, u32) {
         let chunks = self.fold_snapshot.chunks_at(FoldPoint::new(output.row(), 0));
 
         let tab_cursor = TabStopCursor::new(chunks);
@@ -334,13 +334,13 @@ impl TabSnapshot {
         (FoldPoint::new(output.row(), collapsed), expanded_char_column, to_next_stop)
     }
 
-    pub fn point_to_tab_point(&self, point: Point, bias: Bias) -> TabPoint {
+    pub(crate) fn point_to_tab_point(&self, point: Point, bias: Bias) -> TabPoint {
         let inlay_point = self.fold_snapshot.inlay_snapshot.to_inlay_point(point);
         let fold_point = self.fold_snapshot.to_fold_point(inlay_point, bias);
         self.fold_point_to_tab_point(fold_point)
     }
 
-    pub fn tab_point_to_point(&self, point: TabPoint, bias: Bias) -> Point {
+    pub(crate) fn tab_point_to_point(&self, point: TabPoint, bias: Bias) -> Point {
         let fold_point = self.tab_point_to_fold_point(point, bias).0;
         let inlay_point = fold_point.to_inlay_point(&self.fold_snapshot);
         self.fold_snapshot.inlay_snapshot.to_buffer_point(inlay_point)
@@ -428,7 +428,7 @@ impl TabSnapshot {
 /// across calls. It is most efficient when points are supplied in
 /// non-decreasing order; a point before the previous one is still mapped
 /// correctly, at the cost of an extra seek.
-pub struct TabPointCursor<'a> {
+pub(crate) struct TabPointCursor<'a> {
     snapshot: &'a TabSnapshot,
     tab_stop_cursor: Option<TabStopCursor<'a>>,
     row: u32,
@@ -440,11 +440,11 @@ pub struct TabPointCursor<'a> {
 
 impl TabPointCursor<'_> {
     /// Resets the cursor to the start so it can seek backward again.
-    pub const fn reset(&mut self) {
+    pub(crate) const fn reset(&mut self) {
         self.needs_seek = true;
     }
 
-    pub fn map(&mut self, point: FoldPoint) -> TabPoint {
+    pub(crate) fn map(&mut self, point: FoldPoint) -> TabPoint {
         let snapshot = self.snapshot;
         let row = point.row();
         let end_column = point.column().min(snapshot.max_expansion_column);
@@ -479,22 +479,22 @@ impl TabPointCursor<'_> {
 }
 
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
-pub struct TabPoint(pub Point);
+pub(crate) struct TabPoint(pub(crate) Point);
 
 impl TabPoint {
-    pub const fn new(row: u32, column: u32) -> Self {
+    pub(crate) const fn new(row: u32, column: u32) -> Self {
         Self(Point::new(row, column))
     }
 
-    pub const fn zero() -> Self {
+    pub(crate) const fn zero() -> Self {
         Self::new(0, 0)
     }
 
-    pub const fn row(self) -> u32 {
+    pub(crate) const fn row(self) -> u32 {
         self.0.row
     }
 
-    pub const fn column(self) -> u32 {
+    pub(crate) const fn column(self) -> u32 {
         self.0.column
     }
 }
@@ -508,12 +508,12 @@ impl From<Point> for TabPoint {
 pub(super) type TabEdit = text::Edit<TabPoint>;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct TextSummary {
-    pub lines: Point,
-    pub first_line_chars: u32,
-    pub last_line_chars: u32,
-    pub longest_row: u32,
-    pub longest_row_chars: u32,
+pub(crate) struct TextSummary {
+    pub(crate) lines: Point,
+    pub(crate) first_line_chars: u32,
+    pub(crate) last_line_chars: u32,
+    pub(crate) longest_row: u32,
+    pub(crate) longest_row_chars: u32,
 }
 
 impl<'a> From<&'a str> for TextSummary {

@@ -30,7 +30,7 @@ pub struct RenameOptions {
     pub prepare_provider: Option<bool>,
 
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]

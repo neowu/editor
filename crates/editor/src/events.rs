@@ -231,7 +231,7 @@ impl Editor {
         }
     }
 
-    pub fn handle_blur(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn handle_blur(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.cursor_motions.clear();
         self.blink_manager.update(cx, BlinkManager::disable);
 

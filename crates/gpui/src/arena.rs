@@ -105,7 +105,7 @@ impl Arena {
         }
     }
 
-    pub(crate) const fn capacity(&self) -> usize {
+    const fn capacity(&self) -> usize {
         self.chunks.len() * self.chunk_size.get()
     }
 

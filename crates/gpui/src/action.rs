@@ -8,29 +8,30 @@ use std::fmt::Formatter;
 pub use gpui_macros::Action;
 use gpui_util::TypeIdHashBuilder;
 pub use no_action::NoAction;
-pub use no_action::Unbind;
-pub use no_action::is_no_action;
-pub use no_action::is_unbind;
+pub(crate) use no_action::Unbind;
+pub(crate) use no_action::is_no_action;
+pub(crate) use no_action::is_unbind;
 use rustc_hash::FxHashMap;
 
 /// Defines and registers unit structs that can be used as actions. For more complex data types, derive `Action`.
 ///
 /// The namespace argument `editor` can also be omitted, though it is required for ed actions.
+/// Each name carries its own visibility: `actions!(editor, [pub Copy, pub(crate) Fold, Private])`.
 #[macro_export]
 macro_rules! actions {
-    ($namespace:path, [ $( $(#[$attr:meta])* $name:ident),* $(,)? ]) => {
+    ($namespace:path, [ $( $(#[$attr:meta])* $vis:vis $name:ident),* $(,)? ]) => {
         $(
             #[derive(::std::clone::Clone, PartialEq, Eq, ::std::default::Default, ::std::fmt::Debug, gpui::Action)]
             #[action(namespace = $namespace)]
             $(#[$attr])*
-            pub struct $name;
+            $vis struct $name;
         )*
     };
-    ([ $( $(#[$attr:meta])* $name:ident),* $(,)? ]) => {
+    ([ $( $(#[$attr:meta])* $vis:vis $name:ident),* $(,)? ]) => {
         $(
             #[derive(::std::clone::Clone, ::std::cmp::PartialEq, ::std::default::Default, ::std::fmt::Debug, gpui::Action)]
             $(#[$attr])*
-            pub struct $name;
+            $vis struct $name;
         )*
     };
 }
@@ -157,7 +158,7 @@ mod no_action {
         [
             /// Action with special handling which unbinds the keybinding this is associated with,
             /// if it is the highest precedence match.
-            NoAction
+            pub NoAction
         ]
     );
 
@@ -166,21 +167,20 @@ mod no_action {
     ///
     #[derive(Clone, Debug, PartialEq, Eq, gpui::Action)]
     #[action(namespace = ed, no_build)]
-    pub struct Unbind(pub gpui::SharedString);
+    pub(crate) struct Unbind(pub(crate) gpui::SharedString);
 
     /// Returns whether or not this action represents a removed key binding.
-    pub fn is_no_action(action: &dyn gpui::Action) -> bool {
+    pub(crate) fn is_no_action(action: &dyn gpui::Action) -> bool {
         action.as_any().is::<NoAction>()
     }
 
     /// Returns whether or not this action represents an unbind marker.
-    pub fn is_unbind(action: &dyn gpui::Action) -> bool {
+    pub(crate) fn is_unbind(action: &dyn gpui::Action) -> bool {
         action.as_any().is::<Unbind>()
     }
 }
 
 #[cfg(test)]
-#[allow(unreachable_pub, reason = "actions! emits pub structs")]
 mod tests {
     use std::any::TypeId;
 
@@ -189,6 +189,20 @@ mod tests {
     use crate as gpui;
 
     actions!(action_test, [Unit]);
+
+    mod scoped {
+        use crate as gpui;
+
+        actions!(
+            action_test,
+            [
+                /// Reachable from the parent module.
+                pub(super) Visible,
+                #[action(name = "Renamed")]
+                Hidden
+            ]
+        );
+    }
 
     #[derive(Clone, Debug, PartialEq, Eq, Action)]
     #[action(namespace = action_test)]
@@ -205,6 +219,13 @@ mod tests {
     #[derive(Clone, Debug, PartialEq, Eq, Action)]
     #[action(namespace = action_test, no_build)]
     struct NeedsInput(usize);
+
+    #[test]
+    fn actions_take_visibility_per_name() {
+        let registry = ActionRegistry::default();
+        assert!(registry.build_action("action_test::Visible").unwrap().partial_eq(&scoped::Visible));
+        assert!(registry.build_action("action_test::Renamed").is_some());
+    }
 
     #[test]
     fn builds_unit_and_default_actions_by_name_and_type() {

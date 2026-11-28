@@ -67,8 +67,6 @@ pub use buffer::DiskState;
 pub use buffer::Edit;
 pub use buffer::EditedBufferSnapshot;
 pub use buffer::File;
-pub use buffer::HighlightedText;
-pub use buffer::HighlightedTextBuilder;
 pub use buffer::IndentKind;
 pub use buffer::IndentSize;
 pub use buffer::LanguageAwareStyling;
@@ -95,7 +93,6 @@ pub use buffer::ToPoint;
 pub use buffer::ToPointUtf16;
 pub use buffer::Transaction;
 pub use buffer::TransactionId;
-pub use buffer::TreeSitterData;
 pub use buffer::Unclipped;
 pub use buffer::WordsQuery;
 pub use buffer::row_chunk;
@@ -106,7 +103,7 @@ pub use diagnostic::RelatedInformation;
 pub use diagnostic::RelatedLocation;
 pub use diagnostic_set::DiagnosticEntry;
 pub use diagnostic_set::DiagnosticEntryRef;
-pub use fallback_highlight::FallbackHighlighter;
+pub(crate) use fallback_highlight::FallbackHighlighter;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui::Entity;
@@ -200,7 +197,6 @@ use task::RunnableTag;
 pub use task_context::ContextProvider;
 pub use task_context::RunContext;
 pub use test_code::in_test_item;
-pub use test_code::is_test_attribute;
 pub use test_code::is_test_path;
 pub use text::AnchorRangeExt;
 pub use text::LineEnding;
@@ -222,7 +218,7 @@ pub use crate::language_settings::IndentGuideSettings;
 static QUERY_CURSORS: Mutex<Vec<QueryCursor>> = Mutex::new(vec![]);
 static PARSERS: Mutex<Vec<Parser>> = Mutex::new(vec![]);
 
-pub fn with_parser<F, R>(func: F) -> R
+fn with_parser<F, R>(func: F) -> R
 where
     F: FnOnce(&mut Parser) -> R,
 {
@@ -239,7 +235,7 @@ where
     result
 }
 
-pub fn with_query_cursor<F, R>(func: F) -> R
+fn with_query_cursor<F, R>(func: F) -> R
 where
     F: FnOnce(&mut QueryCursor) -> R,
 {
@@ -385,7 +381,7 @@ impl Debug for CachedLspAdapter {
 }
 
 impl CachedLspAdapter {
-    pub fn new(adapter: Arc<dyn LspAdapter>) -> Arc<Self> {
+    fn new(adapter: Arc<dyn LspAdapter>) -> Arc<Self> {
         let name = adapter.name();
         let disk_based_diagnostic_sources = adapter.disk_based_diagnostic_sources();
         let disk_based_diagnostics_progress_token = adapter.disk_based_diagnostics_progress_token();
@@ -657,12 +653,12 @@ impl Language {
         }
     }
 
-    pub fn with_context_provider(mut self, provider: Option<Arc<dyn ContextProvider>>) -> Self {
+    fn with_context_provider(mut self, provider: Option<Arc<dyn ContextProvider>>) -> Self {
         self.context_provider = provider;
         self
     }
 
-    pub fn with_manifest(mut self, name: Option<ManifestName>) -> Self {
+    fn with_manifest(mut self, name: Option<ManifestName>) -> Self {
         self.manifest_name = name;
         self
     }
@@ -870,7 +866,7 @@ impl Language {
 }
 
 /// Maps captures to the theme's highlight ids, which are the same in both appearances.
-pub fn build_highlight_map(capture_names: &[&str]) -> HighlightMap {
+fn build_highlight_map(capture_names: &[&str]) -> HighlightMap {
     let theme = theme::theme().syntax();
     HighlightMap::from_ids(
         capture_names.iter().map(|capture_name| theme.highlight_id(capture_name).map(HighlightId::new)),
@@ -945,7 +941,7 @@ impl LanguageScope {
     /// By default, ed treats alphanumeric characters (and '_') as word characters for
     /// the purpose of actions like 'move to next word end` or whole-word search.
     /// It additionally accounts for language's additional word characters.
-    pub fn word_characters(&self) -> Option<&FxHashSet<char>> {
+    fn word_characters(&self) -> Option<&FxHashSet<char>> {
         Override::as_option(
             self.config_override().map(|o| &o.word_characters),
             Some(&self.language.config.word_characters),
@@ -954,7 +950,7 @@ impl LanguageScope {
 
     /// Returns a list of language-specific characters that are considered part of
     /// a completion query.
-    pub fn completion_query_characters(&self) -> Option<&FxHashSet<char>> {
+    fn completion_query_characters(&self) -> Option<&FxHashSet<char>> {
         Override::as_option(
             self.config_override().map(|o| &o.completion_query_characters),
             Some(&self.language.config.completion_query_characters),
@@ -963,7 +959,7 @@ impl LanguageScope {
 
     /// Returns a list of language-specific characters that are considered part of
     /// identifiers during linked editing operations.
-    pub fn linked_edit_characters(&self) -> Option<&FxHashSet<char>> {
+    fn linked_edit_characters(&self) -> Option<&FxHashSet<char>> {
         Override::as_option(
             self.config_override().map(|o| &o.linked_edit_characters),
             Some(&self.language.config.linked_edit_characters),

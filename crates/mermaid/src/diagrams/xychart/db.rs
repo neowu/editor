@@ -74,9 +74,9 @@ pub(crate) struct Plot {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct XyChartDb {
     /// The accessible description.
-    pub(crate) acc_descr: Option<String>,
+    acc_descr: Option<String>,
     /// The accessible title.
-    pub(crate) acc_title: Option<String>,
+    acc_title: Option<String>,
     has_set_x_axis: bool,
     /// False while the y range comes from the data and not from a `y-axis` statement.
     pub(crate) has_set_y_axis: bool,
@@ -180,6 +180,7 @@ impl XyChartDb {
             XAxis::Band { categories, .. } if values.len() > categories.len() => {
                 values.get(..categories.len()).unwrap_or(values)
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => values,
         };
         if !self.has_set_y_axis {

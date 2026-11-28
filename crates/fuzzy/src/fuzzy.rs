@@ -33,7 +33,7 @@ impl Case {
         if query.chars().any(char::is_uppercase) { Self::Smart } else { Self::Ignore }
     }
 
-    pub const fn is_smart(self) -> bool {
+    const fn is_smart(self) -> bool {
         matches!(self, Self::Smart)
     }
 }
@@ -49,7 +49,7 @@ impl LengthPenalty {
         if on { Self::On } else { Self::Off }
     }
 
-    pub const fn is_on(self) -> bool {
+    const fn is_on(self) -> bool {
         matches!(self, Self::On)
     }
 }

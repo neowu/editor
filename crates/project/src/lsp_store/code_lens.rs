@@ -41,19 +41,19 @@ use crate::lsp_store::next_lsp_fetch_id;
 #[derive(Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct CodeLensActionId(u64);
 
-pub type CodeLensActions = FxHashMap<CodeLensActionId, CodeAction>;
+pub(crate) type CodeLensActions = FxHashMap<CodeLensActionId, CodeAction>;
 
-pub(super) type CodeLensTask = Shared<Task<result::Result<Option<CodeLensActions>, Arc<anyhow::Error>>>>;
+type CodeLensTask = Shared<Task<result::Result<Option<CodeLensActions>, Arc<anyhow::Error>>>>;
 
-pub type CodeLensResolveTask = Shared<Task<Option<(CodeLensActionId, CodeAction)>>>;
+pub(crate) type CodeLensResolveTask = Shared<Task<Option<(CodeLensActionId, CodeAction)>>>;
 
 #[derive(Debug, Default)]
 pub(super) struct CodeLensData {
-    pub(super) lens: FxHashMap<LanguageServerId, CodeLensActions>,
+    lens: FxHashMap<LanguageServerId, CodeLensActions>,
     fetched_servers: FxHashSet<LanguageServerId>,
-    pub(super) next_id: u64,
-    pub(super) update: Option<RunningFetch<CodeLensTask>>,
-    pub(super) resolving: FxHashMap<(LanguageServerId, CodeLensActionId), CodeLensResolveTask>,
+    next_id: u64,
+    update: Option<RunningFetch<CodeLensTask>>,
+    resolving: FxHashMap<(LanguageServerId, CodeLensActionId), CodeLensResolveTask>,
 }
 
 impl CodeLensData {
@@ -231,7 +231,7 @@ impl LspStore {
 
     #[allow(clippy::type_complexity)]
     fn fetch_code_lens_for_buffer(
-        &mut self,
+        &self,
         buffer: &Entity<Buffer>,
         for_servers: Option<FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,

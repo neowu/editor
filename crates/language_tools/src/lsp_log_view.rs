@@ -76,11 +76,11 @@ use workspace::searchable::SeedQuery;
 
 use crate::get_or_create_tool;
 
-pub fn open(
+pub(crate) fn open(
     log_store: &Entity<LogStore>,
     workspace: WeakEntity<Workspace>,
     server: LanguageServerSelector,
-    window: &mut Window,
+    window: &Window,
     cx: &mut App,
 ) {
     log_store.update(cx, |_, cx| {
@@ -125,8 +125,8 @@ pub fn open(
     });
 }
 
-pub struct LspLogView {
-    pub(crate) editor: Entity<Editor>,
+struct LspLogView {
+    editor: Entity<Editor>,
     editor_subscriptions: Vec<Subscription>,
     log_store: Entity<LogStore>,
     current_server_key: Option<LanguageServerLogKey>,
@@ -148,14 +148,14 @@ pub struct LspLogToolbarItemView {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct LogMenuItem {
-    pub server_id: LanguageServerId,
-    pub server_name: LanguageServerName,
-    pub worktree_root_name: String,
-    pub rpc_trace_enabled: bool,
-    pub selected_entry: LogKind,
-    pub trace_level: TraceValue,
-    pub project: WeakEntity<Project>,
+struct LogMenuItem {
+    server_id: LanguageServerId,
+    server_name: LanguageServerName,
+    worktree_root_name: String,
+    rpc_trace_enabled: bool,
+    selected_entry: LogKind,
+    trace_level: TraceValue,
+    project: WeakEntity<Project>,
 }
 
 impl LogMenuItem {
@@ -164,7 +164,7 @@ impl LogMenuItem {
     }
 }
 
-pub fn init(cx: &mut App) {
+pub(crate) fn init(cx: &mut App) {
     let log_store = log_store::init(cx);
 
     cx.observe_new(move |workspace: &mut Workspace, _, cx| {
@@ -176,12 +176,7 @@ pub fn init(cx: &mut App) {
 }
 
 impl LspLogView {
-    pub fn new(
-        project: Entity<Project>,
-        log_store: Entity<LogStore>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    fn new(project: Entity<Project>, log_store: Entity<LogStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let weak_project = project.downgrade();
         let server_key = log_store.read(cx).server_keys_for_project(&weak_project).next();
         let model_changes_subscription = cx.observe_in(&log_store, window, move |this, store, window, cx| {
@@ -351,7 +346,7 @@ impl LspLogView {
         (editor, vec![editor_subscription, search_subscription])
     }
 
-    pub(crate) fn menu_items(&self, cx: &App) -> Vec<LogMenuItem> {
+    fn menu_items(&self, cx: &App) -> Vec<LogMenuItem> {
         let log_store = self.log_store.read(cx);
 
         let unknown_server = LanguageServerName::new_static("unknown server");
@@ -1062,6 +1057,7 @@ impl Render for LspLogToolbarItemView {
                                 }),
                         )
                     }
+                    // lint: expect(wildcard_match) only some variants matter here
                     _ => div(),
                 },
             )))

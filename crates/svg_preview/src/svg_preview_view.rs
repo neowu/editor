@@ -47,7 +47,7 @@ pub struct SvgPreviewView {
 }
 
 impl SvgPreviewView {
-    pub fn new(active_buffer: Entity<MultiBuffer>, window: &mut Window, cx: &mut Context<Workspace>) -> Entity<Self> {
+    fn new(active_buffer: Entity<MultiBuffer>, window: &Window, cx: &mut Context<Workspace>) -> Entity<Self> {
         cx.new(|cx| {
             let buffer = active_buffer.read_with(cx, |buffer, _cx| buffer.as_singleton());
 
@@ -137,6 +137,7 @@ impl SvgPreviewView {
             BufferEvent::Edited | BufferEvent::Saved => {
                 this.render_image(window, cx);
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         })
     }
@@ -145,7 +146,7 @@ impl SvgPreviewView {
         path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("svg"))
     }
 
-    pub fn is_svg_file(buffer: &Entity<MultiBuffer>, cx: &App) -> bool {
+    pub(crate) fn is_svg_file(buffer: &Entity<MultiBuffer>, cx: &App) -> bool {
         buffer
             .read(cx)
             .as_singleton()
@@ -153,7 +154,7 @@ impl SvgPreviewView {
             .is_some_and(|file| Self::is_svg_path(Path::new(file.file_name(cx))))
     }
 
-    pub fn open_preview_in_pane(
+    pub(crate) fn open_preview_in_pane(
         buffer: Entity<MultiBuffer>,
         pane: Entity<Pane>,
         window: &mut Window,
@@ -162,7 +163,7 @@ impl SvgPreviewView {
         Self::activate_or_add_preview(buffer, pane, true, window, cx);
     }
 
-    pub fn open_preview_to_the_side_of_pane(
+    pub(crate) fn open_preview_to_the_side_of_pane(
         workspace: &mut Workspace,
         buffer: Entity<MultiBuffer>,
         origin_pane: Entity<Pane>,

@@ -52,7 +52,7 @@ actions!(
     title_bar,
     [
         /// Toggles the project menu dropdown.
-        ToggleProjectMenu,
+        pub(crate) ToggleProjectMenu,
     ]
 );
 
@@ -88,7 +88,7 @@ fn toggle_project_menu(workspace: &Workspace, window: &Window, cx: &mut App) {
 
 /// The project's name, worktree and branch, shown in the
 /// window header above the sidebar or at the start of the top-left tab bar.
-pub struct TitleBar {
+pub(crate) struct TitleBar {
     project: Entity<Project>,
 
     workspace: WeakEntity<Workspace>,
@@ -187,7 +187,7 @@ fn visible_worktrees_in_repository(project: &Entity<Project>, repository: &Repos
 }
 
 impl TitleBar {
-    pub fn new(workspace: &Workspace, cx: &mut Context<Self>) -> Self {
+    fn new(workspace: &Workspace, cx: &mut Context<Self>) -> Self {
         let project = workspace.project().clone();
         let git_store = project.read(cx).git_store().clone();
 
@@ -198,6 +198,7 @@ impl TitleBar {
             | GitStoreEvent::RepositoryUpdated(_, _, true) => {
                 cx.notify();
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }));
         subscriptions.push(cx.observe(&project, |_, _, cx| cx.notify()));

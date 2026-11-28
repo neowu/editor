@@ -4,8 +4,8 @@ mod list_item;
 mod list_separator;
 mod list_sub_header;
 
-pub use list::List;
+pub(crate) use list::List;
 pub use list_item::ListItem;
 pub use list_item::ListItemSpacing;
-pub use list_separator::ListSeparator;
+pub(crate) use list_separator::ListSeparator;
 pub use list_sub_header::ListSubHeader;

@@ -45,47 +45,54 @@ actions!(
     search,
     [
         /// Toggles whole word matching.
-        ToggleWholeWord,
+        pub ToggleWholeWord,
         /// Toggles regular expression mode.
-        ToggleRegex,
+        pub ToggleRegex,
         /// Toggles the replace interface.
-        ToggleReplace,
+        pub ToggleReplace,
         /// Toggles searching within selection only.
-        ToggleSelection,
+        pub ToggleSelection,
         /// Selects all search matches.
-        SelectAllMatches,
+        pub SelectAllMatches,
         /// Navigates to the next query in search history.
-        NextHistoryQuery,
+        pub NextHistoryQuery,
         /// Navigates to the previous query in search history.
-        PreviousHistoryQuery,
+        pub PreviousHistoryQuery,
         /// Replaces all matches.
-        ReplaceAll,
+        pub ReplaceAll,
         /// Replaces the next match.
-        ReplaceNext,
+        pub ReplaceNext,
         /// Moves focus to the next input of the search bar.
-        FocusNextField,
+        pub FocusNextField,
         /// Moves focus to the previous input of the search bar.
-        FocusPreviousField,
+        pub FocusPreviousField,
     ]
 );
 
 bitflags! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
     pub struct SearchOptions: u8 {
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const NONE = 0;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const WHOLE_WORD = 1 << SearchOption::WholeWord as u8;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const CASE_SENSITIVE = 1 << SearchOption::CaseSensitive as u8;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const INCLUDE_IGNORED = 1 << SearchOption::IncludeIgnored as u8;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const REGEX = 1 << SearchOption::Regex as u8;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const ONE_MATCH_PER_LINE = 1 << SearchOption::OneMatchPerLine as u8;
         /// If set, reverse direction when finding the active match
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const BACKWARDS = 1 << SearchOption::Backwards as u8;
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum SearchOption {
+enum SearchOption {
     WholeWord = 0,
     CaseSensitive,
     IncludeIgnored,
@@ -98,19 +105,14 @@ const REPLACE_PLACEHOLDER: &str = "Replace in project…";
 const INCLUDE_PLACEHOLDER: &str = "Include: e.g. src/**/*.rs";
 const EXCLUDE_PLACEHOLDER: &str = "Exclude: e.g. vendor/*, *.lock";
 
-pub enum SearchSource<'a, 'b> {
-    /// Dispatches the toggle action from the button's focus handle. Only use this when the
-    /// action handlers are on that focus handle's dispatch path, as workspace-level handlers
-    /// resolve the active pane before a click in another pane has activated it.
-    Buffer,
+enum SearchSource<'a, 'b> {
     BufferSearchBar(&'a Context<'b, BufferSearchBar>),
     Project(&'a Context<'b, ProjectSearchBar>),
 }
 
 impl SearchSource<'_, '_> {
-    pub const fn discriminant(&self) -> u32 {
+    const fn discriminant(&self) -> u32 {
         match self {
-            SearchSource::Buffer => 0,
             SearchSource::BufferSearchBar(_) => 1,
             SearchSource::Project(_) => 2,
         }
@@ -118,11 +120,11 @@ impl SearchSource<'_, '_> {
 }
 
 impl SearchOption {
-    pub const fn as_options(&self) -> SearchOptions {
-        SearchOptions::from_bits(1 << *self as u8).expect("each option is a valid flag")
+    const fn as_options(self) -> SearchOptions {
+        SearchOptions::from_bits(1 << self as u8).expect("each option is a valid flag")
     }
 
-    pub const fn label(&self) -> &'static str {
+    const fn label(self) -> &'static str {
         match self {
             SearchOption::WholeWord => "Match Whole Words",
             SearchOption::CaseSensitive => "Match Case Sensitivity",
@@ -133,27 +135,29 @@ impl SearchOption {
         }
     }
 
-    pub fn icon(&self) -> IconName {
+    fn icon(self) -> IconName {
         match self {
             SearchOption::WholeWord => IconName::WholeWord,
             SearchOption::CaseSensitive => IconName::CaseSensitive,
             SearchOption::IncludeIgnored => IconName::FileIgnored,
             SearchOption::Regex => IconName::Regex,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => panic!("{self:?} is not a named SearchOption"),
         }
     }
 
-    pub fn to_toggle_action(self) -> &'static dyn Action {
+    fn to_toggle_action(self) -> &'static dyn Action {
         match self {
             SearchOption::WholeWord => &ToggleWholeWord,
             SearchOption::CaseSensitive => &ToggleCaseSensitive,
             SearchOption::IncludeIgnored => &ToggleIncludeIgnored,
             SearchOption::Regex => &ToggleRegex,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => panic!("{self:?} is not a toggle action"),
         }
     }
 
-    pub fn as_button(
+    fn as_button(
         &self,
         active: SearchOptions,
         search_source: SearchSource,
@@ -164,13 +168,6 @@ impl SearchOption {
 
         IconButton::new((label, search_source.discriminant()), self.icon())
             .map(|button| match search_source {
-                SearchSource::Buffer => {
-                    let focus_handle = focus_handle.clone();
-                    button.on_click(move |_: &ClickEvent, window, cx| {
-                        window.focus(&focus_handle, cx);
-                        window.dispatch_action(action.boxed_clone(), cx);
-                    })
-                }
                 SearchSource::BufferSearchBar(cx) => {
                     let focus_handle = focus_handle.clone();
                     let options = self.as_options();
@@ -197,7 +194,7 @@ impl SearchOptions {
         SearchOptions::NONE
     }
 
-    pub fn from_query(query: &SearchQuery) -> SearchOptions {
+    fn from_query(query: &SearchQuery) -> SearchOptions {
         let mut options = SearchOptions::NONE;
         options.set(SearchOptions::WHOLE_WORD, query.whole_word());
         options.set(SearchOptions::CASE_SENSITIVE, query.case_sensitive());
@@ -209,8 +206,8 @@ impl SearchOptions {
     /// Build a [`SearchQuery`] from these options, selecting the regex or text
     /// constructor based on [`SearchOptions::REGEX`]. Inverse of
     /// [`SearchOptions::from_query`].
-    pub fn build_query(
-        &self,
+    fn build_query(
+        self,
         query: impl ToString,
         files_to_include: PathMatcher,
         files_to_exclude: PathMatcher,

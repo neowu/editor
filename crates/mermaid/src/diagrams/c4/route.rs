@@ -113,7 +113,7 @@ const FRAME_NEAR: f64 = 3.0;
 const PORT_STEP: f64 = 12.0;
 
 /// JavaScript's `Math.sign`: zero and `NaN` stay as they are.
-pub(crate) fn sign(value: f64) -> f64 {
+fn sign(value: f64) -> f64 {
     if value > 0.0 {
         1.0
     } else if value < 0.0 {
@@ -125,7 +125,7 @@ pub(crate) fn sign(value: f64) -> f64 {
 
 /// JavaScript's `Math.hypot` of two values, as V8 computes it: the sum of the squares of each
 /// over the larger, compensated, then the square root times the larger.
-pub(crate) fn hypot(x: f64, y: f64) -> f64 {
+fn hypot(x: f64, y: f64) -> f64 {
     let x = x.abs();
     let y = y.abs();
     if x == f64::INFINITY || y == f64::INFINITY {

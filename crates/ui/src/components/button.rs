@@ -13,7 +13,7 @@ pub(crate) use button_like::ButtonLikeRounding;
 pub use button_like::ButtonSize;
 pub use button_like::ButtonStyle;
 pub use button_like::IconPosition;
-pub use button_like::KeybindingPosition;
+pub(crate) use button_like::KeybindingPosition;
 pub use button_like::SelectableButton;
 pub use button_like::TintColor;
 pub use copy_button::CopyButton;

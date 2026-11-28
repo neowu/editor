@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 use crate::LanguageDef;
 
 /// Settings for Env.
-pub(crate) fn settings() -> LanguageSettings {
+fn settings() -> LanguageSettings {
     LanguageSettings {
         tab_size: NonZeroU32::new(4).expect("non-zero"),
         hard_tabs: false,

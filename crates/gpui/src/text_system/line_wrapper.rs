@@ -297,7 +297,7 @@ impl LineWrapper {
     }
 
     /// Truncate a line of text to the given width with this wrapper's font and font size.
-    pub fn truncate_line<'a>(
+    pub(crate) fn truncate_line<'a>(
         &mut self,
         line: SharedString,
         truncate_width: Pixels,
@@ -350,7 +350,7 @@ impl LineWrapper {
     /// allowed line, it truncates there and appends the affix.
     ///
     /// For `max_lines == 1`, this delegates to `truncate_line`.
-    pub fn truncate_wrapped_line<'a>(
+    pub(crate) fn truncate_wrapped_line<'a>(
         &mut self,
         text: SharedString,
         wrap_width: Pixels,
@@ -673,7 +673,7 @@ enum WrapBoundaryCandidate {
 }
 
 impl WrapBoundaryCandidate {
-    pub(crate) const fn len_utf8(&self) -> usize {
+    const fn len_utf8(&self) -> usize {
         match self {
             WrapBoundaryCandidate::Char { character } => character.len_utf8(),
             WrapBoundaryCandidate::Element { len_utf8: len, .. } => *len,

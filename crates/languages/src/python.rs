@@ -125,6 +125,7 @@ fn label_for_python_symbol(symbol: &Symbol, language: &Arc<language::Language>) 
             let display_range = 0..filter_range.end;
             (text, filter_range, display_range)
         }
+        // lint: expect(wildcard_match) only some variants matter here
         _ => return None,
     };
     Some(language::CodeLabel::new(
@@ -146,7 +147,7 @@ const fn highlight_name_for_completion(item_kind: CompletionItemKind) -> Option<
     }
 }
 
-pub(crate) struct TyLspAdapter;
+struct TyLspAdapter;
 
 impl TyLspAdapter {
     const SERVER_NAME: LanguageServerName = LanguageServerName::new_static("ty");
@@ -207,7 +208,7 @@ impl LspAdapter for TyLspAdapter {
     }
 }
 
-pub(crate) struct RuffLspAdapter;
+struct RuffLspAdapter;
 
 impl RuffLspAdapter {
     const SERVER_NAME: LanguageServerName = LanguageServerName::new_static("ruff");
@@ -228,7 +229,7 @@ impl LspAdapter for RuffLspAdapter {
     }
 }
 
-pub(crate) struct PythonContextProvider;
+struct PythonContextProvider;
 
 impl ContextProvider for PythonContextProvider {
     fn runnables(&self, cx: RunContext, _: &App) -> Task<Vec<SpawnInTerminal>> {

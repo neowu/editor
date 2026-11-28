@@ -129,23 +129,23 @@ actions!(
     git_panel,
     [
         /// Toggles focus on the git panel.
-        ToggleFocus,
+        pub ToggleFocus,
         /// Closes the git panel.
         Close,
         /// Toggles the git panel.
         Toggle,
         /// Focuses on the commit message editor.
-        FocusEditor,
+        pub FocusEditor,
         /// Focuses on the changes list.
-        FocusChanges,
+        pub FocusChanges,
         /// Select next git panel menu item, and show it in the diff view
-        NextEntry,
+        pub NextEntry,
         /// Select previous git panel menu item, and show it in the diff view
-        PreviousEntry,
+        pub PreviousEntry,
         /// Select first git panel menu item, and show it in the diff view
-        FirstEntry,
+        pub FirstEntry,
         /// Select last git panel menu item, and show it in the diff view
-        LastEntry,
+        pub LastEntry,
         /// Sorts entries by path.
         SetSortByPath,
         /// Sorts entries by name.
@@ -159,9 +159,9 @@ actions!(
         /// Toggles showing entries in tree vs flat view.
         ToggleTreeView,
         /// Expands the selected entry to show its children.
-        ExpandSelectedEntry,
+        pub ExpandSelectedEntry,
         /// Collapses the selected entry to hide its children.
-        CollapseSelectedEntry,
+        pub CollapseSelectedEntry,
         /// View unstaged changes
         ViewUnstagedChanges,
         /// View staged changes
@@ -187,7 +187,7 @@ pub(crate) enum RemoteOperationKind {
     Push,
 }
 
-pub fn register(workspace_actions: &mut WorkspaceActions) {
+pub(crate) fn register(workspace_actions: &mut WorkspaceActions) {
     workspace_actions.register_action(|workspace, _: &ToggleFocus, window, cx| {
         workspace.toggle_panel_focus::<GitPanel>(window, cx);
     });
@@ -270,7 +270,7 @@ enum DiffTarget {
 }
 
 impl GitHeaderEntry {
-    pub(crate) fn contains(&self, status_entry: &GitStatusEntry, repo: &Repository) -> bool {
+    fn contains(&self, status_entry: &GitStatusEntry, repo: &Repository) -> bool {
         let this = &self.header;
         let status = status_entry.status;
         match this {
@@ -291,7 +291,7 @@ impl GitHeaderEntry {
             }
         }
     }
-    pub(crate) const fn title(&self) -> &'static str {
+    const fn title(&self) -> &'static str {
         match self.header {
             Section::Conflict => "Conflicts",
             Section::Tracked => "Tracked",
@@ -316,6 +316,7 @@ impl GitListEntry {
         match self {
             GitListEntry::Status(entry) => Some(entry),
             GitListEntry::TreeStatus(entry) => Some(&entry.entry),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         }
     }
@@ -323,6 +324,7 @@ impl GitListEntry {
     const fn directory_entry(&self) -> Option<&GitTreeDirEntry> {
         match self {
             GitListEntry::Directory(entry) => Some(entry),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         }
     }
@@ -332,6 +334,7 @@ impl GitListEntry {
         match self {
             GitListEntry::Directory(dir) => dir.depth,
             GitListEntry::TreeStatus(status) => status.depth,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => 0,
         }
     }
@@ -536,7 +539,7 @@ struct TreeNode {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct GitStatusEntry {
+pub(crate) struct GitStatusEntry {
     pub(crate) repo_path: RepoPath,
     pub(crate) status: FileStatus,
     pub(crate) staging: StageStatus,
@@ -555,7 +558,7 @@ impl GitStatusEntry {
 
 pub struct GitPanel {
     pub(crate) active_repository: Option<Entity<Repository>>,
-    pub(crate) commit_editor: Entity<Editor>,
+    commit_editor: Entity<Editor>,
     /// Whether the commit editor should fill the vertical height of the panel.
     commit_editor_expanded: bool,
     /// Whether the commit editor is hidden, leaving only the commit button row.
@@ -582,7 +585,7 @@ pub struct GitPanel {
     original_commit_message: Option<String>,
     signoff_enabled: bool,
     skip_hooks_enabled: bool,
-    pub(crate) project: Entity<Project>,
+    project: Entity<Project>,
     scroll_handle: UniformListScrollHandle,
     max_width_item_index: Option<usize>,
     selected_entry: Option<usize>,
@@ -594,7 +597,7 @@ pub struct GitPanel {
     section_file_counts: FxHashMap<Section, usize>,
     update_visible_entries_task: Task<()>,
     reopen_commit_buffer_task: Task<()>,
-    pub(crate) workspace: WeakEntity<Workspace>,
+    workspace: WeakEntity<Workspace>,
     context_menu: Option<GitPanelContextMenu>,
     show_placeholders: bool,
     commit_template: Option<GitCommitTemplate>,
@@ -609,7 +612,7 @@ pub struct GitPanel {
 
 const MAX_PANEL_EDITOR_LINES: usize = 6;
 
-pub(crate) fn commit_message_editor(
+fn commit_message_editor(
     commit_message_buffer: Entity<Buffer>,
     placeholder: Option<SharedString>,
     window: &mut Window,
@@ -1041,11 +1044,11 @@ impl GitPanel {
         GitPanelViewOptions::update(cx, |options| options.tree_view = !options.tree_view);
     }
 
-    pub(crate) fn increase_font_size(&mut self, _: &IncreaseBufferFontSize, _: &mut Window, cx: &mut Context<Self>) {
+    fn increase_font_size(&mut self, _: &IncreaseBufferFontSize, _: &mut Window, cx: &mut Context<Self>) {
         Self::adjust_font_size(px(1.0), cx);
     }
 
-    pub(crate) fn decrease_font_size(&mut self, _: &DecreaseBufferFontSize, _: &mut Window, cx: &mut Context<Self>) {
+    fn decrease_font_size(&mut self, _: &DecreaseBufferFontSize, _: &mut Window, cx: &mut Context<Self>) {
         Self::adjust_font_size(px(-1.0), cx);
     }
 
@@ -1055,7 +1058,7 @@ impl GitPanel {
         cx.refresh_windows();
     }
 
-    pub(crate) fn reset_font_size(&mut self, _: &ResetBufferFontSize, _: &mut Window, cx: &mut Context<Self>) {
+    fn reset_font_size(&mut self, _: &ResetBufferFontSize, _: &mut Window, cx: &mut Context<Self>) {
         if cx.has_global::<GitCommitFontSize>() {
             cx.remove_global::<GitCommitFontSize>();
             cx.refresh_windows();
@@ -1524,6 +1527,7 @@ impl GitPanel {
             GitListEntry::Directory(directory) => {
                 self.stage_status_for_directory(directory, repo) == StageStatus::Staged
             }
+            // lint: expect(wildcard_match) only some variants matter here
             entry => entry.status_entry().is_some_and(|status_entry| {
                 GitPanel::stage_status_for_entry(status_entry, repo) == StageStatus::Staged
             }),
@@ -1578,11 +1582,11 @@ impl GitPanel {
         }
     }
 
-    pub(crate) const fn has_staged_changes(&self) -> bool {
+    const fn has_staged_changes(&self) -> bool {
         self.tracked_staged_count > 0 || self.new_staged_count > 0 || self.conflicted_staged_count > 0
     }
 
-    pub(crate) fn has_unstaged_changes(&self) -> bool {
+    fn has_unstaged_changes(&self) -> bool {
         self.change_entries_by_path().any(|entry| entry.staging.has_unstaged())
     }
 
@@ -1594,7 +1598,7 @@ impl GitPanel {
         Self::contains_staged_tracked_entry(self.change_entries_by_path())
     }
 
-    pub fn has_unstaged_conflicts(&self) -> bool {
+    fn has_unstaged_conflicts(&self) -> bool {
         self.change_entries_by_path().any(|entry| entry.status.is_conflicted() && entry.staging.has_unstaged())
     }
 
@@ -1690,11 +1694,11 @@ impl Panel for GitPanel {
     }
 }
 
-pub fn panel_editor_container(_window: &mut Window) -> Div {
+fn panel_editor_container(_window: &mut Window) -> Div {
     v_flex().size_full().bg(theme::theme().colors().editor_background)
 }
 
-pub(crate) fn git_commit_editor_style(font_size: Pixels) -> EditorStyle {
+fn git_commit_editor_style(font_size: Pixels) -> EditorStyle {
     EditorStyle {
         background: theme::theme().colors().editor_background,
         cursor_colors: theme::theme().cursor_colors(),

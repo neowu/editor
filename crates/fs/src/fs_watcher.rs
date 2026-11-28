@@ -85,7 +85,7 @@ pub(crate) async fn watch(
     )
 }
 
-pub struct FsWatcher {
+struct FsWatcher {
     native_watcher: Arc<OsWatcher>,
     fs: Arc<Fs>,
     executor: BackgroundExecutor,
@@ -102,7 +102,7 @@ struct FsWatcherRegistration {
 }
 
 impl FsWatcher {
-    pub(crate) fn new(
+    fn new(
         native_watcher: Arc<OsWatcher>,
         fs: Arc<Fs>,
         executor: BackgroundExecutor,
@@ -471,7 +471,7 @@ fn is_covered_rescan(kind: Option<PathEventKind>, path: &Path, ancestor: &Path) 
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct WatcherRegistrationId(u32);
+struct WatcherRegistrationId(u32);
 
 struct WatcherRegistrationState {
     callback: Arc<dyn Fn(&fsevents::Event) + Send + Sync>,
@@ -619,7 +619,7 @@ struct WatcherState {
     last_registration: WatcherRegistrationId,
 }
 
-pub struct OsWatcher {
+pub(crate) struct OsWatcher {
     state: Arc<Mutex<WatcherState>>,
 
     // One FSEvents stream per backend watch. Locked while holding `state`;
@@ -633,7 +633,7 @@ pub struct OsWatcher {
 }
 
 impl OsWatcher {
-    pub fn new(executor: BackgroundExecutor) -> Arc<Self> {
+    pub(crate) fn new(executor: BackgroundExecutor) -> Arc<Self> {
         let (event_tx, event_rx) = async_channel::unbounded();
         let state = Arc::new(Mutex::new(WatcherState {
             watchers: HashMap::default(),
@@ -712,7 +712,7 @@ impl OsWatcher {
         Ok(id)
     }
 
-    pub fn remove(&self, id: WatcherRegistrationId) {
+    fn remove(&self, id: WatcherRegistrationId) {
         let mut state = self.state.lock();
         let Some(registration) = state.watchers.remove(&id) else {
             return;

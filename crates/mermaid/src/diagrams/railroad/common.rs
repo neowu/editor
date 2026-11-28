@@ -19,9 +19,6 @@ use crate::diagrams::common::tokens::tokenize;
 use crate::error::Error;
 use crate::util::chars::is_space;
 
-/// The ASCII letters.
-pub(crate) const LETTERS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
 /// The ASCII letters and `_`.
 const LETTERS_: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_";
 
@@ -273,7 +270,7 @@ pub(crate) struct AstNode<K> {
     /// What the node is.
     pub(crate) kind: K,
     /// The node's parts, in order.
-    pub(crate) parts: Vec<usize>,
+    parts: Vec<usize>,
 }
 
 /// Adds a node of `kind` without parts to `ast`, returning its index.

@@ -68,11 +68,11 @@ pub(crate) struct TokenType {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Token {
     /// End offset.
-    pub(crate) end: u32,
+    end: u32,
     /// Index of the token type, or [`EOF`].
     pub(crate) kind: u16,
     /// Start offset.
-    pub(crate) start: u32,
+    start: u32,
 }
 
 const _: () = assert!(size_of::<Token>() == 12);
@@ -84,7 +84,7 @@ pub(crate) const EOF: u16 = u16::MAX;
 #[derive(Clone, Debug)]
 pub(crate) struct Tokens<'a> {
     /// The source.
-    pub(crate) src: &'a str,
+    src: &'a str,
     /// The tokens, hidden ones left out.
     pub(crate) tokens: Vec<Token>,
 }
@@ -109,7 +109,7 @@ pub(crate) const ACC_TITLE: TokenType =
     TokenType { first: Some("\t a"), name: "ACC_TITLE", pattern: Pattern::Match(acc_title), ..literal("") };
 
 /// `title text`, or a bare `title`.
-pub(crate) const TITLE: TokenType =
+const TITLE: TokenType =
     TokenType { first: Some("\t t"), name: "TITLE", pattern: Pattern::Match(title), ..literal("") };
 
 /// [`TITLE`], whose bare form gives way to a longer word, as in `titles`.
@@ -267,7 +267,7 @@ fn char_at(src: &str, p: usize) -> Option<char> {
 }
 
 /// Where a run of spaces and tabs from `p` ends.
-pub(crate) fn skip_blanks(src: &str, p: usize) -> usize {
+fn skip_blanks(src: &str, p: usize) -> usize {
     let bytes = src.as_bytes();
     let mut at = p;
     while bytes.get(at).is_some_and(|&b| is_blank(u32::from(b))) {
@@ -645,13 +645,13 @@ pub(crate) fn string_value(text: &str) -> Cow<'_, str> {
 /// Reads tokens for a hand-written parser, with Chevrotain-style messages on failure.
 pub(crate) struct Reader<'a> {
     /// The diagram type errors name.
-    pub(crate) diagram: &'static str,
+    diagram: &'static str,
     /// Index of the current token.
     pub(crate) i: usize,
     /// The tokens.
     pub(crate) tokens: Tokens<'a>,
     /// The token types the kinds index.
-    pub(crate) types: &'a [TokenType],
+    types: &'a [TokenType],
 }
 
 impl<'a> Reader<'a> {
@@ -666,12 +666,12 @@ impl<'a> Reader<'a> {
     }
 
     /// The text of the current token.
-    pub(crate) fn text(&self) -> &'a str {
+    fn text(&self) -> &'a str {
         self.text_at(self.i)
     }
 
     /// The text of token `index`, or empty past the end.
-    pub(crate) fn text_at(&self, index: usize) -> &'a str {
+    fn text_at(&self, index: usize) -> &'a str {
         let src: &'a str = self.tokens.src;
         self.tokens.tokens.get(index).and_then(|token| src.get(token.start as usize..token.end as usize)).unwrap_or("")
     }

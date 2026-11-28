@@ -455,7 +455,7 @@ impl Editor {
             .map(|highlight| (highlight.range.clone(), (highlight.color)(cx)))
     }
 
-    pub fn highlighted_display_rows_in_range(
+    pub(crate) fn highlighted_display_rows_in_range(
         &self,
         anchor_range: Range<Anchor>,
         display_row_range: Range<DisplayRow>,
@@ -524,7 +524,7 @@ impl Editor {
             })
     }
 
-    pub fn highlighted_display_row_for_autoscroll(&self, snapshot: &DisplaySnapshot) -> Option<DisplayRow> {
+    pub(crate) fn highlighted_display_row_for_autoscroll(&self, snapshot: &DisplaySnapshot) -> Option<DisplayRow> {
         self.highlighted_rows
             .values()
             .flat_map(|highlighted_rows| highlighted_rows.iter())
@@ -533,7 +533,7 @@ impl Editor {
             .min()
     }
 
-    pub fn set_search_within_ranges(&mut self, ranges: &[Range<Anchor>], cx: &mut Context<Self>) {
+    pub(crate) fn set_search_within_ranges(&mut self, ranges: &[Range<Anchor>], cx: &mut Context<Self>) {
         self.highlight_background(
             HighlightKey::SearchWithinRange,
             ranges,
@@ -617,14 +617,14 @@ impl Editor {
         self.gutter_highlights.insert(TypeId::of::<T>(), (color_fetcher, gutter_highlights));
     }
 
-    pub fn has_background_highlights(&self, key: HighlightKey) -> bool {
+    pub(crate) fn has_background_highlights(&self, key: HighlightKey) -> bool {
         self.background_highlights.get(&key).is_some_and(|(_, highlights)| !highlights.is_empty())
     }
 
     /// Returns all background highlights for a given range.
     ///
     /// The order of highlights is not deterministic, do sort the ranges if needed for the logic.
-    pub fn background_highlights_in_range(
+    pub(crate) fn background_highlights_in_range(
         &self,
         search_range: Range<Anchor>,
         display_snapshot: &DisplaySnapshot,
@@ -652,7 +652,7 @@ impl Editor {
         results
     }
 
-    pub fn gutter_highlights_in_range(
+    pub(crate) fn gutter_highlights_in_range(
         &self,
         search_range: Range<Anchor>,
         display_snapshot: &DisplaySnapshot,
@@ -680,8 +680,8 @@ impl Editor {
         results
     }
 
-    pub fn highlight_text(
-        &mut self,
+    pub(crate) fn highlight_text(
+        &self,
         key: HighlightKey,
         ranges: Vec<Range<Anchor>>,
         style: HighlightStyle,
@@ -691,7 +691,7 @@ impl Editor {
         cx.notify();
     }
 
-    pub fn text_highlights<'a>(
+    pub(crate) fn text_highlights<'a>(
         &'a self,
         key: HighlightKey,
         cx: &'a App,
@@ -705,7 +705,7 @@ impl Editor {
         &self.navigation_overlays
     }
 
-    pub fn clear_highlights(&mut self, key: HighlightKey, cx: &mut Context<Self>) {
+    pub(crate) fn clear_highlights(&self, key: HighlightKey, cx: &mut Context<Self>) {
         let cleared = self.display_map.update(cx, |map, _| map.clear_highlights(key));
         if cleared {
             cx.notify();

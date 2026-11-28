@@ -17,7 +17,7 @@ use crate::text::label;
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct StateNode {
     /// The palette slot of a container.
-    pub(crate) color_index: Option<u32>,
+    color_index: Option<u32>,
     /// Class names, space-separated.
     pub(crate) css_classes: String,
     /// Styles from the node's classes.
@@ -39,19 +39,19 @@ pub(crate) struct StateNode {
     /// The id of the enclosing container.
     pub(crate) parent_id: Option<String>,
     /// A note's `left of` or `right of`.
-    pub(crate) position: Option<String>,
+    position: Option<String>,
     /// `rect`, `rectWithTitle`, `stateStart`, `stateEnd`, `choice`, `fork`, `join`, `divider`,
     /// `roundedWithTitle`, `note`, or `noteGroup`.
     pub(crate) shape: Option<&'static str>,
     /// `group` or `node`.
-    pub(crate) r#type: Option<&'static str>,
+    r#type: Option<&'static str>,
 }
 
 /// Pele's `StateEdge`. Labels are markdown throughout, as in Mermaid.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct StateEdge {
     /// Class names, space-separated.
-    pub(crate) classes: &'static str,
+    classes: &'static str,
     /// The node the edge reaches.
     pub(crate) end: String,
     /// The edge id.
@@ -387,6 +387,7 @@ pub(crate) fn build_state_graph(root_doc: &[Stmt], db: &StateDb) -> Result<State
                     start: relation.state1.id.clone(),
                 });
             }
+            // lint: expect(wildcard_match) only a few variants of `Stmt` matter here
             _ => {}
         }
     }

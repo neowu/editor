@@ -108,7 +108,7 @@ impl Workspace {
         move_active_item(&self.active_pane, &destination, action.focus, true, window, cx);
     }
 
-    pub fn activate_next_pane(&mut self, window: &mut Window, cx: &mut App) {
+    pub(crate) fn activate_next_pane(&self, window: &mut Window, cx: &mut App) {
         let panes = self.center.panes();
         if let Some(ix) = panes.iter().position(|pane| **pane == self.active_pane) {
             let next_ix = (ix + 1) % panes.len();
@@ -117,7 +117,7 @@ impl Workspace {
         }
     }
 
-    pub fn activate_previous_pane(&mut self, window: &mut Window, cx: &mut App) {
+    pub(crate) fn activate_previous_pane(&self, window: &mut Window, cx: &mut App) {
         let panes = self.center.panes();
         if let Some(ix) = panes.iter().position(|pane| **pane == self.active_pane) {
             let prev_ix = cmp::min(ix.wrapping_sub(1), panes.len() - 1);
@@ -126,7 +126,7 @@ impl Workspace {
         }
     }
 
-    pub fn activate_last_pane(&mut self, window: &mut Window, cx: &mut App) {
+    pub(crate) fn activate_last_pane(&self, window: &mut Window, cx: &mut App) {
         let last_pane = self.center.last_pane();
         window.focus(&last_pane.focus_handle(cx), cx);
     }
@@ -229,7 +229,7 @@ impl Workspace {
         }
     }
 
-    pub fn move_item_to_pane_in_direction(
+    pub(crate) fn move_item_to_pane_in_direction(
         &mut self,
         action: &MoveItemToPaneInDirection,
         window: &mut Window,
@@ -253,20 +253,20 @@ impl Workspace {
         self.center.find_pane_in_direction(&self.active_pane, direction, cx).cloned()
     }
 
-    pub fn swap_pane_in_direction(&mut self, direction: SplitDirection, cx: &mut Context<Self>) {
+    pub(crate) fn swap_pane_in_direction(&mut self, direction: SplitDirection, cx: &mut Context<Self>) {
         if let Some(to) = self.find_pane_in_direction(direction, cx) {
             self.center.swap(&self.active_pane, &to);
             self.notify_mode(WorkspaceMode::Editor, cx);
         }
     }
 
-    pub fn move_pane_to_border(&mut self, direction: SplitDirection, cx: &mut Context<Self>) {
+    pub(crate) fn move_pane_to_border(&mut self, direction: SplitDirection, cx: &mut Context<Self>) {
         if self.center.move_to_border(&self.active_pane, direction).expect("active pane is in the center group") {
             self.notify_mode(WorkspaceMode::Editor, cx);
         }
     }
 
-    pub fn reset_pane_sizes(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn reset_pane_sizes(&mut self, cx: &mut Context<Self>) {
         self.center.reset_pane_sizes();
         self.notify_mode(WorkspaceMode::Editor, cx);
     }
@@ -471,7 +471,7 @@ impl Workspace {
         new_pane
     }
 
-    pub fn split_and_move(
+    fn split_and_move(
         &mut self,
         pane: Entity<Pane>,
         direction: SplitDirection,
@@ -494,7 +494,7 @@ impl Workspace {
         self.notify_mode(WorkspaceMode::Editor, cx);
     }
 
-    pub fn join_all_panes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn join_all_panes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let active_item = self.active_pane.read(cx).active_item();
         for pane in &self.panes {
             join_pane_into_active(&self.active_pane, pane, window, cx);
@@ -505,7 +505,7 @@ impl Workspace {
         self.notify_mode(WorkspaceMode::Editor, cx);
     }
 
-    pub fn join_pane_into_next(&mut self, pane: Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) {
+    fn join_pane_into_next(&mut self, pane: Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) {
         let next_pane = self
             .find_pane_in_direction(SplitDirection::Right, cx)
             .or_else(|| self.find_pane_in_direction(SplitDirection::Down, cx))

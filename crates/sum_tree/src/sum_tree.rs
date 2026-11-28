@@ -15,7 +15,7 @@ use heapless::Vec as ArrayVec;
 pub use tree_map::TreeMap;
 pub use tree_map::TreeSet;
 
-pub const TREE_BASE: usize = 6;
+const TREE_BASE: usize = 6;
 
 // Helper for when we cannot use ArrayVec::<T>::push().unwrap() as T doesn't impl Debug
 trait CapacityResultExt {
@@ -317,7 +317,7 @@ impl<T: Item> SumTree<T> {
     /// A more efficient version of `Cursor::new()` + `Cursor::seek()` + `Cursor::item()`.
     ///
     /// Only returns the item that exactly has the target match.
-    pub fn find_exact<'a, 'slf, D, Target>(
+    fn find_exact<'a, 'slf, D, Target>(
         &'slf self,
         cx: <T::Summary as Summary>::Context<'a>,
         target: &Target,
@@ -1164,7 +1164,7 @@ where
 }
 
 #[derive(Clone)]
-pub enum Node<T: Item> {
+enum Node<T: Item> {
     Internal {
         height: u8,
         summary: T::Summary,

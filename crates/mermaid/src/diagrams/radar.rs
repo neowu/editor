@@ -1,9 +1,9 @@
 //! Radar charts: series of values drawn as closed curves over radial axes. Port of Pele's
 //! `src/diagrams/radar/index.ts`.
 
-pub(crate) mod model;
-pub(crate) mod parser;
-pub(crate) mod render;
+mod model;
+mod parser;
+mod render;
 
 use super::Diagram;
 use super::Input;
@@ -29,6 +29,6 @@ pub(crate) use model::RadarModel as Model;
 ///
 /// Returns a syntax error for input Mermaid rejects, and a semantic error for a curve whose axis
 /// references cannot be resolved.
-pub(crate) fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
+fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
     model::build_radar(parser::parse_radar(source)?, title)
 }

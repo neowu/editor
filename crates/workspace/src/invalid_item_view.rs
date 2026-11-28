@@ -30,9 +30,9 @@ use crate::OpenWithSystem;
 #[derive(Debug)]
 pub struct InvalidItemView {
     /// Which path was attempted to open.
-    pub abs_path: Arc<Path>,
+    pub(crate) abs_path: Arc<Path>,
     /// An error message, happened when opening the item.
-    pub error: SharedString,
+    pub(crate) error: SharedString,
     focus_handle: FocusHandle,
 }
 

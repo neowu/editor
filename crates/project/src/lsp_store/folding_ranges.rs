@@ -30,11 +30,11 @@ pub struct LspFoldingRange {
     pub collapsed_text: Option<SharedString>,
 }
 
-pub(super) type FoldingRangeTask = Shared<Task<Result<Vec<LspFoldingRange>, Arc<anyhow::Error>>>>;
+type FoldingRangeTask = Shared<Task<Result<Vec<LspFoldingRange>, Arc<anyhow::Error>>>>;
 
 #[derive(Debug, Default)]
 pub(super) struct FoldingRangeData {
-    pub(super) ranges: FxHashMap<LanguageServerId, Vec<LspFoldingRange>>,
+    ranges: FxHashMap<LanguageServerId, Vec<LspFoldingRange>>,
     fetched_servers: FxHashSet<LanguageServerId>,
     ranges_update: Option<RunningFetch<FoldingRangeTask>>,
 }
@@ -193,7 +193,7 @@ impl LspStore {
 
     #[allow(clippy::type_complexity)]
     fn fetch_folding_ranges_for_buffer(
-        &mut self,
+        &self,
         buffer: &Entity<Buffer>,
         for_servers: Option<FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,

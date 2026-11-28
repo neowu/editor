@@ -48,7 +48,7 @@ const NOUNS: &[&str] = &[
 ///
 /// Tries up to 10 random combinations, skipping any name that already appears in
 /// `existing_names`. Returns `None` if no unused name is found.
-pub fn generate_worktree_name(existing_names: &[&str]) -> Option<String> {
+pub(crate) fn generate_worktree_name(existing_names: &[&str]) -> Option<String> {
     let existing: FxHashSet<&str> = existing_names.iter().copied().collect();
 
     for _ in 0..10 {

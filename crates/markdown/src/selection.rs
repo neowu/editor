@@ -81,6 +81,7 @@ fn collect_inline_spans(source: &str, events: &[(Range<usize>, MarkdownEvent)]) 
                 note_child(&mut stack, &range);
                 spans.push(InlineSpan { range, content: event_range.clone(), is_code: true });
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => note_child(&mut stack, event_range),
         }
     }

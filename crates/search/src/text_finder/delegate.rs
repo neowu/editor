@@ -123,31 +123,31 @@ pub(super) struct Delegate {
     /// file, its matches, and separators between groups. Rebuilt via
     /// [`Delegate::rebuild_entries`] whenever `matches` changes. `selected_index`
     /// indexes into this list.
-    pub(crate) entries: Vec<Entry>,
-    pub(crate) selected_index: usize,
-    pub(crate) cancel_flag: Arc<AtomicBool>,
+    entries: Vec<Entry>,
+    selected_index: usize,
+    cancel_flag: Arc<AtomicBool>,
     pub(crate) text_finder_turning_into_project_search: Arc<AtomicBool>,
-    pub(crate) last_selection_change_time: Option<Instant>,
-    pub(crate) last_click: Option<(usize, Instant)>,
+    last_selection_change_time: Option<Instant>,
+    last_click: Option<(usize, Instant)>,
     pub(crate) search_options: SearchOptions,
     /// Kept around for switching to project search.
     pub(crate) active_query: Option<SearchQuery>,
-    pub(crate) imported_from_project_search: bool,
+    imported_from_project_search: bool,
     /// When `is_ready` there is not a search in progress.
     pub(crate) in_progress_search: InProgressSearch,
-    pub(crate) unique_files: FxHashSet<ProjectPath>,
+    unique_files: FxHashSet<ProjectPath>,
     /// Largest line number across [`Self::matches`], used to size the line-number
     /// column so every row's number right-aligns to the widest one. Recomputed in
     /// [`Delegate::rebuild_entries`].
-    pub(crate) max_line_number: u32,
-    pub(crate) selected_matches: Vec<SelectedMatch>,
-    pub(crate) collapsed_paths: FxHashSet<ProjectPath>,
+    max_line_number: u32,
+    selected_matches: Vec<SelectedMatch>,
+    collapsed_paths: FxHashSet<ProjectPath>,
     pub(crate) query_editor: Option<Entity<Editor>>,
 }
 
 /// Wrapper with Eq is path + range equality.
 #[derive(Clone)]
-pub(crate) struct SelectedMatch(pub SearchMatch);
+struct SelectedMatch(SearchMatch);
 
 impl PartialEq for SelectedMatch {
     fn eq(&self, other: &Self) -> bool {
@@ -163,7 +163,7 @@ impl PartialEq<SearchMatch> for SelectedMatch {
     }
 }
 
-pub(crate) enum Entry {
+enum Entry {
     Header(ProjectPath),
     Match(usize),
     Separator,
@@ -276,6 +276,7 @@ impl InProgressSearch {
             mem::swap(self, &mut placeholder);
             match placeholder {
                 InProgressSearch::Disconnected(results_stream) => Some(results_stream),
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => unreachable!("guarded with matches! above"),
             }
         } else {
@@ -289,6 +290,7 @@ impl InProgressSearch {
         if matches!(self, InProgressSearch::Connected(_)) {
             match mem::replace(self, InProgressSearch::None) {
                 InProgressSearch::Connected(task) => Some(task),
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => unreachable!("guarded with matches! above"),
             }
         } else {
@@ -381,7 +383,7 @@ impl Delegate {
         cx.spawn(async move |_, cx| Self::new_from_project_search(project_search, cx).await)
     }
 
-    pub(crate) fn project<'a>(&self, cx: &'a App) -> &'a Entity<Project> {
+    fn project<'a>(&self, cx: &'a App) -> &'a Entity<Project> {
         &self.project_search_view.read(cx).entity.read(cx).project
     }
 
@@ -392,7 +394,7 @@ impl Delegate {
     ///
     /// Selection is preserved across rebuilds: if a match was selected it stays
     /// selected at its new row, otherwise we snap to the first selectable row.
-    pub(crate) fn rebuild_entries(&mut self) {
+    fn rebuild_entries(&mut self) {
         let previously_selected_match = match self.entries.get(self.selected_index) {
             Some(Entry::Match(match_index)) => Some(*match_index),
             _ => None,
@@ -427,7 +429,7 @@ impl Delegate {
         self.entries.iter().position(|entry| matches!(entry, Entry::Match(_)))
     }
 
-    pub(crate) fn toggle_group_collapsed(&mut self, path: &ProjectPath) {
+    fn toggle_group_collapsed(&mut self, path: &ProjectPath) {
         if !self.collapsed_paths.remove(path) {
             self.collapsed_paths.insert(path.clone());
         }
@@ -484,7 +486,7 @@ impl Delegate {
         }
     }
 
-    pub(crate) fn prepend_selected_matches(&mut self) {
+    fn prepend_selected_matches(&mut self) {
         if self.selected_matches.is_empty() {
             return;
         }
@@ -585,7 +587,7 @@ impl Delegate {
         }
     }
 
-    pub(crate) fn build_search_query(&self, query: &str, cx: &Context<Picker<Self>>) -> Option<SearchQuery> {
+    fn build_search_query(&self, query: &str, cx: &Context<Picker<Self>>) -> Option<SearchQuery> {
         if query.is_empty() {
             return None;
         }
@@ -607,11 +609,7 @@ impl Delegate {
     }
 
     /// Create things from MB.
-    pub(crate) fn process_search_result(
-        buffer: &Entity<Buffer>,
-        ranges: &[Range<Anchor>],
-        cx: &AsyncApp,
-    ) -> Vec<SearchMatch> {
+    fn process_search_result(buffer: &Entity<Buffer>, ranges: &[Range<Anchor>], cx: &AsyncApp) -> Vec<SearchMatch> {
         if ranges.is_empty() {
             return Vec::new();
         }
@@ -754,7 +752,7 @@ impl Delegate {
     }
 }
 
-pub(crate) fn toggle_search_option(
+fn toggle_search_option(
     picker: &mut Picker<Delegate>,
     options: SearchOptions,
     window: &mut Window,

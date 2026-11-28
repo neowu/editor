@@ -11,7 +11,7 @@ mod units;
 pub use appearance::theme_is_transparent;
 pub use color::Color;
 pub use elevation::ElevationIndex;
-pub use platform::PlatformStyle;
+pub(crate) use platform::PlatformStyle;
 pub use severity::Severity;
 pub use spacing::DynamicSpacing;
 pub use typography::Headline;

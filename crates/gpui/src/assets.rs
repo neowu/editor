@@ -36,12 +36,12 @@ impl AssetSource for () {
 
 /// A unique identifier for the image cache.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ImageId(pub usize);
+pub struct ImageId(usize);
 
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct RenderImageParams {
-    pub image_id: ImageId,
-    pub frame_index: usize,
+    pub(crate) image_id: ImageId,
+    pub(crate) frame_index: usize,
 }
 
 /// A cached and processed image, in BGRA format.
@@ -63,14 +63,14 @@ impl Eq for RenderImage {}
 
 impl RenderImage {
     /// Create a new image from the given data.
-    pub fn new(data: impl Into<SmallVec<[Frame; 1]>>) -> Self {
+    pub(crate) fn new(data: impl Into<SmallVec<[Frame; 1]>>) -> Self {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 
         Self { id: ImageId(NEXT_ID.fetch_add(1, SeqCst)), scale_factor: 1.0, data: data.into() }
     }
 
     /// Convert this image into a byte slice.
-    pub fn as_bytes(&self, frame_index: usize) -> Option<&[u8]> {
+    pub(crate) fn as_bytes(&self, frame_index: usize) -> Option<&[u8]> {
         self.data.get(frame_index).map(|frame| frame.buffer().as_raw().as_slice())
     }
 
@@ -88,12 +88,12 @@ impl RenderImage {
     }
 
     /// Get the delay of this frame from the previous.
-    pub fn delay(&self, frame_index: usize) -> Delay {
+    pub(crate) fn delay(&self, frame_index: usize) -> Delay {
         self.data.get(frame_index).map_or_else(|| Delay::from_numer_denom_ms(100, 1), Frame::delay)
     }
 
     /// Get the number of frames for this image.
-    pub fn frame_count(&self) -> usize {
+    pub(crate) fn frame_count(&self) -> usize {
         self.data.len()
     }
 }

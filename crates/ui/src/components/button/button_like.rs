@@ -85,7 +85,7 @@ pub enum IconPosition {
 }
 
 #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-pub enum KeybindingPosition {
+pub(crate) enum KeybindingPosition {
     Start,
     #[default]
     End,
@@ -147,6 +147,7 @@ impl From<ButtonStyle> for Color {
     fn from(style: ButtonStyle) -> Self {
         match style {
             ButtonStyle::Tinted(tint) => tint.into(),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => Color::Default,
         }
     }
@@ -188,29 +189,29 @@ pub enum ButtonStyle {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub(crate) struct ButtonLikeRounding {
     /// Top-left corner rounding.
-    pub top_left: bool,
+    pub(crate) top_left: bool,
     /// Top-right corner rounding.
-    pub top_right: bool,
+    pub(crate) top_right: bool,
     /// Bottom-right corner rounding.
-    pub bottom_right: bool,
+    pub(crate) bottom_right: bool,
     /// Bottom-left corner rounding.
-    pub bottom_left: bool,
+    pub(crate) bottom_left: bool,
 }
 
 impl ButtonLikeRounding {
-    pub(crate) const ALL: Self = Self { top_left: true, top_right: true, bottom_right: true, bottom_left: true };
-    pub(crate) const LEFT: Self = Self { top_left: true, top_right: false, bottom_right: false, bottom_left: true };
-    pub(crate) const RIGHT: Self = Self { top_left: false, top_right: true, bottom_right: true, bottom_left: false };
+    const ALL: Self = Self { top_left: true, top_right: true, bottom_right: true, bottom_left: true };
+    const LEFT: Self = Self { top_left: true, top_right: false, bottom_right: false, bottom_left: true };
+    const RIGHT: Self = Self { top_left: false, top_right: true, bottom_right: true, bottom_left: false };
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct ButtonLikeStyles {
-    pub background: Hsla,
-    pub border_color: Hsla,
+    background: Hsla,
+    border_color: Hsla,
     #[allow(unused)]
-    pub label_color: Hsla,
+    label_color: Hsla,
     #[allow(unused)]
-    pub icon_color: Hsla,
+    icon_color: Hsla,
 }
 
 fn element_bg_from_elevation(elevation: Option<ElevationIndex>) -> Hsla {
@@ -224,7 +225,7 @@ fn element_bg_from_elevation(elevation: Option<ElevationIndex>) -> Hsla {
 }
 
 impl ButtonStyle {
-    pub(crate) fn enabled(self, elevation: Option<ElevationIndex>) -> ButtonLikeStyles {
+    fn enabled(self, elevation: Option<ElevationIndex>) -> ButtonLikeStyles {
         match self {
             ButtonStyle::Filled => ButtonLikeStyles {
                 background: element_bg_from_elevation(elevation),
@@ -266,7 +267,7 @@ impl ButtonStyle {
         }
     }
 
-    pub(crate) fn hovered(self, elevation: Option<ElevationIndex>) -> ButtonLikeStyles {
+    fn hovered(self, elevation: Option<ElevationIndex>) -> ButtonLikeStyles {
         match self {
             ButtonStyle::Filled => {
                 let mut filled_background = element_bg_from_elevation(elevation);
@@ -320,7 +321,7 @@ impl ButtonStyle {
         }
     }
 
-    pub(crate) fn active(self) -> ButtonLikeStyles {
+    fn active(self) -> ButtonLikeStyles {
         match self {
             ButtonStyle::Filled => ButtonLikeStyles {
                 background: theme::theme().colors().element_active,
@@ -483,17 +484,17 @@ impl ButtonSize {
 /// This is also used to build the prebuilt buttons.
 #[derive(IntoElement)]
 pub struct ButtonLike {
-    pub(super) base: Div,
+    base: Div,
     id: ElementId,
-    pub(super) style: ButtonStyle,
+    style: ButtonStyle,
     pub(super) disabled: bool,
     pub(super) selected: bool,
-    pub(super) selected_style: Option<ButtonStyle>,
-    pub(super) hover_background: Option<Hsla>,
-    pub(super) active_background: Option<Hsla>,
-    pub(super) width: Option<DefiniteLength>,
-    pub(super) height: Option<DefiniteLength>,
-    pub(super) layer: Option<ElevationIndex>,
+    selected_style: Option<ButtonStyle>,
+    hover_background: Option<Hsla>,
+    active_background: Option<Hsla>,
+    width: Option<DefiniteLength>,
+    height: Option<DefiniteLength>,
+    layer: Option<ElevationIndex>,
     tab_index: Option<isize>,
     size: ButtonSize,
     rounding: Option<ButtonLikeRounding>,
@@ -560,12 +561,12 @@ impl ButtonLike {
         self
     }
 
-    pub fn on_right_click(mut self, handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
+    pub(crate) fn on_right_click(mut self, handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.on_right_click = Some(Box::new(handler));
         self
     }
 
-    pub fn hoverable_tooltip(mut self, tooltip: impl Fn(&mut Window, &mut App) -> AnyView + 'static) -> Self {
+    pub(crate) fn hoverable_tooltip(mut self, tooltip: impl Fn(&mut Window, &mut App) -> AnyView + 'static) -> Self {
         self.hoverable_tooltip = Some(Box::new(tooltip));
         self
     }

@@ -44,7 +44,7 @@ impl Display for ElevationIndex {
 
 impl ElevationIndex {
     /// Returns an appropriate shadow for the given elevation index.
-    pub fn shadow(self) -> Vec<BoxShadow> {
+    pub(crate) fn shadow(self) -> Vec<BoxShadow> {
         let is_light = theme::theme().appearance() == Appearance::Light;
 
         match self {
@@ -81,7 +81,7 @@ impl ElevationIndex {
     }
 
     /// Returns a color that is appropriate a filled element on this elevation.
-    pub fn on_elevation_bg(&self) -> Hsla {
+    pub(crate) fn on_elevation_bg(self) -> Hsla {
         match self {
             ElevationIndex::Background => theme::theme().colors().surface_background,
             ElevationIndex::Surface => theme::theme().colors().background,
@@ -94,7 +94,7 @@ impl ElevationIndex {
     /// Attempts to return a darker background color than the current elevation index's background.
     ///
     /// If the current background color is already dark, it will return a lighter color instead.
-    pub fn darker_bg(&self) -> Hsla {
+    pub(crate) fn darker_bg(self) -> Hsla {
         match self {
             ElevationIndex::Background => theme::theme().colors().surface_background,
             ElevationIndex::Surface => theme::theme().colors().editor_background,

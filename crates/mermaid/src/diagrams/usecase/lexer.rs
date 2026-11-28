@@ -53,6 +53,7 @@ const fn keyword_length(t: T) -> usize {
         T::ClassDef => 8,
         T::Include => 7,
         T::Extend => 6,
+        // lint: expect(wildcard_match) only a few variants of `T` matter here
         _ => 2,
     }
 }
@@ -110,21 +111,6 @@ pub(crate) fn line_column(src: &str, offset: usize) -> (u32, u32) {
     }
     let column = src.get(line_start..offset).map_or(0, |text| text.encode_utf16().count());
     (line, u32::try_from(column + 1).unwrap_or(u32::MAX))
-}
-
-/// `line L, column C [start,end)`, with UTF-16 offsets.
-pub(crate) fn location_text(src: &str, start: usize, end: usize) -> String {
-    let (line, column) = line_column(src, start);
-    let mut out = String::from("line ");
-    push_u32(&mut out, line);
-    out.push_str(", column ");
-    push_u32(&mut out, column);
-    out.push_str(" [");
-    push_usize(&mut out, utf16(src, start));
-    out.push(',');
-    push_usize(&mut out, utf16(src, end));
-    out.push(')');
-    out
 }
 
 /// A use case error at byte `offset`, with Pele's code and message.

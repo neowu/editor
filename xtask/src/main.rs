@@ -1,8 +1,8 @@
 use std::error::Error;
 use std::process::ExitCode;
 
-use framework_lint::LintConfig;
+use lint::LintConfig;
 
 fn main() -> Result<ExitCode, Box<dyn Error>> {
-    framework_lint::run(&LintConfig { max_file_lines: 5_000, ..Default::default() })
+    lint::run(&LintConfig { max_file_lines: 5_000, api_tests: vec!["test"] })
 }

@@ -6,22 +6,22 @@ use rustc_hash::FxHashMap;
 /// The built-in file icon set. To change icons, replace the SVGs under
 /// `assets/icons/file_icons/` or edit the tables below.
 pub(crate) struct Icons {
-    pub directory: FolderIcons,
-    pub named_directories: FxHashMap<String, FolderIcons>,
-    pub chevron: FolderIcons,
+    pub(crate) directory: FolderIcons,
+    pub(crate) named_directories: FxHashMap<String, FolderIcons>,
+    pub(crate) chevron: FolderIcons,
     /// File stem → icon key.
-    pub file_stems: FxHashMap<String, String>,
+    pub(crate) file_stems: FxHashMap<String, String>,
     /// File suffix → icon key.
-    pub file_suffixes: FxHashMap<String, String>,
+    pub(crate) file_suffixes: FxHashMap<String, String>,
     /// Icon key → icon path.
-    pub file_icons: FxHashMap<String, SharedString>,
+    pub(crate) file_icons: FxHashMap<String, SharedString>,
 }
 
 /// Collapsed / expanded icon pair.
 #[derive(Clone)]
 pub(crate) struct FolderIcons {
-    pub collapsed: SharedString,
-    pub expanded: SharedString,
+    collapsed: SharedString,
+    expanded: SharedString,
 }
 
 impl FolderIcons {

@@ -198,14 +198,13 @@ impl EditorElement {
         &self,
         rows: Range<DisplayRow>,
         snapshot: &EditorSnapshot,
-        editor_width: Pixels,
         is_row_soft_wrapped: impl Copy + Fn(usize) -> bool,
         window: &mut Window,
         cx: &mut App,
     ) -> Vec<LineWithInvisibles> {
         let layout = |rows: Range<DisplayRow>, window: &mut Window, cx: &mut App| {
             // Selection contrast tweaks depend on the visible range, not the row; blocks don't need them.
-            Self::layout_lines(rows, snapshot, &self.style, editor_width, is_row_soft_wrapped, &[], window, cx)
+            Self::layout_lines(rows, snapshot, &self.style, is_row_soft_wrapped, &[], window, cx)
         };
         if snapshot.is_empty() {
             return layout(rows, window, cx);
@@ -794,12 +793,12 @@ impl MinimapMarkerTrack {
 }
 
 pub(super) struct MinimapLayout {
-    pub minimap: AnyElement,
-    pub thumb_layout: ScrollbarLayout,
-    pub minimap_scroll_top: ScrollOffset,
-    pub minimap_line_height: Pixels,
-    pub max_scroll_top: ScrollOffset,
-    pub thumb_pixels_per_editor_line: Option<Pixels>,
+    minimap: AnyElement,
+    thumb_layout: ScrollbarLayout,
+    minimap_scroll_top: ScrollOffset,
+    minimap_line_height: Pixels,
+    max_scroll_top: ScrollOffset,
+    thumb_pixels_per_editor_line: Option<Pixels>,
 }
 
 impl MinimapLayout {

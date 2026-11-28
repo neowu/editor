@@ -37,7 +37,7 @@ pub(crate) enum JsonValue {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct JsonDoc {
     /// Every value, parents before their children.
-    pub(crate) nodes: Vec<JsonValue>,
+    nodes: Vec<JsonValue>,
 }
 
 impl JsonDoc {

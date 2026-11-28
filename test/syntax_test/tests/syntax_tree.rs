@@ -1,8 +1,5 @@
 //! `language::walk_syntax` over a real Rust grammar parse.
 
-// The whole file is a test module.
-#![allow(clippy::tests_outside_test_module)]
-
 use language::Node;
 use language::Parser;
 

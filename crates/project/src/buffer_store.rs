@@ -52,10 +52,10 @@ struct LocalBufferStore {
     _subscription: Subscription,
 }
 
-pub enum BufferStoreEvent {
-    BufferAdded(Entity<Buffer>),
-    BufferDropped(BufferId),
-    BufferChangedFilePath { buffer: Entity<Buffer>, old_file: Option<Arc<dyn language::File>> },
+pub(crate) enum BufferStoreEvent {
+    Added(Entity<Buffer>),
+    Dropped(BufferId),
+    ChangedFilePath { buffer: Entity<Buffer>, old_file: Option<Arc<dyn language::File>> },
 }
 
 #[derive(Default, Debug, Clone)]
@@ -232,10 +232,8 @@ impl LocalBufferStore {
                     ProjectPath { worktree_id: new_file.worktree_id(cx), path: Arc::clone(&new_file.path) },
                     buffer_id,
                 );
-                events.push(BufferStoreEvent::BufferChangedFilePath {
-                    buffer: cx.entity(),
-                    old_file: buffer.file().cloned(),
-                });
+                events
+                    .push(BufferStoreEvent::ChangedFilePath { buffer: cx.entity(), old_file: buffer.file().cloned() });
             }
             let local = &mut this.local;
             if new_file.entry_id != old_file.entry_id {
@@ -398,13 +396,13 @@ impl LocalBufferStore {
 
 impl BufferStore {
     /// Creates a buffer store, optionally retaining its buffers.
-    pub fn local(worktree_store: Entity<WorktreeStore>, cx: &mut Context<Self>) -> Self {
+    pub(crate) fn local(worktree_store: Entity<WorktreeStore>, cx: &mut Context<Self>) -> Self {
         Self {
             local: LocalBufferStore {
                 local_buffer_ids_by_entry_id: FxHashMap::default(),
                 worktree_store: worktree_store.clone(),
                 _subscription: cx.subscribe(&worktree_store, |this, _, event, cx| {
-                    if let WorktreeStoreEvent::WorktreeAdded(worktree) = event {
+                    if let WorktreeStoreEvent::Added(worktree) = event {
                         this.local.subscribe_to_worktree(worktree, cx);
                     }
                 }),
@@ -417,7 +415,11 @@ impl BufferStore {
         }
     }
 
-    pub fn open_buffer(&mut self, project_path: ProjectPath, cx: &mut Context<Self>) -> Task<Result<Entity<Buffer>>> {
+    pub(crate) fn open_buffer(
+        &mut self,
+        project_path: ProjectPath,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<Entity<Buffer>>> {
         if let Some(buffer) = self.get_by_path(&project_path) {
             return Task::ready(Ok(buffer));
         }
@@ -456,21 +458,21 @@ impl BufferStore {
         cx.background_spawn(async move { task.await.map_err(|e| anyhow!("{e}")) })
     }
 
-    pub fn create_buffer(
-        &mut self,
+    pub(crate) fn create_buffer(
+        &self,
         language: Option<Arc<Language>>,
         project_searchable: bool,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Task<Result<Entity<Buffer>>> {
         self.local.create_buffer(language, project_searchable, cx)
     }
 
-    pub fn save_buffer(&mut self, buffer: Entity<Buffer>, cx: &mut Context<Self>) -> Task<Result<()>> {
+    pub(crate) fn save_buffer(&self, buffer: Entity<Buffer>, cx: &mut Context<Self>) -> Task<Result<()>> {
         self.local.save_buffer(buffer, cx)
     }
 
-    pub fn save_buffer_as(
-        &mut self,
+    pub(crate) fn save_buffer_as(
+        &self,
         buffer: Entity<Buffer>,
         path: ProjectPath,
         cx: &mut Context<Self>,
@@ -485,7 +487,7 @@ impl BufferStore {
                         .remove(&ProjectPath { worktree_id: file.worktree_id(cx), path: Arc::clone(file.path()) })
                 });
 
-                cx.emit(BufferStoreEvent::BufferChangedFilePath { buffer, old_file });
+                cx.emit(BufferStoreEvent::ChangedFilePath { buffer, old_file });
             })
         })
     }
@@ -504,7 +506,7 @@ impl BufferStore {
         let handle = cx.entity().downgrade();
         buffer_entity.update(cx, move |_, cx| {
             cx.on_release(move |buffer, cx| {
-                handle.update(cx, |_, cx| cx.emit(BufferStoreEvent::BufferDropped(buffer.buffer_id()))).ok();
+                handle.update(cx, |_, cx| cx.emit(BufferStoreEvent::Dropped(buffer.buffer_id()))).ok();
             })
             .detach();
         });
@@ -514,7 +516,7 @@ impl BufferStore {
         }
 
         cx.subscribe(&buffer_entity, Self::on_buffer_event).detach();
-        cx.emit(BufferStoreEvent::BufferAdded(buffer_entity));
+        cx.emit(BufferStoreEvent::Added(buffer_entity));
         Ok(())
     }
 
@@ -535,7 +537,7 @@ impl BufferStore {
         self.get(*buffer_id)
     }
 
-    pub fn get(&self, buffer_id: BufferId) -> Option<Entity<Buffer>> {
+    pub(crate) fn get(&self, buffer_id: BufferId) -> Option<Entity<Buffer>> {
         self.opened_buffers.get(&buffer_id)?.upgrade()
     }
 
@@ -568,11 +570,11 @@ impl BufferStore {
         }
     }
 
-    pub fn reload_buffers(
+    pub(crate) fn reload_buffers(
         &self,
         buffers: FxHashSet<Entity<Buffer>>,
         push_to_history: bool,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Task<Result<ProjectTransaction>> {
         if buffers.is_empty() {
             return Task::ready(Ok(ProjectTransaction::default()));
@@ -580,7 +582,7 @@ impl BufferStore {
         self.local.reload_buffers(buffers, push_to_history, cx)
     }
 
-    pub fn create_local_buffer(
+    pub(crate) fn create_local_buffer(
         &mut self,
         text: &str,
         language: Option<Arc<Language>>,

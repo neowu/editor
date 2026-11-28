@@ -36,14 +36,23 @@ impl QueryFile {
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
     pub struct QueryFiles: u16 {
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const HIGHLIGHTS = 1 << 0;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const BRACKETS = 1 << 1;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const OUTLINE = 1 << 2;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const INDENTS = 1 << 3;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const INJECTIONS = 1 << 4;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const OVERRIDES = 1 << 5;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const RUNNABLES = 1 << 7;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const TEXT_OBJECTS = 1 << 9;
+        // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
         const SPELL_CHECK = 1 << 10;
     }
 }
@@ -90,8 +99,8 @@ impl<'de> Deserialize<'de> for QueryFiles {
 
 #[derive(Debug)]
 pub struct QueryFileContents {
-    pub query_file: QueryFile,
-    pub contents: Cow<'static, str>,
+    query_file: QueryFile,
+    contents: Cow<'static, str>,
 }
 
 impl QueryFileContents {
@@ -104,14 +113,14 @@ impl QueryFileContents {
 #[derive(Debug, Default)]
 pub struct LanguageQueries {
     pub highlights: Option<Cow<'static, str>>,
-    pub brackets: Option<Cow<'static, str>>,
-    pub indents: Option<Cow<'static, str>>,
-    pub outline: Option<Cow<'static, str>>,
-    pub injections: Option<Cow<'static, str>>,
-    pub overrides: Option<Cow<'static, str>>,
-    pub runnables: Option<Cow<'static, str>>,
-    pub text_objects: Option<Cow<'static, str>>,
-    pub spell_check: Option<Cow<'static, str>>,
+    pub(crate) brackets: Option<Cow<'static, str>>,
+    pub(crate) indents: Option<Cow<'static, str>>,
+    pub(crate) outline: Option<Cow<'static, str>>,
+    pub(crate) injections: Option<Cow<'static, str>>,
+    pub(crate) overrides: Option<Cow<'static, str>>,
+    pub(crate) runnables: Option<Cow<'static, str>>,
+    pub(crate) text_objects: Option<Cow<'static, str>>,
+    pub(crate) spell_check: Option<Cow<'static, str>>,
 }
 
 impl LanguageQueries {

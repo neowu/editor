@@ -140,6 +140,7 @@ impl DiagnosticIndicator {
                 });
             }
 
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         })
         .detach();

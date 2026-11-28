@@ -1,9 +1,6 @@
 //! Each language's `runnables.scm` over a real fixture, through the task builder its
 //! `ContextProvider::runnables` uses.
 
-// The whole file is a test module.
-#![allow(clippy::tests_outside_test_module)]
-
 use std::collections::BTreeMap;
 
 use language::RunContext;

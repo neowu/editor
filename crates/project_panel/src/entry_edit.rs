@@ -31,6 +31,7 @@ use workspace::OpenOptions;
 use workspace::OpenVisible;
 use workspace::SelectedEntry;
 use worktree::CreatedEntry;
+use worktree::Worktree;
 
 use super::Delete;
 use super::EditState;
@@ -44,8 +45,25 @@ use super::TemporaryUnfoldedPendingState;
 use super::TrashEntryOutcome;
 use super::ValidationState;
 use super::sort_worktree_entries;
-use crate::undo as crate_undo;
 use crate::undo::Change;
+
+/// Returns the parent directories of `path` that do not yet exist in the given
+/// worktree and would therefore be created when an entry is placed at `path`,
+/// ordered from the deepest to the shallowest.
+fn missing_parent_dirs(worktree: &Worktree, worktree_id: WorktreeId, path: &RelPath) -> Vec<ProjectPath> {
+    let mut dirs = Vec::new();
+    let mut current = path.parent();
+    while let Some(parent) = current {
+        if parent.is_empty() {
+            break;
+        }
+        if worktree.entry_for_path(parent).is_none() {
+            dirs.push(ProjectPath { worktree_id, path: parent.into_arc() });
+        }
+        current = parent.parent();
+    }
+    dirs
+}
 
 impl ProjectPanel {
     pub(super) fn populate_validation_error(&mut self, cx: &mut Context<Self>) {
@@ -179,8 +197,7 @@ impl ProjectPanel {
 
             // Before renaming, keep track of which directories will need to be
             // created, so we can remove these when undoing.
-            let created_dirs =
-                crate_undo::missing_parent_dirs(worktree.read(cx), worktree_id, new_project_path.path.as_ref());
+            let created_dirs = missing_parent_dirs(worktree.read(cx), worktree_id, new_project_path.path.as_ref());
 
             let edit_task = self
                 .project

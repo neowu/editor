@@ -13,10 +13,6 @@ use crate::util::chars::is_space;
 use crate::util::float;
 use crate::yaml::push_number;
 
-/// The root's stroke width and text color: shapes and edges inherit the stroke width, and an
-/// icon is drawn in `currentColor`, which would otherwise be whatever color the host gives.
-pub(crate) const ROOT_STYLE: &str = "stroke-width:var(--_sw);color:var(--_fg)";
-
 /// The monospace font, as set on the root.
 pub(crate) const FONT_MONO: &str = "var(--_fm)";
 /// The corner radius of rectangles.
@@ -32,34 +28,22 @@ pub(crate) const STROKE: &str = "var(--_sw)";
 /// The font stack labels are drawn in by default.
 const FONT: &str = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', 'DejaVu Sans Mono', monospace";
 
-/// The root's font declarations at `size` pixels. Every font is measured as monospace, so what
-/// text inherits is pinned, as none of it was measured. Kerning and ligatures are off and glyphs
-/// are placed at their exact size, so every character keeps the uniform advance that layout
-/// assumed. Spacing is `0` rather than `normal`, which usvg does not parse.
-pub(crate) fn font_style(size: f64) -> String {
-    let mut out = String::with_capacity(256);
-    out.push_str(";font-size:");
-    push_number(&mut out, size);
-    out.push_str("px;font-family:var(--_fm);letter-spacing:0;word-spacing:0;text-transform:none;direction:ltr;font-kerning:none;font-variant-ligatures:none;text-rendering:geometricPrecision");
-    out
-}
-
 /// An opaque sRGB color.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Color {
     /// Red.
-    pub r: u8,
+    r: u8,
     /// Green.
-    pub g: u8,
+    g: u8,
     /// Blue.
-    pub b: u8,
+    b: u8,
 }
 
 impl Color {
     /// White.
-    pub const WHITE: Self = Self::rgb(0xff, 0xff, 0xff);
+    const WHITE: Self = Self::rgb(0xff, 0xff, 0xff);
     /// Black.
-    pub const BLACK: Self = Self::rgb(0, 0, 0);
+    const BLACK: Self = Self::rgb(0, 0, 0);
 
     /// The color with the given channels.
     pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
@@ -68,7 +52,7 @@ impl Color {
 
     /// `self` mixed with `other`, `share` (0 to 1) of the way towards `self`.
     #[must_use]
-    pub fn mix(self, other: Self, share: f64) -> Self {
+    fn mix(self, other: Self, share: f64) -> Self {
         let share = share.clamp(0.0, 1.0);
         #[expect(
             clippy::cast_possible_truncation,

@@ -13,7 +13,7 @@ use util::rel_path::RelPath;
 /// A path is unexplored when the closest ancestor of a path is not the path itself; that means that we have not yet ran the scan on that path.
 /// For example, if there's a project root at path `python/project` and we query for a path `python/project/subdir/another_subdir/file.py`, there is
 /// a known root at `python/project` and the unexplored part is `subdir/another_subdir` - we need to run a scan on these 2 directories.
-pub struct RootPathTrie<Label> {
+pub(crate) struct RootPathTrie<Label> {
     worktree_relative_path: Arc<RelPath>,
     labels: BTreeMap<Label, LabelPresence>,
     children: BTreeMap<Arc<str>, RootPathTrie<Label>>,
@@ -32,13 +32,13 @@ pub struct RootPathTrie<Label> {
 /// Storing absent nodes allows us to recognize which paths have already been scanned for a project root unsuccessfully. This way we don't need to run
 /// such scan more than once.
 #[derive(Clone, Copy, Debug, PartialOrd, PartialEq, Ord, Eq)]
-pub enum LabelPresence {
+pub(crate) enum LabelPresence {
     KnownAbsent,
     Present,
 }
 
 impl<Label: Ord + Clone> RootPathTrie<Label> {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::new_with_key(Arc::from(RelPath::empty()))
     }
 
@@ -65,12 +65,12 @@ impl<Label: Ord + Clone> RootPathTrie<Label> {
         current
     }
 
-    pub fn insert(&mut self, path: &TriePath, value: Label, presence: LabelPresence) {
+    pub(crate) fn insert(&mut self, path: &TriePath, value: Label, presence: LabelPresence) {
         self.insert_inner(path, value, presence);
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn walk<'a>(
+    pub(crate) fn walk<'a>(
         &'a self,
         path: &TriePath,
         callback: &mut dyn for<'b> FnMut(&'b Arc<RelPath>, &'a BTreeMap<Label, LabelPresence>) -> ControlFlow<()>,
@@ -90,7 +90,7 @@ impl<Label: Ord + Clone> RootPathTrie<Label> {
         }
     }
 
-    pub fn remove(&mut self, path: &TriePath) {
+    pub(crate) fn remove(&mut self, path: &TriePath) {
         let mut current = self;
         for path in path.0.iter().take(path.0.len().saturating_sub(1)) {
             current = match current.children.get_mut(path) {
@@ -112,10 +112,10 @@ impl<Label: Ord + Clone> Default for RootPathTrie<Label> {
 
 /// [TriePath] is a [Path] preprocessed for amortizing the cost of doing multiple lookups in distinct [RootPathTrie]s.
 #[derive(Clone)]
-pub struct TriePath(Arc<[Arc<str>]>);
+pub(crate) struct TriePath(Arc<[Arc<str>]>);
 
 impl TriePath {
-    pub fn new(value: &RelPath) -> Self {
+    fn new(value: &RelPath) -> Self {
         TriePath(value.components().map(Into::into).collect())
     }
 }

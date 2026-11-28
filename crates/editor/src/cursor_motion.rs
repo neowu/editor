@@ -43,8 +43,8 @@ const SNAP_STEP_EM_ADVANCES: f32 = 2.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct LogicalCursorPosition {
-    pub row: u32,
-    pub column: u32,
+    pub(crate) row: u32,
+    pub(crate) column: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -304,7 +304,7 @@ impl Corner {
 }
 
 #[derive(Clone)]
-pub(crate) struct CursorMotionState {
+struct CursorMotionState {
     corners: [Corner; 4],
     target_geometry: Option<CursorGeometry>,
     last_logical_position: Option<LogicalCursorPosition>,
@@ -398,7 +398,7 @@ impl Default for CursorMotionState {
 }
 
 impl CursorMotionState {
-    pub(crate) fn update(
+    fn update(
         &mut self,
         logical_position: LogicalCursorPosition,
         target_bounds: Bounds<Pixels>,
@@ -478,7 +478,7 @@ impl CursorMotionState {
         }
     }
 
-    pub(crate) fn reset(&mut self) {
+    fn reset(&mut self) {
         self.target_geometry = None;
         self.last_logical_position = None;
         self.last_viewport = None;
@@ -564,6 +564,7 @@ fn nearly_equal(left: f32, right: f32) -> bool {
     (left - right).abs() <= GEOMETRY_EPSILON
 }
 
+// lint: expect(misplaced_item) the animation test here asserts with it too
 pub(crate) fn animated_corners_overlap_target(target_bounds: Bounds<Pixels>, corners: &[Point<Pixels>; 4]) -> bool {
     let min_x = corners
         .iter()

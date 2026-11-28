@@ -15,16 +15,16 @@ const CRITICAL_OMEGA_T_TO_95: f32 = 4.743_864_4;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SpringConfig {
     /// The spring stiffness, conventionally written as $k$.
-    pub stiffness: f32,
+    stiffness: f32,
     /// The viscous damping coefficient, conventionally written as $c$.
-    pub damping: f32,
+    damping: f32,
     /// The moving mass, conventionally written as $m$.
-    pub mass: f32,
+    mass: f32,
 }
 
 impl SpringConfig {
     /// A unit-mass spring from its natural angular frequency and damping ratio.
-    pub const fn from_canonical(natural_frequency: f32, damping_ratio: f32) -> Self {
+    const fn from_canonical(natural_frequency: f32, damping_ratio: f32) -> Self {
         Self {
             stiffness: natural_frequency * natural_frequency,
             damping: 2.0 * damping_ratio * natural_frequency,
@@ -38,7 +38,7 @@ impl SpringConfig {
     }
 
     /// Returns the natural angular frequency and damping ratio $(\omega_0, \zeta)$.
-    pub fn canonical(&self) -> (f32, f32) {
+    fn canonical(&self) -> (f32, f32) {
         let natural_frequency = (self.stiffness / self.mass).sqrt();
         let damping_ratio = self.damping / (2.0 * (self.stiffness * self.mass).sqrt());
         (natural_frequency, damping_ratio)
@@ -114,16 +114,16 @@ impl SpringConfig {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Decay {
     /// Seconds for the remaining distance to shrink by a factor of e (~63% covered).
-    pub time_constant: f32,
+    time_constant: f32,
 }
 
 impl Decay {
-    pub const fn new(time_constant: f32) -> Self {
+    const fn new(time_constant: f32) -> Self {
         Self { time_constant }
     }
 
     /// A decay that covers ~95% of its distance in `settle_time` seconds.
-    pub const fn settling_in(settle_time: f32) -> Self {
+    const fn settling_in(settle_time: f32) -> Self {
         Self::new(settle_time / DECAY_TIME_CONSTANTS_TO_95)
     }
 
@@ -145,7 +145,7 @@ pub mod motion {
     use super::Decay;
 
     /// Surfaces moving or arriving: panes and docks.
-    pub const BASE: f32 = 0.12;
+    pub(crate) const BASE: f32 = 0.12;
     /// Navigation that follows each keystroke (cursor trail, smooth scroll) is
     /// faster than surfaces, so it never feels like waiting on input.
     pub const NAVIGATION: f32 = 0.75 * BASE;

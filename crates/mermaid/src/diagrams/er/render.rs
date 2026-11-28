@@ -6,7 +6,6 @@ use std::collections::BTreeMap;
 use super::db::ErDb;
 use super::graph;
 use super::graph::ErGraphNode;
-use super::markers::MARKER_LENGTH;
 use super::markers::er_marker;
 use crate::Options;
 use crate::diagrams::Rendered;
@@ -42,6 +41,9 @@ use crate::text::measure::BOLD;
 use crate::text::measure::ITALIC;
 use crate::util::chars::is_space;
 use crate::yaml::Value;
+
+/// How far a marker reaches back along its line from the box it touches.
+const MARKER_LENGTH: f64 = 18.0;
 
 /// Room between nodes in a rank.
 const NODE_SEP: f64 = 48.0;
@@ -84,6 +86,7 @@ const BOX_ATTRS: &str = " fill=\"var(--_s)\" stroke=\"var(--_b)\"";
 fn get<'v>(value: &'v Value, key: &str) -> Option<&'v Value> {
     match value {
         Value::Object(entries) => entries.iter().find(|(own, _)| own == key).map(|(_, v)| v),
+        // lint: expect(wildcard_match) only a few variants of `Value` matter here
         _ => None,
     }
 }

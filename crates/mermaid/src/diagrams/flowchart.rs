@@ -1,14 +1,14 @@
 //! Flowcharts: Mermaid's `graph` and `flowchart` diagrams, which swimlane diagrams share. Port of
 //! Pele's `src/diagrams/flowchart/index.ts`.
 
-pub(crate) mod db;
-pub(crate) mod graph;
-pub(crate) mod lexer;
-pub(crate) mod parser;
-pub(crate) mod render;
-pub(crate) mod shapes;
-pub(crate) mod tokens;
-pub(crate) mod types;
+mod db;
+mod graph;
+mod lexer;
+mod parser;
+mod render;
+mod shapes;
+mod tokens;
+mod types;
 
 use super::Diagram;
 use super::Input;
@@ -36,12 +36,7 @@ pub(crate) use db::FlowDb as Model;
 ///
 /// Returns a syntax error for input Mermaid rejects, a semantic error for unknown shapes and
 /// out-of-range `linkStyle` indexes, and a limit error past `max_edges` edges.
-pub(crate) fn parse(
-    source: &str,
-    config: &Value,
-    title: Option<&str>,
-    max_edges: Option<usize>,
-) -> Result<Model, Error> {
+fn parse(source: &str, config: &Value, title: Option<&str>, max_edges: Option<usize>) -> Result<Model, Error> {
     let inherit_dir =
         matches!(property(config, "flowchart").and_then(|flow| property(flow, "inheritDir")), Some(Value::Bool(true)));
     let mut db = Model::new(db::Options { inherit_dir, max_edges });

@@ -42,21 +42,21 @@ use super::Window;
 use super::cmp;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ClipboardSelection {
+struct ClipboardSelection {
     /// The number of bytes in this selection.
-    pub len: usize,
+    len: usize,
     /// Whether this was a full-line selection.
-    pub is_entire_line: bool,
+    is_entire_line: bool,
     /// The indentation of the first line when this content was originally copied.
-    pub first_line_indent: u32,
+    first_line_indent: u32,
     #[serde(default)]
-    pub file_path: Option<PathBuf>,
+    file_path: Option<PathBuf>,
     #[serde(default)]
-    pub line_range: Option<RangeInclusive<u32>>,
+    line_range: Option<RangeInclusive<u32>>,
 }
 
 impl ClipboardSelection {
-    pub fn for_buffer(
+    fn for_buffer(
         len: usize,
         is_entire_line: bool,
         range: Range<Point>,
@@ -84,7 +84,7 @@ impl ClipboardSelection {
 }
 
 impl Editor {
-    pub fn do_paste(
+    fn do_paste(
         &mut self,
         text: &str,
         clipboard_selections: Option<Vec<ClipboardSelection>>,
@@ -229,19 +229,20 @@ impl Editor {
         });
     }
 
-    pub fn paste(&mut self, _: &Paste, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn paste(&mut self, _: &Paste, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(item) = cx.read_from_clipboard() {
             self.paste_item(&item, window, cx);
         }
     }
 
-    pub fn paste_item(&mut self, item: &ClipboardItem, window: &mut Window, cx: &mut Context<Self>) {
+    fn paste_item(&mut self, item: &ClipboardItem, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
 
         let clipboard_image = item.entries().iter().find_map(|entry| match entry {
             ClipboardEntry::Image(image) if !image.bytes.is_empty() => Some(image),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         });
 
@@ -289,6 +290,7 @@ impl Editor {
 
         let clipboard_string = item.entries().iter().find_map(|entry| match entry {
             ClipboardEntry::String(s) => Some(s),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         });
         match clipboard_string {
@@ -416,6 +418,7 @@ impl Editor {
 
         let entry_metadata = item.entries().first().and_then(|entry| match entry {
             ClipboardEntry::String(entry) => entry.metadata_json::<Vec<ClipboardSelection>>(),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         });
 
@@ -543,6 +546,7 @@ impl Editor {
         let clipboard_text = cx.read_from_clipboard().and_then(|item| {
             item.entries().iter().find_map(|entry| match entry {
                 ClipboardEntry::String(text) => Some(text.text().clone()),
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => None,
             })
         });

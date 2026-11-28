@@ -158,9 +158,6 @@ impl From<CodeAction> for CodeActionOrCommand {
 pub struct CodeActionKind(Cow<'static, str>);
 
 impl CodeActionKind {
-    /// Empty kind.
-    pub const EMPTY: CodeActionKind = CodeActionKind::new("");
-
     /// Base kind for quickfix actions: 'quickfix'.
     pub const QUICKFIX: CodeActionKind = CodeActionKind::new("quickfix");
 
@@ -263,7 +260,7 @@ pub struct CodeActionDisabled {
     /// Human readable description of why the code action is currently disabled.
     ///
     /// This is displayed in the code actions UI.
-    pub reason: String,
+    reason: String,
 }
 
 /// The reason why code actions were requested.
@@ -275,7 +272,7 @@ pub struct CodeActionTriggerKind(i32);
 lsp_enum! {
 impl CodeActionTriggerKind {
     /// Code actions were explicitly requested by the user or by an extension.
-    pub const INVOKED: CodeActionTriggerKind = CodeActionTriggerKind(1);
+    const INVOKED: CodeActionTriggerKind = CodeActionTriggerKind(1);
 }
 }
 
@@ -312,7 +309,7 @@ pub struct CodeActionOptions {
     pub code_action_kinds: Option<Vec<CodeActionKind>>,
 
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 
     /// The server provides support to resolve additional
     /// information for a code action.

@@ -145,7 +145,7 @@ const fn matcher(name: &'static str, first: &'static str, f: fn(&str, usize) -> 
 /// Every run of spaces or tabs is an `INDENTATION` token, since that comes before `WS`, and line
 /// breaks are hidden, so rows are told apart by their tokens alone and the indentation of a row
 /// is whatever whitespace precedes it.
-pub(crate) const TREEMAP_TOKENS: &[TokenType] = &[
+const TREEMAP_TOKENS: &[TokenType] = &[
     ACC_DESCR,
     ACC_TITLE,
     TITLE_BEFORE_WORD,

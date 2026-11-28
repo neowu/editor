@@ -60,7 +60,7 @@ use crate::commit::CommitDiffObject;
 use crate::commit::CommitDiffObjectKind;
 use crate::commit::parse_git_diff_raw;
 use crate::stash::GitStash;
-use crate::status;
+use crate::status::DiffStat;
 use crate::status::DiffTreeType;
 use crate::status::FileStatus;
 use crate::status::GitDiffStat;
@@ -82,7 +82,7 @@ static GRAPH_COMMIT_FORMAT: &str = "--format=%H%x00%P%x00%D";
 static SEARCH_COMMIT_FORMAT: &str = "--format=%H";
 
 /// Number of commits to load per chunk for the git graph.
-pub const GRAPH_CHUNK_SIZE: usize = 1000;
+const GRAPH_CHUNK_SIZE: usize = 1000;
 
 /// Given the git common directory (from `commondir()`), derive the original
 /// repository's working directory.
@@ -93,7 +93,7 @@ pub const GRAPH_CHUNK_SIZE: usize = 1000;
 ///
 /// Returns `None` if `common_dir` doesn't end with `.git` (e.g. bare repos),
 /// because there is no working-tree root to resolve to in that case.
-pub fn original_repo_path_from_common_dir(common_dir: &Path) -> Option<PathBuf> {
+fn original_repo_path_from_common_dir(common_dir: &Path) -> Option<PathBuf> {
     if common_dir.file_name() == Some(OsStr::new(".git")) { common_dir.parent().map(|x| x.to_path_buf()) } else { None }
 }
 
@@ -116,8 +116,6 @@ fn normalize_git_metadata_path(path: PathBuf) -> Result<PathBuf> {
 #[derive(Debug, Clone)]
 pub struct CommitData {
     pub sha: Oid,
-    /// Most commits have a single parent, so we use a SmallVec to avoid allocations.
-    pub parents: SmallVec<[Oid; 1]>,
     pub author_name: SharedString,
     pub author_email: SharedString,
     pub commit_timestamp: i64,
@@ -171,7 +169,6 @@ impl CommitDataReader {
 }
 
 fn parse_cat_file_commit(sha: Oid, content: &str) -> CommitData {
-    let mut parents = SmallVec::new();
     let mut author_name = SharedString::default();
     let mut author_email = SharedString::default();
     let mut commit_timestamp = 0_i64;
@@ -186,11 +183,7 @@ fn parse_cat_file_commit(sha: Oid, content: &str) -> CommitData {
                 continue;
             }
 
-            if let Some(parent_sha) = line.strip_prefix("parent ") {
-                if let Ok(oid) = Oid::from_str(parent_sha.trim()) {
-                    parents.push(oid);
-                }
-            } else if let Some(author_line) = line.strip_prefix("author ")
+            if let Some(author_line) = line.strip_prefix("author ")
                 && let Some((name_email, _timestamp_tz)) = author_line.rsplit_once(' ')
                 && let Some((name_email, timestamp_str)) = name_email.rsplit_once(' ')
             {
@@ -212,7 +205,6 @@ fn parse_cat_file_commit(sha: Oid, content: &str) -> CommitData {
 
     CommitData {
         sha,
-        parents,
         author_name,
         author_email,
         commit_timestamp,
@@ -263,7 +255,7 @@ impl Branch {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Worktree {
     pub path: PathBuf,
-    pub ref_name: Option<SharedString>,
+    ref_name: Option<SharedString>,
     // todo(git_worktree) This type should be a Oid
     pub sha: SharedString,
     pub is_main: bool,
@@ -313,7 +305,7 @@ impl Worktree {
     ///
     /// If the worktree is attached to a branch, returns the branch name.
     /// Otherwise, returns the short SHA of the worktree's HEAD commit.
-    pub fn display_name(&self) -> &str {
+    fn display_name(&self) -> &str {
         self.branch_name().unwrap_or_else(|| &self.sha[..self.sha.len().min(SHORT_SHA_LENGTH)])
     }
 
@@ -338,7 +330,7 @@ impl Worktree {
     }
 }
 
-pub fn parse_worktrees_from_str<T: AsRef<str>>(raw_worktrees: T, main_worktree_path: Option<&Path>) -> Vec<Worktree> {
+fn parse_worktrees_from_str<T: AsRef<str>>(raw_worktrees: T, main_worktree_path: Option<&Path>) -> Vec<Worktree> {
     let mut worktrees = Vec::new();
     let normalized = raw_worktrees.as_ref().replace("\r\n", "\n");
     let entries = normalized.split("\n\n");
@@ -474,7 +466,7 @@ pub struct CommitDiff {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct FileHistoryChangedFileSets {
-    pub file_sets: Vec<Vec<RepoPath>>,
+    file_sets: Vec<Vec<RepoPath>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -649,7 +641,7 @@ pub enum LogOrder {
 }
 
 impl LogOrder {
-    pub const fn as_arg(&self) -> &'static str {
+    const fn as_arg(self) -> &'static str {
         match self {
             LogOrder::DateOrder => "--date-order",
             LogOrder::TopoOrder => "--topo-order",
@@ -987,16 +979,16 @@ impl fmt::Debug for dyn GitRepository {
 }
 
 pub struct RealGitRepository {
-    pub git_dir: PathBuf,
-    pub common_dir: PathBuf,
+    git_dir: PathBuf,
+    common_dir: PathBuf,
     /// `None` only for bare repositories, which do not have a working directory.
-    pub working_directory: Option<PathBuf>,
-    pub git_binary_path: PathBuf,
+    working_directory: Option<PathBuf>,
+    git_binary_path: PathBuf,
     executor: BackgroundExecutor,
 }
 
 #[derive(Debug)]
-pub enum RefEdit {
+enum RefEdit {
     Create { ref_name: String, commit: String },
     Update { ref_name: String, commit: String },
     Delete { ref_name: String },
@@ -2065,7 +2057,7 @@ impl GitRepository for RealGitRepository {
                     args.extend(path_prefixes.iter().map(|p| p.as_std_path().to_string_lossy().into_owned()));
                 }
                 let output = git_binary.run(&args).await?;
-                Ok(status::parse_numstat(&output))
+                Ok(parse_numstat(&output))
             })
             .boxed()
     }
@@ -2900,7 +2892,7 @@ pub(crate) struct GitBinary {
 }
 
 impl GitBinary {
-    pub(crate) fn new(git_binary_path: PathBuf, working_directory: PathBuf) -> Self {
+    fn new(git_binary_path: PathBuf, working_directory: PathBuf) -> Self {
         Self { git_binary_path, working_directory, envs: FxHashMap::default() }
     }
 
@@ -2909,7 +2901,7 @@ impl GitBinary {
         self
     }
 
-    pub(crate) async fn run<S>(&self, args: &[S]) -> Result<String>
+    async fn run<S>(&self, args: &[S]) -> Result<String>
     where
         S: AsRef<OsStr>,
     {
@@ -2921,7 +2913,7 @@ impl GitBinary {
     }
 
     /// Returns the result of the command without trimming the trailing newline.
-    pub(crate) async fn run_raw<S>(&self, args: &[S]) -> Result<String>
+    async fn run_raw<S>(&self, args: &[S]) -> Result<String>
     where
         S: AsRef<OsStr>,
     {
@@ -3145,6 +3137,39 @@ fn parse_upstream_track(upstream_track: &str) -> Result<UpstreamTracking> {
         }
     }
     Ok(UpstreamTracking::Tracked(UpstreamTrackingStatus { ahead, behind }))
+}
+
+/// Parses the output of `git diff --numstat` where output looks like:
+///
+/// ```text
+/// 24   12   dir/file.txt
+/// ```
+fn parse_numstat(output: &str) -> GitDiffStat {
+    let mut entries = Vec::new();
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let mut parts = line.splitn(3, '\t');
+        let (Some(added_str), Some(deleted_str), Some(path_str)) = (parts.next(), parts.next(), parts.next()) else {
+            continue;
+        };
+        let Ok(added) = added_str.parse::<u32>() else {
+            continue;
+        };
+        let Ok(deleted) = deleted_str.parse::<u32>() else {
+            continue;
+        };
+        let Ok(path) = RepoPath::new(path_str) else {
+            continue;
+        };
+        entries.push((path, DiffStat { added, deleted }));
+    }
+    entries.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
+    entries.dedup_by(|(a, _), (b, _)| a == b);
+
+    GitDiffStat { entries: entries.into() }
 }
 
 #[cfg(test)]

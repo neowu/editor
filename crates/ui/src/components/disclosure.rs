@@ -58,7 +58,7 @@ impl Disclosure {
         self
     }
 
-    pub fn on_toggle_expanded(
+    pub(crate) fn on_toggle_expanded(
         mut self,
         handler: impl Into<Option<Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>>,
     ) -> Self {

@@ -35,11 +35,11 @@ struct TreemapItem {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct TreemapModel {
     /// The accessible description.
-    pub(crate) acc_descr: Option<String>,
+    acc_descr: Option<String>,
     /// The accessible title.
-    pub(crate) acc_title: Option<String>,
+    acc_title: Option<String>,
     /// Declarations by class name, in first-seen order.
-    pub(crate) classes: Vec<(String, Vec<String>)>,
+    classes: Vec<(String, Vec<String>)>,
     /// The top-level nodes.
     pub(crate) roots: Vec<TreemapNode>,
     /// The title.

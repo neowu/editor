@@ -40,11 +40,11 @@ pub struct WorkspaceFileOperationsServerCapabilities {
     /// The server is interested in receiving didCreateFiles
     /// notifications.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub did_create: Option<FileOperationRegistrationOptions>,
+    did_create: Option<FileOperationRegistrationOptions>,
 
     /// The server is interested in receiving willCreateFiles requests.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub will_create: Option<FileOperationRegistrationOptions>,
+    will_create: Option<FileOperationRegistrationOptions>,
 
     /// The server is interested in receiving didRenameFiles
     /// notifications.
@@ -58,12 +58,12 @@ pub struct WorkspaceFileOperationsServerCapabilities {
     /// The server is interested in receiving didDeleteFiles file
     /// notifications.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub did_delete: Option<FileOperationRegistrationOptions>,
+    did_delete: Option<FileOperationRegistrationOptions>,
 
     /// The server is interested in receiving willDeleteFiles file
     /// requests.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub will_delete: Option<FileOperationRegistrationOptions>,
+    will_delete: Option<FileOperationRegistrationOptions>,
 }
 
 /// The options to register for file operations.
@@ -85,7 +85,7 @@ pub struct FileOperationRegistrationOptions {
 pub struct FileOperationFilter {
     /// A Uri like `file` or `untitled`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub scheme: Option<String>,
+    scheme: Option<String>,
 
     /// The actual file operation pattern.
     pub pattern: FileOperationPattern,
@@ -148,26 +148,6 @@ pub struct FileOperationPattern {
     pub options: Option<FileOperationPatternOptions>,
 }
 
-/// The parameters sent in notifications/requests for user-initiated creation
-/// of files.
-///
-/// @since 3.16.0.
-#[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateFilesParams {
-    /// An array of all files/folders created in this operation.
-    pub files: Vec<FileCreate>,
-}
-/// Represents information on a file/folder create.
-///
-/// @since 3.16.0.
-#[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FileCreate {
-    /// A file:// URI for the location of the file/folder being created.
-    pub uri: String,
-}
-
 /// The parameters sent in notifications/requests for user-initiated renames
 /// of files.
 ///
@@ -191,25 +171,4 @@ pub struct FileRename {
 
     /// A file:// URI for the new location of the file/folder being renamed.
     pub new_uri: String,
-}
-
-/// The parameters sent in notifications/requests for user-initiated deletes
-/// of files.
-///
-/// @since 3.16.0.
-#[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DeleteFilesParams {
-    /// An array of all files/folders deleted in this operation.
-    pub files: Vec<FileDelete>,
-}
-
-/// Represents information on a file/folder delete.
-///
-/// @since 3.16.0.
-#[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FileDelete {
-    /// A file:// URI for the location of the file/folder being deleted.
-    pub uri: String,
 }

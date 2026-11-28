@@ -135,7 +135,7 @@ impl AsyncApp {
     ///
     /// Panics if no global state of the specified type has been assigned.
     #[inline(always)]
-    pub fn read_global<G: Global, R>(&self, read: impl FnOnce(&G, &App) -> R) -> R {
+    fn read_global<G: Global, R>(&self, read: impl FnOnce(&G, &App) -> R) -> R {
         let app = self.app();
         let app = app.borrow_mut();
         read(app.global(), &app)

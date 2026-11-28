@@ -21,7 +21,7 @@ pub mod markdown;
 pub mod path_list;
 pub mod paths;
 pub mod size;
-pub mod string;
+mod string;
 
 use std::cmp;
 use std::cmp::Ordering;
@@ -200,7 +200,7 @@ fn load_shell_from_passwd() -> Result<()> {
 }
 
 /// Returns a shell escaped path for the current ed executable.
-pub fn get_shell_safe_ed_path(shell_kind: shell::ShellKind) -> Result<String> {
+fn get_shell_safe_ed_path(shell_kind: shell::ShellKind) -> Result<String> {
     use anyhow::Context as _;
     use paths::PathExt as _;
     let ed_path = env::current_exe().context("Failed to determine current ed executable path.")?;
@@ -246,7 +246,7 @@ pub async fn load_login_shell_environment() -> Result<()> {
 /// of the terminal.
 ///
 /// For more details: <https://registerspill.thorstenball.com/p/how-to-lose-control-of-your-shell>.
-pub fn set_pre_exec_to_start_new_session(command: &mut std::process::Command) -> &mut std::process::Command {
+fn set_pre_exec_to_start_new_session(command: &mut std::process::Command) -> &mut std::process::Command {
     // safety: code in pre_exec should be signal safe.
     // https://man7.org/linux/man-pages/man7/signal-safety.7.html
 

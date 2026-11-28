@@ -15,10 +15,29 @@ use super::lexer::TIMELINE;
 use super::lexer::TIMELINE_LR;
 use super::lexer::TIMELINE_TD;
 use super::lexer::TITLE;
-use super::lexer::TOKEN_NAMES;
 use super::lexer::tokenize;
 use crate::error::Error;
 use crate::text::label::trim;
+
+/// The names the generated parser prints, by token type.
+const TOKEN_NAMES: [&str; 16] = [
+    "$end",
+    "EOF",
+    "INVALID",
+    "NEWLINE",
+    "timeline",
+    "timeline_lr",
+    "timeline_td",
+    "title",
+    "acc_title",
+    "acc_title_value",
+    "acc_descr",
+    "acc_descr_value",
+    "acc_descr_multiline_value",
+    "section",
+    "period",
+    "event",
+];
 
 const STATEMENT: &str = "'EOF', 'SPACE', 'NEWLINE', 'title', 'acc_title', 'acc_descr', 'acc_descr_multiline_value', 'section', 'period', 'event'";
 

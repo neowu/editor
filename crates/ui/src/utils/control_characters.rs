@@ -42,7 +42,7 @@ const fn printable_substitute(character: char) -> Option<char> {
 ///
 /// The input is returned untouched when it holds no control characters, which
 /// is the overwhelmingly common case.
-pub fn replace_control_characters(text: &str) -> Cow<'_, str> {
+pub(crate) fn replace_control_characters(text: &str) -> Cow<'_, str> {
     let Some(first_control_character) = text.find(|character: char| character.is_ascii_control()) else {
         return Cow::Borrowed(text);
     };
@@ -71,7 +71,7 @@ pub fn replace_control_characters(text: &str) -> Cow<'_, str> {
 ///
 /// Each offset must sit on a character boundary. Offsets past the end of the
 /// text are clamped to the end of the replaced string.
-pub fn replace_control_characters_remapping_offsets(text: &str, offsets: &mut [usize]) -> Option<String> {
+pub(crate) fn replace_control_characters_remapping_offsets(text: &str, offsets: &mut [usize]) -> Option<String> {
     // Control characters are single bytes below 0x80, so scanning raw bytes
     // cannot mistake a UTF-8 continuation byte for one.
     if !text.bytes().any(|byte| byte.is_ascii_control()) {

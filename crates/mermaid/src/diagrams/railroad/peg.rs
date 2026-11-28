@@ -61,7 +61,7 @@ fn line_comment(src: &str, at: usize) -> Option<usize> {
 }
 
 /// Pele's `PEG_TOKENS`, in matching order.
-pub(crate) const PEG_TOKENS: &[TokenType] = &[
+const PEG_TOKENS: &[TokenType] = &[
     opening("railroad-peg-beta", &[t::ID]),
     literal("<-"),
     literal(";"),

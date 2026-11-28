@@ -32,6 +32,7 @@
 //! | Retain a value | Delays writers | Keeps that version alive without delaying writers |
 
 mod error;
+// lint: expect(excess_visibility) public API exercised only by its unit tests
 pub mod snapshot;
 
 use std::collections::BTreeMap;

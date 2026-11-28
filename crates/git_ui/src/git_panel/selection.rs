@@ -88,7 +88,7 @@ impl MarkedDirectoryCoverage {
 }
 
 impl GitPanel {
-    pub fn selected_file_history_target(&self) -> Option<(Entity<Repository>, RepoPath)> {
+    pub(crate) fn selected_file_history_target(&self) -> Option<(Entity<Repository>, RepoPath)> {
         let entry = self.get_selected_entry()?.status_entry()?;
         let repository = self.active_repository.clone()?;
         if entry.status.is_created() {
@@ -97,7 +97,7 @@ impl GitPanel {
         Some((repository, entry.repo_path.clone()))
     }
 
-    pub fn entry_by_path(&self, path: &RepoPath) -> Option<usize> {
+    pub(crate) fn entry_by_path(&self, path: &RepoPath) -> Option<usize> {
         self.projected_entries_by_path.get(path)?.first().map(|entry| entry.index)
     }
 
@@ -340,7 +340,7 @@ impl GitPanel {
         self.mark_range(anchor_ix, target_ix);
     }
 
-    pub fn select_entry_by_path(&mut self, path: ProjectPath, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_entry_by_path(&mut self, path: ProjectPath, window: &mut Window, cx: &mut Context<Self>) {
         let Some(git_repo) = self.active_repository.as_ref() else {
             return;
         };

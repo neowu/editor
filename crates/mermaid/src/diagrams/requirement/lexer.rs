@@ -6,7 +6,6 @@
 //! boundaries match. Each regular expression in Pele is a hand-written matcher below.
 
 use super::tokens::T;
-use super::tokens::keyword;
 use crate::text::label::trim;
 use crate::util::chars::is_line_end;
 use crate::util::chars::is_space;
@@ -104,6 +103,45 @@ fn directions(src: &str) -> [(Vec<usize>, Vec<usize>); 4] {
         }
     }
     found
+}
+
+/// The keyword a lowercased word names. Every keyword is matched without regard to case and must
+/// end at a word boundary.
+fn keyword(word: &str) -> Option<T> {
+    Some(match word {
+        "requirementdiagram" => T::Rd,
+        "id" => T::Id,
+        "text" => T::Text,
+        "risk" => T::Risk,
+        "verifymethod" => T::Verifymthd,
+        "requirement" => T::Requirement,
+        "functionalrequirement" => T::FunctionalRequirement,
+        "interfacerequirement" => T::InterfaceRequirement,
+        "performancerequirement" => T::PerformanceRequirement,
+        "physicalrequirement" => T::PhysicalRequirement,
+        "designconstraint" => T::DesignConstraint,
+        "low" => T::LowRisk,
+        "medium" => T::MedRisk,
+        "high" => T::HighRisk,
+        "analysis" => T::VerifyAnalysis,
+        "demonstration" => T::VerifyDemonstration,
+        "inspection" => T::VerifyInspection,
+        "test" => T::VerifyTest,
+        "element" => T::Element,
+        "contains" => T::Contains,
+        "copies" => T::Copies,
+        "derives" => T::Derives,
+        "satisfies" => T::Satisfies,
+        "verifies" => T::Verifies,
+        "refines" => T::Refines,
+        "traces" => T::Traces,
+        "type" => T::Type,
+        "docref" => T::Docref,
+        "style" => T::Style,
+        "classdef" => T::Classdef,
+        "class" => T::Class,
+        _ => return None,
+    })
 }
 
 /// Produces the token stream of Mermaid's requirement lexer. Its rules are tried in order and the

@@ -97,15 +97,15 @@ actions!(
     image_viewer,
     [
         /// Zoom in the image.
-        ZoomIn,
+        pub ZoomIn,
         /// Zoom out the image.
-        ZoomOut,
+        pub ZoomOut,
         /// Reset zoom to 100%.
-        ResetZoom,
+        pub ResetZoom,
         /// Fit the image to view.
-        FitToView,
+        pub FitToView,
         /// Zoom to actual size (100%).
-        ZoomToActualSize
+        pub(crate) ZoomToActualSize
     ]
 );
 
@@ -119,7 +119,7 @@ const ZOOM_EDITOR_MAX_DIGITS: usize = 4; // MAX_ZOOM is 2000%.
 const ZOOM_EDITOR_APPROX_CHAR_WIDTH: f32 = 8.0; // Approximate width of one small UI digit.
 const ZOOM_EDITOR_HORIZONTAL_PADDING: f32 = 12.0; // Extra room for cursor and editor edge padding.
 
-pub struct ImageView {
+struct ImageView {
     image_item: Entity<ImageItem>,
     project: Entity<Project>,
     focus_handle: FocusHandle,
@@ -192,7 +192,7 @@ impl ImageView {
         self.displayed_image = Some(DisplayedImage { source_image: Arc::clone(image), render_image });
     }
 
-    pub fn new(
+    fn new(
         image_item: Entity<ImageItem>,
         project: Entity<Project>,
         window: &mut Window,
@@ -504,7 +504,7 @@ impl Element for ImageContentElement {
     }
 }
 
-pub enum ImageViewEvent {
+enum ImageViewEvent {
     TitleChanged,
 }
 
@@ -733,6 +733,7 @@ impl ImageViewToolbarControls {
                     }
                     cx.notify();
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             }
         });

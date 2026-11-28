@@ -81,7 +81,7 @@ impl ShellKind {
         Self::new(get_system_shell())
     }
 
-    pub fn new(program: impl AsRef<Path>) -> Self {
+    pub(crate) fn new(program: impl AsRef<Path>) -> Self {
         let program = program.as_ref();
         let program = program.file_stem().unwrap_or(program.as_os_str()).to_string_lossy();
 
@@ -93,7 +93,7 @@ impl ShellKind {
         }
     }
 
-    pub fn args_for_shell(&self, interactive: bool, combined_command: String) -> Vec<String> {
+    pub(crate) fn args_for_shell(self, interactive: bool, combined_command: String) -> Vec<String> {
         interactive.then(|| "-i".to_owned()).into_iter().chain(["-c".to_owned(), combined_command]).collect()
     }
 

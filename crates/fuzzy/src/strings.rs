@@ -32,7 +32,7 @@ impl StringMatchCandidate {
         Self::from_shared(id, string.into())
     }
 
-    pub fn from_shared(id: usize, string: SharedString) -> Self {
+    fn from_shared(id: usize, string: SharedString) -> Self {
         let char_bag = CharBag::from(string.as_ref());
         Self { id, string, char_bag }
     }

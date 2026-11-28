@@ -29,7 +29,7 @@ pub fn format_localized_timestamp(
 }
 
 /// Formats a timestamp, which respects the user's date and time preferences/custom format.
-pub fn format_local_timestamp(timestamp: OffsetDateTime, reference: OffsetDateTime, format: TimestampFormat) -> String {
+fn format_local_timestamp(timestamp: OffsetDateTime, reference: OffsetDateTime, format: TimestampFormat) -> String {
     match format {
         TimestampFormat::Absolute => format_absolute_timestamp(timestamp, reference, false),
         TimestampFormat::EnhancedAbsolute => format_absolute_timestamp(timestamp, reference, true),

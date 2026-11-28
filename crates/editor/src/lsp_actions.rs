@@ -89,7 +89,7 @@ impl Editor {
         head
     }
 
-    pub fn rename(&mut self, _: &Rename, window: &mut Window, cx: &mut Context<Self>) -> Option<Task<Result<()>>> {
+    pub(crate) fn rename(&self, _: &Rename, window: &Window, cx: &mut Context<Self>) -> Option<Task<Result<()>>> {
         use language::ToOffset as _;
 
         if self.read_only(cx) {
@@ -250,7 +250,7 @@ impl Editor {
         }))
     }
 
-    pub fn confirm_rename(
+    pub(crate) fn confirm_rename(
         &mut self,
         _: &ConfirmRename,
         window: &mut Window,

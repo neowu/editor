@@ -122,7 +122,7 @@ pub fn misspelled_words(text: &str, project_words: &FxHashSet<String>) -> Vec<Ra
     result
 }
 
-pub fn is_correct(word: &str, project_words: &FxHashSet<String>) -> bool {
+fn is_correct(word: &str, project_words: &FxHashSet<String>) -> bool {
     if word.chars().count() < MIN_WORD_LEN || word.chars().any(char::is_numeric) {
         return true;
     }

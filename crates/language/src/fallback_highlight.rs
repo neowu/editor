@@ -219,7 +219,7 @@ struct Cache {
     line_text: String,
 }
 
-pub struct FallbackHighlighter {
+pub(crate) struct FallbackHighlighter {
     syntax: Syntax,
     cache: Mutex<Cache>,
 }
@@ -277,7 +277,7 @@ impl FallbackHighlighter {
         }
     }
 
-    pub fn syntax_name(&self) -> &str {
+    pub(crate) fn syntax_name(&self) -> &str {
         &self.syntax.reference.name
     }
 

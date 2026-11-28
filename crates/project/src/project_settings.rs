@@ -46,11 +46,11 @@ impl From<lsp_types::DiagnosticSeverity> for GoToDiagnosticSeverity {
 }
 
 impl GoToDiagnosticSeverity {
-    pub const fn min() -> Self {
+    const fn min() -> Self {
         Self::Hint
     }
 
-    pub const fn max() -> Self {
+    const fn max() -> Self {
         Self::Error
     }
 }

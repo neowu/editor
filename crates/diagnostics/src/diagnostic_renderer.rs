@@ -188,10 +188,10 @@ impl editor::DiagnosticRenderer for DiagnosticRenderer {
 #[derive(Clone)]
 pub(crate) struct DiagnosticBlock {
     pub(crate) initial_range: Range<Point>,
-    pub(crate) severity: DiagnosticSeverity,
-    pub(crate) markdown: Entity<Markdown>,
-    pub(crate) diagnostics_editor: Option<Arc<dyn DiagnosticsEditor>>,
-    pub(crate) copy_message: SharedString,
+    severity: DiagnosticSeverity,
+    markdown: Entity<Markdown>,
+    diagnostics_editor: Option<Arc<dyn DiagnosticsEditor>>,
+    copy_message: SharedString,
 }
 
 impl DiagnosticBlock {
@@ -249,7 +249,7 @@ impl DiagnosticBlock {
             .into_any_element()
     }
 
-    pub(crate) fn open_link(
+    fn open_link(
         editor: &mut Editor,
         diagnostics_editor: Option<&Arc<dyn DiagnosticsEditor>>,
         link: SharedString,

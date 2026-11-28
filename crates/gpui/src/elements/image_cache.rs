@@ -63,7 +63,7 @@ impl<I: ImageCache> From<Entity<I>> for AnyImageCache {
 impl AnyImageCache {
     /// Load an image given a resource
     /// returns the result of loading the image if it has finished loading, or None if it is still loading.
-    pub fn load(
+    pub(crate) fn load(
         &self,
         resource: &Resource,
         window: &mut Window,
@@ -181,7 +181,7 @@ impl Element for ImageCacheElement {
 ///
 /// Dropping the entry cancels a pending load. Image caches must remove loaded
 /// images from windows before discarding the entry.
-pub(super) struct ImageCacheItem(CachedLoad<Result<Arc<RenderImage>, ImageCacheError>>);
+struct ImageCacheItem(CachedLoad<Result<Arc<RenderImage>, ImageCacheError>>);
 
 impl fmt::Debug for ImageCacheItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -191,18 +191,18 @@ impl fmt::Debug for ImageCacheItem {
 
 impl ImageCacheItem {
     /// Starts loading an image into a new cache entry.
-    pub(super) fn new(source: &Resource, cx: &mut App) -> Self {
+    fn new(source: &Resource, cx: &mut App) -> Self {
         let future = AssetLogger::<ImageAssetLoader>::load(source.clone(), cx);
         Self(CachedLoad::new(future, cx))
     }
 
     /// Returns the cached result without subscribing to completion notifications.
-    pub(super) fn get(&self) -> Option<Result<Arc<RenderImage>, ImageCacheError>> {
+    fn get(&self) -> Option<Result<Arc<RenderImage>, ImageCacheError>> {
         self.0.get()
     }
 
     /// Returns the cached result or subscribes the current view to completion.
-    pub(super) fn use_image(&self, window: &Window) -> Option<Result<Arc<RenderImage>, ImageCacheError>> {
+    fn use_image(&self, window: &Window) -> Option<Result<Arc<RenderImage>, ImageCacheError>> {
         self.0.use_by(window.current_view())
     }
 }
@@ -261,10 +261,10 @@ impl RetainAllImageCache {
     /// Load an image from the given source.
     ///
     /// Returns `None` if the image is loading.
-    pub fn load(
+    fn load(
         &mut self,
         source: &Resource,
-        window: &mut Window,
+        window: &Window,
         cx: &mut App,
     ) -> Option<Result<Arc<RenderImage>, ImageCacheError>> {
         let hash = hash(source);

@@ -50,7 +50,7 @@ impl Workspace {
     /// Bypass the serialization throttle and write the workspace state now.
     /// Returns a task the caller can await to ensure the write completes before
     /// the process exits.
-    pub fn flush_serialization(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Task<()> {
+    fn flush_serialization(&mut self, window: &Window, cx: &Context<Self>) -> Task<()> {
         self._schedule_serialize_workspace.take();
         self._serialize_workspace_task.take();
         self.serialize_workspace_internal(window, cx)
@@ -141,7 +141,7 @@ impl Workspace {
     }
 
     #[allow(clippy::type_complexity)]
-    pub(crate) fn load_workspace(
+    fn load_workspace(
         serialized_workspace: SerializedWorkspace,
         paths_to_open: Vec<Option<ProjectPath>>,
         window: &Window,
@@ -414,7 +414,7 @@ fn serialize_pane_handle(
     SerializedPane::new(items, active, pinned_count, zoomed)
 }
 
-pub async fn flush_windows_serialization(workspace_windows: &[WindowHandle<Workspace>], cx: &mut AsyncApp) {
+pub(crate) async fn flush_windows_serialization(workspace_windows: &[WindowHandle<Workspace>], cx: &mut AsyncApp) {
     let flush_tasks = collect_flush_tasks(workspace_windows, cx);
     futures::future::join_all(flush_tasks).await;
 }

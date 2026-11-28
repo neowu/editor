@@ -287,7 +287,7 @@ impl DockPosition {
         }
     }
 
-    pub const fn axis(&self) -> Axis {
+    pub(crate) const fn axis(self) -> Axis {
         match self {
             Self::Left | Self::Right => Axis::Horizontal,
             Self::Bottom => Axis::Vertical,
@@ -297,7 +297,7 @@ impl DockPosition {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PanelSizeState {
-    pub size: Option<Pixels>,
+    pub(crate) size: Option<Pixels>,
 }
 
 struct PanelEntry {
@@ -306,7 +306,7 @@ struct PanelEntry {
     _subscriptions: [Subscription; 2],
 }
 
-pub struct PanelButtons {
+pub(crate) struct PanelButtons {
     dock: Entity<Dock>,
 }
 
@@ -323,7 +323,7 @@ fn resize_panel_entry(entry: &mut PanelEntry, size: Option<Pixels>, axis: Axis, 
 }
 
 impl Dock {
-    pub fn new(
+    pub(crate) fn new(
         position: DockPosition,
         modal_layer: Entity<ModalLayer>,
         window: &mut Window,
@@ -412,23 +412,23 @@ impl Dock {
         !(self.zoom_layer_open || self.modal_layer.read(cx).has_active_modal())
     }
 
-    pub fn panel<T: Panel>(&self) -> Option<Entity<T>> {
+    pub(crate) fn panel<T: Panel>(&self) -> Option<Entity<T>> {
         self.panel_entries.iter().find_map(|entry| entry.panel.to_any().downcast().ok())
     }
 
-    pub fn panel_index_for_type<T: Panel>(&self) -> Option<usize> {
+    pub(crate) fn panel_index_for_type<T: Panel>(&self) -> Option<usize> {
         self.panel_entries.iter().position(|entry| entry.panel.to_any().downcast::<T>().is_ok())
     }
 
-    pub fn panel_index_for_persistent_name(&self, ui_name: &str, _cx: &App) -> Option<usize> {
+    fn panel_index_for_persistent_name(&self, ui_name: &str, _cx: &App) -> Option<usize> {
         self.panel_entries.iter().position(|entry| entry.panel.persistent_name() == ui_name)
     }
 
-    pub fn panels_enabled(&self, cx: &App) -> Vec<bool> {
+    pub(crate) fn panels_enabled(&self, cx: &App) -> Vec<bool> {
         self.panel_entries.iter().map(|entry| entry.panel.enabled(cx)).collect()
     }
 
-    pub fn first_enabled_panel_idx(&mut self, cx: &mut Context<Self>) -> anyhow::Result<usize> {
+    pub(crate) fn first_enabled_panel_idx(&self, cx: &Context<Self>) -> anyhow::Result<usize> {
         self.panel_entries
             .iter()
             .position(|entry| entry.panel.enabled(cx))
@@ -445,7 +445,7 @@ impl Dock {
         self.panel_entries.get_mut(index)
     }
 
-    pub const fn active_panel_index(&self) -> Option<usize> {
+    pub(crate) const fn active_panel_index(&self) -> Option<usize> {
         self.active_panel_index
     }
 
@@ -467,7 +467,7 @@ impl Dock {
         }
     }
 
-    pub fn set_panel_zoomed(&mut self, panel: &AnyView, zoomed: bool, window: &mut Window, cx: &mut Context<Self>) {
+    fn set_panel_zoomed(&mut self, panel: &AnyView, zoomed: bool, window: &mut Window, cx: &mut Context<Self>) {
         for entry in &mut self.panel_entries {
             if entry.panel.panel_id() == panel.entity_id() {
                 if zoomed != entry.panel.is_zoomed(window, cx) {
@@ -634,7 +634,7 @@ impl Dock {
         self.restoration = DockRestoreState::Finished;
     }
 
-    pub fn activate_panel(&mut self, panel_ix: usize, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn activate_panel(&mut self, panel_ix: usize, window: &mut Window, cx: &mut Context<Self>) {
         if Some(panel_ix) != self.active_panel_index {
             self.restoration.discard_pending();
         }
@@ -670,22 +670,22 @@ impl Dock {
         if self.is_open { self.active_panel_entry() } else { None }
     }
 
-    pub fn zoomed_panel(&self, window: &Window, cx: &App) -> Option<Arc<dyn PanelHandle>> {
+    fn zoomed_panel(&self, window: &Window, cx: &App) -> Option<Arc<dyn PanelHandle>> {
         let entry = self.visible_entry()?;
         entry.panel.is_zoomed(window, cx).then(|| Arc::clone(&entry.panel))
     }
 
     /// Panel buttons focus this before dispatching their action. A zoomed panel isn't rendered inside
     /// its dock, so the dock's own handle would be outside the frame and the action would be dropped.
-    pub(crate) fn panel_button_focus_handle(&self, window: &Window, cx: &App) -> FocusHandle {
+    fn panel_button_focus_handle(&self, window: &Window, cx: &App) -> FocusHandle {
         self.zoomed_panel(window, cx).map_or_else(|| self.focus_handle.clone(), |panel| panel.panel_focus_handle(cx))
     }
 
-    pub fn stored_panel_size_state(&self, panel: &dyn PanelHandle) -> Option<PanelSizeState> {
+    pub(crate) fn stored_panel_size_state(&self, panel: &dyn PanelHandle) -> Option<PanelSizeState> {
         self.panel_entries.iter().find(|entry| entry.panel.panel_id() == panel.panel_id()).map(|entry| entry.size_state)
     }
 
-    pub fn stored_active_panel_size(&self, window: &Window, cx: &App) -> Option<Pixels> {
+    pub(crate) fn stored_active_panel_size(&self, window: &Window, cx: &App) -> Option<Pixels> {
         if self.is_open {
             self.active_panel_entry()
                 .map(|entry| entry.size_state.size.unwrap_or_else(|| entry.panel.default_size(window, cx)))
@@ -703,7 +703,7 @@ impl Dock {
     }
 
     /// Resizes the active panel, or every panel in the left dock.
-    pub fn resize_panel_sizes(&mut self, size: Option<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn resize_panel_sizes(&mut self, size: Option<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
         if self.position == DockPosition::Left {
             self.resize_all_panels(size, window, cx);
         } else {
@@ -712,7 +712,7 @@ impl Dock {
     }
 
     /// Resets the active panel, or every panel in the left dock.
-    pub fn reset_panel_sizes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn reset_panel_sizes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.position == DockPosition::Left {
             self.reset_all_panel_sizes(window, cx);
         } else {
@@ -744,7 +744,7 @@ impl Dock {
         cx.notify();
     }
 
-    pub fn toggle_action(&self) -> Box<dyn Action> {
+    fn toggle_action(&self) -> Box<dyn Action> {
         match self.position {
             DockPosition::Left => crate::ToggleLeftDock.boxed_clone(),
             DockPosition::Bottom => crate::ToggleBottomDock.boxed_clone(),
@@ -759,7 +759,7 @@ impl Dock {
         dispatch_context
     }
 
-    pub fn clamp_panel_size(&mut self, max_size: Pixels, window: &Window, cx: &mut Context<Self>) {
+    pub(crate) fn clamp_panel_size(&mut self, max_size: Pixels, window: &Window, cx: &mut Context<Self>) {
         let max_size = (max_size - RESIZE_HANDLE_SIZE).abs();
         let mut clamped = false;
         for entry in &mut self.panel_entries {
@@ -869,7 +869,7 @@ impl Render for Dock {
 }
 
 impl PanelButtons {
-    pub fn new(dock: Entity<Dock>, cx: &mut Context<Self>) -> Self {
+    pub(crate) fn new(dock: Entity<Dock>, cx: &mut Context<Self>) -> Self {
         cx.observe(&dock, |_, _, cx| cx.notify()).detach();
         Self { dock }
     }
@@ -964,13 +964,6 @@ impl StatusItemView for PanelButtons {
     }
 }
 
-/// The panel a dock-cycle press shows next, given which panels are enabled and
-/// which one is visible (`None` when the dock is hidden). `None` means close.
-pub fn next_dock_cycle_panel(enabled: &[bool], visible_index: Option<usize>) -> Option<usize> {
-    let start = visible_index.map_or(0, |index| index + 1);
-    enabled.iter().enumerate().skip(start).find_map(|(index, enabled)| enabled.then_some(index))
-}
-
 #[cfg(test)]
 mod tests {
     use gpui::px;
@@ -978,20 +971,6 @@ mod tests {
     use super::RESIZE_HANDLE_SIZE;
     use super::SIDEBAR_MIN_WIDTH;
     use super::clamp_resized_panel_size;
-    use super::next_dock_cycle_panel;
-
-    #[test]
-    fn next_dock_cycle_panel_works() {
-        assert_eq!(next_dock_cycle_panel(&[true, true], None), Some(0));
-        assert_eq!(next_dock_cycle_panel(&[true, true], Some(0)), Some(1));
-        assert_eq!(next_dock_cycle_panel(&[true, true], Some(1)), None);
-        assert_eq!(next_dock_cycle_panel(&[true], Some(0)), None);
-        assert_eq!(next_dock_cycle_panel(&[false, true, false, true], None), Some(1));
-        assert_eq!(next_dock_cycle_panel(&[true, false, true], Some(0)), Some(2));
-        assert_eq!(next_dock_cycle_panel(&[true, true, false], Some(1)), None);
-        assert_eq!(next_dock_cycle_panel(&[false], None), None);
-        assert_eq!(next_dock_cycle_panel(&[], None), None);
-    }
 
     #[test]
     fn clamp_resized_panel_size_works() {

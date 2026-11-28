@@ -5,9 +5,9 @@ use search::search_status_button::SearchButton;
 use ui::font;
 mod app_menus;
 pub(crate) mod control_server;
-pub(crate) mod cpu_usage;
+mod cpu_usage;
 mod keymap;
-pub(crate) mod syntax_inspect;
+mod syntax_inspect;
 
 pub(crate) mod mac_only_instance;
 
@@ -181,6 +181,7 @@ pub(crate) fn initialize_workspace(workspace_actions: &mut WorkspaceActions, cx:
                 workspace::Event::OpenBundledFile { text, title, language } => {
                     open_bundled_file(workspace, text.clone(), title, language, window, cx);
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             }
         })

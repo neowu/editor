@@ -94,7 +94,7 @@ impl AccessedEntities {
     }
 }
 
-pub(crate) struct EntityRefCounts {
+struct EntityRefCounts {
     counts: SlotMap<EntityId, AtomicUsize>,
     dropped_entity_ids: Vec<EntityId>,
 }
@@ -250,7 +250,7 @@ fn double_lease_panic(operation: &str, entity_type: &str) -> ! {
 }
 
 pub(crate) struct Lease<T> {
-    pub id: EntityId,
+    pub(crate) id: EntityId,
     inner: LeaseInner,
     entity_type: PhantomData<T>,
 }
@@ -292,7 +292,7 @@ impl AnyEntity {
 
     /// Returns the id associated with this entity.
     #[inline]
-    pub const fn entity_id(&self) -> EntityId {
+    pub(crate) const fn entity_id(&self) -> EntityId {
         self.entity_id
     }
 
@@ -303,7 +303,7 @@ impl AnyEntity {
     }
 
     /// Converts this entity handle into a weak variant, which does not prevent it from being released.
-    pub fn downgrade(&self) -> AnyWeakEntity {
+    pub(crate) fn downgrade(&self) -> AnyWeakEntity {
         AnyWeakEntity {
             entity_id: self.entity_id,
             entity_type: self.entity_type,
@@ -400,8 +400,8 @@ impl fmt::Debug for AnyEntity {
 pub struct Entity<T> {
     #[deref]
     #[deref_mut]
-    pub(crate) any_entity: AnyEntity,
-    pub(crate) entity_type: PhantomData<fn(T) -> T>,
+    any_entity: AnyEntity,
+    entity_type: PhantomData<fn(T) -> T>,
 }
 
 impl<T> Sealed for Entity<T> {}
@@ -429,7 +429,7 @@ impl<T: 'static> Entity<T> {
 
     /// Convert this into a dynamically typed entity.
     #[inline]
-    pub fn into_any(self) -> AnyEntity {
+    pub(crate) fn into_any(self) -> AnyEntity {
         self.any_entity
     }
 
@@ -557,7 +557,7 @@ impl AnyWeakEntity {
     }
 
     /// Upgrade this weak entity reference to a strong reference.
-    pub fn upgrade(&self) -> Option<AnyEntity> {
+    pub(crate) fn upgrade(&self) -> Option<AnyEntity> {
         let ref_counts = &self.entity_ref_counts.upgrade()?;
         let ref_counts = ref_counts.read();
         let ref_count = ref_counts.counts.get(self.entity_id)?;
@@ -576,7 +576,7 @@ impl AnyWeakEntity {
     }
 
     /// Creates a weak entity that can never be upgraded.
-    pub fn new_invalid() -> Self {
+    fn new_invalid() -> Self {
         /// To hold the invariant that all ids are unique, and considering that slotmap
         /// increases their IDs from `0`, we can decrease ours from `u64::MAX` so these
         /// two will never conflict (u64 is way too large).

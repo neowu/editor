@@ -85,11 +85,11 @@ actions!(
     git,
     [
         /// Shows working changes relative to HEAD.
-        Diff,
+        pub(crate) Diff,
         /// Adds files to the git staging area.
         Add,
         /// Compare with a specific branch
-        CompareWithBranch,
+        pub(crate) CompareWithBranch,
     ]
 );
 
@@ -99,7 +99,7 @@ actions!(
 #[action(namespace = git, name = "DiffBranch")]
 pub(crate) struct DeployBranchDiff;
 
-pub struct ProjectDiff {
+pub(crate) struct ProjectDiff {
     workspace: WeakEntity<Workspace>,
     diff: Entity<DiffMultibuffer>,
     _diff_event_subscription: Subscription,
@@ -128,7 +128,7 @@ impl ProjectDiff {
         Self::deploy_at(workspace, None, window, cx);
     }
 
-    pub fn deploy_at(
+    pub(crate) fn deploy_at(
         workspace: &mut Workspace,
         entry: Option<GitStatusEntry>,
         window: &mut Window,
@@ -168,7 +168,7 @@ impl ProjectDiff {
         }
     }
 
-    pub fn autoscroll(&self, cx: &mut Context<Self>) {
+    pub(crate) fn autoscroll(&self, cx: &mut Context<Self>) {
         self.diff.update(cx, |diff, cx| diff.autoscroll(cx));
     }
 
@@ -228,19 +228,15 @@ impl ProjectDiff {
         }
     }
 
-    pub fn diff_base<'a>(&'a self, cx: &'a App) -> &'a DiffBase {
-        self.diff.read(cx).diff_base(cx)
-    }
-
-    pub(crate) fn repo(&self, cx: &App) -> Option<Entity<Repository>> {
+    fn repo(&self, cx: &App) -> Option<Entity<Repository>> {
         self.diff.read(cx).repo(cx)
     }
 
-    pub(crate) fn set_repo(&self, repo: Option<Entity<Repository>>, cx: &mut Context<Self>) {
+    fn set_repo(&self, repo: Option<Entity<Repository>>, cx: &mut Context<Self>) {
         self.diff.update(cx, |diff, cx| diff.set_repo(repo.clone(), cx));
     }
 
-    pub fn move_to_entry(&mut self, entry: GitStatusEntry, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_to_entry(&self, entry: GitStatusEntry, window: &mut Window, cx: &mut Context<Self>) {
         self.diff.update(cx, |diff, cx| diff.move_to_entry(entry, window, cx));
     }
 
@@ -248,17 +244,12 @@ impl ProjectDiff {
         self.diff.update(cx, |diff, cx| diff.move_to_beginning(window, cx));
     }
 
-    pub fn calculate_changed_lines(&self, cx: &App) -> (u32, u32) {
+    fn calculate_changed_lines(&self, cx: &App) -> (u32, u32) {
         self.diff.read(cx).calculate_changed_lines(cx)
     }
 
-    /// Returns the splittable editor of the currently-shown diff view.
-    pub fn editor(&self, cx: &App) -> Entity<SplittableEditor> {
-        self.diff.read(cx).editor().clone()
-    }
-
     /// Returns the multibuffer of the currently-shown diff view.
-    pub fn multibuffer(&self, cx: &App) -> Entity<MultiBuffer> {
+    fn multibuffer(&self, cx: &App) -> Entity<MultiBuffer> {
         self.diff.read(cx).multibuffer().clone()
     }
 

@@ -41,14 +41,6 @@ pub trait Refineable: Clone {
     /// `refine` on it.
     fn refined(self, refinement: Self::Refinement) -> Self;
 
-    /// Creates an instance from a cascade by merging all refinements atop the default value.
-    fn from_cascade(cascade: &Cascade<Self>) -> Self
-    where
-        Self: Default + Sized,
-    {
-        Self::default().refined(cascade.merged())
-    }
-
     /// Returns `true` if this instance would contain all values from the refinement.
     ///
     /// For refineable fields, this recursively checks `is_superset_of`. For other fields, this
@@ -66,67 +58,4 @@ pub trait Refineable: Clone {
 pub trait IsEmpty {
     /// Returns `true` if applying this refinement would have no effect.
     fn is_empty(&self) -> bool;
-}
-
-/// A cascade of refinements that can be merged in priority order.
-///
-/// A cascade maintains a sequence of optional refinements where later entries
-/// take precedence over earlier ones. The first slot (index 0) is always the
-/// base refinement and is guaranteed to be present.
-///
-/// This is useful for implementing configuration hierarchies like CSS cascading,
-/// where styles from different sources (user agent, user, author) are combined
-/// with specific precedence rules.
-pub struct Cascade<S: Refineable>(Vec<Option<S::Refinement>>);
-
-impl<S: Refineable + Default> Default for Cascade<S> {
-    fn default() -> Self {
-        Self(vec![Some(Default::default())])
-    }
-}
-
-/// A handle to a specific slot in a cascade.
-///
-/// Slots are used to identify specific positions in the cascade where
-/// refinements can be set or updated.
-#[derive(Copy, Clone)]
-pub struct CascadeSlot(usize);
-
-impl<S: Refineable + Default> Cascade<S> {
-    /// Reserves a new slot in the cascade and returns a handle to it.
-    ///
-    /// The new slot is initially empty (`None`) and can be populated later
-    /// using `set()`.
-    pub fn reserve(&mut self) -> CascadeSlot {
-        self.0.push(None);
-        CascadeSlot(self.0.len() - 1)
-    }
-
-    /// Returns a mutable reference to the base refinement (slot 0).
-    ///
-    /// The base refinement is always present and serves as the foundation
-    /// for the cascade.
-    pub fn base(&mut self) -> &mut S::Refinement {
-        self.0[0].as_mut().expect("base refinement is always present")
-    }
-
-    /// Sets the refinement for a specific slot in the cascade.
-    ///
-    /// Setting a slot to `None` effectively removes it from consideration
-    /// during merging.
-    pub fn set(&mut self, slot: CascadeSlot, refinement: Option<S::Refinement>) {
-        self.0[slot.0] = refinement;
-    }
-
-    /// Merges all refinements in the cascade into a single refinement.
-    ///
-    /// Refinements are applied in order, with later slots taking precedence.
-    /// Empty slots (`None`) are skipped during merging.
-    pub fn merged(&self) -> S::Refinement {
-        let mut merged = self.0[0].clone().expect("base refinement is always present");
-        for refinement in self.0.iter().skip(1).flatten() {
-            merged.refine(refinement);
-        }
-        merged
-    }
 }

@@ -4,7 +4,7 @@ members = ["crates/*", "test/*", "xtask"]
 default-members = ["crates/ed"]
 
 [workspace.package]
-version = "2.15.0"
+version = "2.15.1"
 edition = "2024"
 
 [workspace.dependencies]
@@ -379,7 +379,6 @@ semicolon_inside_block = "warn"
 str_to_string = "warn"
 string_lit_chars_any = "warn"
 suspicious_xor_used_as_pow = "warn"
-tests_outside_test_module = "warn"
 todo = "warn"
 try_err = "warn"
 unimplemented = "warn"

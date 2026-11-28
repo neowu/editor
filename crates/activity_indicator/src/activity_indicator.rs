@@ -55,18 +55,18 @@ use workspace::Workspace;
 use workspace::item::ItemHandle;
 
 const GIT_OPERATION_DELAY: Duration = Duration::from_millis(0);
-pub const DEFERRED_SCAN_MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
+const DEFERRED_SCAN_MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
 
 actions!(
     activity_indicator,
     [
         /// Displays error messages from language servers in the status bar.
-        ShowErrorMessage,
-        DismissMessage
+        pub(crate) ShowErrorMessage,
+        pub(crate) DismissMessage
     ]
 );
 
-pub enum Event {
+enum Event {
     ShowStatus { server_name: LanguageServerName, status: SharedString },
 }
 
@@ -160,6 +160,7 @@ impl ActivityIndicator {
                 | LspStoreEvent::LanguageServerRegisteredForBuffer { .. }
                 | LspStoreEvent::DiskBasedDiagnosticsStarted { .. }
                 | LspStoreEvent::DiskBasedDiagnosticsFinished { .. } => cx.notify(),
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             })
             .detach();
@@ -182,6 +183,7 @@ impl ActivityIndicator {
                 | project::Event::WorktreeUpdatedEntries(..) => {
                     this.update_deferred_scan_status(cx);
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             })
             .detach();
@@ -251,6 +253,7 @@ impl ActivityIndicator {
                     None => false,
                 }
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => true,
         });
     }
@@ -303,6 +306,7 @@ impl ActivityIndicator {
             DeferredScanMessage::Dismissed if !has_deferred_scan_dirs => {
                 self.deferred_scan_message = DeferredScanMessage::Undetected;
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }

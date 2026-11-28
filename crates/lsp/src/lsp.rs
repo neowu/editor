@@ -324,7 +324,7 @@ fn deserialize_result<T: DeserializeOwned + 'static>(result: &str) -> serde_json
 ///
 /// [LSP Specification](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#requestMessage).
 #[derive(Serialize, Deserialize)]
-pub struct Request<'a, T>
+struct Request<'a, T>
 where
     T: 'static,
 {
@@ -429,10 +429,10 @@ impl From<ResponseErrorCode> for i64 {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResponseError {
-    pub code: ResponseErrorCode,
-    pub message: String,
+    code: ResponseErrorCode,
+    message: String,
     #[serde(default)]
-    pub data: Option<Value>,
+    data: Option<Value>,
 }
 
 impl ResponseError {
@@ -440,7 +440,7 @@ impl ResponseError {
         Self { code, message: message.into(), data: None }
     }
 
-    pub fn method_not_found(method: &str) -> Self {
+    fn method_not_found(method: &str) -> Self {
         Self::new(ResponseErrorCode::MethodNotFound, format!("Unrecognized method `{method}`"))
     }
 
@@ -520,7 +520,7 @@ pub struct AdapterServerCapabilities<'a> {
 //
 // [1]: https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide#standard-token-types-and-modifiers
 // [2]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#semanticTokenTypes
-pub const SEMANTIC_TOKEN_TYPES: &[SemanticTokenType] = &[
+const SEMANTIC_TOKEN_TYPES: &[SemanticTokenType] = &[
     SemanticTokenType::NAMESPACE,
     SemanticTokenType::CLASS,
     SemanticTokenType::ENUM,
@@ -550,7 +550,7 @@ pub const SEMANTIC_TOKEN_TYPES: &[SemanticTokenType] = &[
     // Rust
     SemanticTokenType::new("lifetime"),
 ];
-pub const SEMANTIC_TOKEN_MODIFIERS: &[SemanticTokenModifier] = &[
+const SEMANTIC_TOKEN_MODIFIERS: &[SemanticTokenModifier] = &[
     SemanticTokenModifier::DECLARATION,
     SemanticTokenModifier::DEFINITION,
     SemanticTokenModifier::READONLY,

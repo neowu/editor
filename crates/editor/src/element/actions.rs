@@ -118,22 +118,22 @@ fn add_actions(t: &mut ActionTable<Editor>) {
     t.add(Editor::scroll_cursor_bottom);
     t.add(Editor::scroll_cursor_center_top_bottom);
     t.add(|editor, _: &LineDown, window, cx| {
-        editor.scroll_screen_with_cursor_margin(&ScrollAmount::Line(1.), window, cx);
+        editor.scroll_screen_with_cursor_margin(ScrollAmount::Line(1.), window, cx);
     });
     t.add(|editor, _: &LineUp, window, cx| {
-        editor.scroll_screen_with_cursor_margin(&ScrollAmount::Line(-1.), window, cx);
+        editor.scroll_screen_with_cursor_margin(ScrollAmount::Line(-1.), window, cx);
     });
     t.add(|editor, _: &HalfPageDown, window, cx| {
-        editor.scroll_screen_with_cursor_margin(&ScrollAmount::Page(0.5), window, cx);
+        editor.scroll_screen_with_cursor_margin(ScrollAmount::Page(0.5), window, cx);
     });
     t.add(|editor, _: &HalfPageUp, window, cx| {
-        editor.scroll_screen_with_cursor_margin(&ScrollAmount::Page(-0.5), window, cx);
+        editor.scroll_screen_with_cursor_margin(ScrollAmount::Page(-0.5), window, cx);
     });
     t.add(|editor, _: &PageDown, window, cx| {
-        editor.scroll_screen_with_cursor_margin(&ScrollAmount::Page(1.), window, cx);
+        editor.scroll_screen_with_cursor_margin(ScrollAmount::Page(1.), window, cx);
     });
     t.add(|editor, _: &PageUp, window, cx| {
-        editor.scroll_screen_with_cursor_margin(&ScrollAmount::Page(-1.), window, cx);
+        editor.scroll_screen_with_cursor_margin(ScrollAmount::Page(-1.), window, cx);
     });
     t.add(Editor::move_to_previous_word_start);
     t.add(Editor::move_to_previous_subword_start);
@@ -312,12 +312,12 @@ fn add_actions(t: &mut ActionTable<Editor>) {
     t.add_if(has_blame, Editor::open_git_blame_commit);
     t.add_if(has_blame, Editor::blame_revision);
     t.add_if(has_blame, Editor::blame_previous_revision);
-    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::go_to_related_tests);
-    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::view_hir);
-    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::view_mir);
-    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::view_memory_layout);
-    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::expand_macro_recursively);
-    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::open_docs);
+    t.add_if(has_rust_buffer, rust_analyzer_ext::go_to_related_tests);
+    t.add_if(has_rust_buffer, rust_analyzer_ext::view_hir);
+    t.add_if(has_rust_buffer, rust_analyzer_ext::view_mir);
+    t.add_if(has_rust_buffer, rust_analyzer_ext::view_memory_layout);
+    t.add_if(has_rust_buffer, rust_analyzer_ext::expand_macro_recursively);
+    t.add_if(has_rust_buffer, rust_analyzer_ext::open_docs);
 }
 
 /// Actions only editors that are not read-only handle.
@@ -461,6 +461,14 @@ fn add_edit_actions(t: &mut Editable) {
             cx.propagate();
         }
     });
+}
+
+fn has_rust_buffer(editor: &Editor, cx: &App) -> bool {
+    editor
+        .buffer()
+        .read(cx)
+        .all_buffers_iter()
+        .any(|buffer| buffer.read(cx).language().is_some_and(|language| rust_analyzer_ext::is_rust_language(language)))
 }
 
 #[cfg(test)]

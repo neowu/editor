@@ -22,6 +22,7 @@ use crate::lsp_store::missing_servers_to_query;
 use crate::lsp_store::next_lsp_fetch_id;
 
 #[derive(Debug, Default, Clone)]
+// lint: expect(excess_visibility) named by a more visible signature; rustc private_interfaces rejects narrowing
 pub struct DocumentColors {
     pub colors: FxHashSet<DocumentColor>,
 }
@@ -30,9 +31,9 @@ pub(super) type DocumentColorTask = Shared<Task<Result<DocumentColors, Arc<anyho
 
 #[derive(Debug, Default)]
 pub(super) struct DocumentColorData {
-    pub(super) colors: FxHashMap<LanguageServerId, FxHashSet<DocumentColor>>,
+    colors: FxHashMap<LanguageServerId, FxHashSet<DocumentColor>>,
     fetched_servers: FxHashSet<LanguageServerId>,
-    pub(super) colors_update: Option<RunningFetch<DocumentColorTask>>,
+    colors_update: Option<RunningFetch<DocumentColorTask>>,
 }
 
 impl DocumentColorData {
@@ -171,8 +172,8 @@ impl LspStore {
     }
 
     #[allow(clippy::type_complexity)]
-    pub(super) fn fetch_document_colors_for_buffer(
-        &mut self,
+    fn fetch_document_colors_for_buffer(
+        &self,
         buffer: &Entity<Buffer>,
         for_servers: Option<FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,

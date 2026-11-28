@@ -260,7 +260,7 @@ impl<V: View> ViewElement<V> {
     /// view has no such contract, so a frozen subtree could never be invalidated.
     /// Reach this through [`Entity::cached`] or [`AnyView::cached`], which are
     /// entity-backed by construction.
-    pub(crate) fn cached(mut self, style: StyleRefinement) -> Self {
+    fn cached(mut self, style: StyleRefinement) -> Self {
         self.cached_style = Some(style);
         self
     }

@@ -67,8 +67,8 @@ pub const SMOOTH_SVG_SCALE_FACTOR: f32 = 2.;
 
 #[derive(Clone, PartialEq, Hash, Eq)]
 pub struct RenderSvgParams {
-    pub path: SharedString,
-    pub size: Size<DevicePixels>,
+    pub(crate) path: SharedString,
+    pub(crate) size: Size<DevicePixels>,
 }
 
 #[derive(Clone)]
@@ -105,7 +105,7 @@ impl From<f32> for SvgSize {
 
 impl SvgRenderer {
     /// Creates a new SVG renderer with the provided asset source.
-    pub fn new(asset_source: Arc<dyn AssetSource>) -> Self {
+    pub(crate) fn new(asset_source: Arc<dyn AssetSource>) -> Self {
         static SYSTEM_FONT_DB: LazyLock<Arc<Database>> = LazyLock::new(|| {
             let mut db = Database::new();
             db.load_system_fonts();

@@ -60,11 +60,11 @@ pub(crate) struct DispatchTree {
 
 #[derive(Default)]
 pub(crate) struct DispatchNode {
-    pub key_listeners: Vec<KeyListener>,
-    pub action_tables: Vec<DispatchActionTable>,
-    pub modifiers_changed_listeners: Vec<ModifiersChangedListener>,
-    pub context: Option<KeyContext>,
-    pub focus_id: Option<FocusId>,
+    pub(crate) key_listeners: Vec<KeyListener>,
+    pub(crate) action_tables: Vec<DispatchActionTable>,
+    pub(crate) modifiers_changed_listeners: Vec<ModifiersChangedListener>,
+    pub(crate) context: Option<KeyContext>,
+    focus_id: Option<FocusId>,
     view_id: Option<EntityId>,
     parent: Option<DispatchNodeId>,
 }
@@ -508,7 +508,6 @@ impl DispatchTree {
 }
 
 #[cfg(test)]
-#[allow(unreachable_pub, reason = "actions! emits pub structs")]
 mod tests {
     use super::*;
     use crate::ActionTable;

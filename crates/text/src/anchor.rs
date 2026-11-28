@@ -26,7 +26,7 @@ pub struct Anchor {
 
     /// The byte offset into the text inserted in the operation
     /// at `timestamp`.
-    pub offset: u32,
+    pub(crate) offset: u32,
     /// Whether this anchor stays attached to the character *before* or *after*
     /// the offset.
     pub bias: Bias,
@@ -52,7 +52,7 @@ impl Debug for Anchor {
 }
 
 impl Anchor {
-    pub const fn new(timestamp: clock::Lamport, offset: u32, bias: Bias, buffer_id: BufferId) -> Self {
+    pub(crate) const fn new(timestamp: clock::Lamport, offset: u32, bias: Bias, buffer_id: BufferId) -> Self {
         Self { timestamp, offset, bias, buffer_id }
     }
 
@@ -143,7 +143,7 @@ impl Anchor {
     }
 
     #[inline]
-    pub const fn timestamp(&self) -> clock::Lamport {
+    pub(crate) const fn timestamp(&self) -> clock::Lamport {
         self.timestamp
     }
 

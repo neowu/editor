@@ -145,7 +145,7 @@ enum LineBreakMode {
 }
 
 impl DivStackEntry {
-    pub(crate) fn new(div: impl Into<AnyDiv>) -> Self {
+    fn new(div: impl Into<AnyDiv>) -> Self {
         Self { div: div.into(), line_break_mode: LineBreakMode::TextLayout }
     }
 }

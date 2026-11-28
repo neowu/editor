@@ -27,7 +27,6 @@ use crate::prelude::SharedString;
 use crate::prelude::Styled as _;
 use crate::prelude::TextSize;
 use crate::prelude::div;
-use crate::utils::capitalize;
 
 #[derive(Debug)]
 enum Source {
@@ -87,11 +86,11 @@ impl KeyBinding {
     }
 
     /// Returns whether keybindings are visible application-wide.
-    pub fn default_visibility(cx: &mut App) -> bool {
+    fn default_visibility(cx: &mut App) -> bool {
         cx.default_global::<KeyBindingVisibility>().0
     }
 
-    pub fn new(action: &dyn Action, focus_handle: Option<FocusHandle>, _cx: &App) -> Self {
+    fn new(action: &dyn Action, focus_handle: Option<FocusHandle>, _cx: &App) -> Self {
         Self {
             source: Source::Action { action: action.boxed_clone(), focus_handle },
             size: None,
@@ -121,9 +120,21 @@ impl KeyBinding {
 
     /// Sets whether this keybinding is currently disabled.
     /// Disabled keybinds will be rendered in a dimmed state.
-    pub const fn disabled(mut self, disabled: bool) -> Self {
+    pub(crate) const fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
         self
+    }
+}
+
+/// Capitalizes the first character of a string.
+///
+/// This function takes a string slice as input and returns a new `String` with the first character
+/// capitalized.
+fn capitalize(str: &str) -> String {
+    let mut chars = str.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first_char) => first_char.to_uppercase().collect::<String>() + chars.as_str(),
     }
 }
 
@@ -294,7 +305,7 @@ fn render_modifiers_with_style(
 }
 
 #[derive(IntoElement)]
-pub struct Key {
+struct Key {
     key: SharedString,
     color: Option<Color>,
     size: Option<AbsoluteLength>,
@@ -317,11 +328,11 @@ impl RenderOnce for Key {
 }
 
 impl Key {
-    pub fn new(key: impl Into<SharedString>, color: Option<Color>) -> Self {
+    fn new(key: impl Into<SharedString>, color: Option<Color>) -> Self {
         Self { key: key.into(), color, size: None }
     }
 
-    pub fn size(mut self, size: impl Into<Option<AbsoluteLength>>) -> Self {
+    fn size(mut self, size: impl Into<Option<AbsoluteLength>>) -> Self {
         self.size = size.into();
         self
     }
@@ -354,7 +365,7 @@ impl LabelKey {
 }
 
 #[derive(IntoElement)]
-pub(super) struct KeyIcon {
+struct KeyIcon {
     icon: IconName,
     color: Option<Color>,
     size: Option<AbsoluteLength>,
@@ -371,11 +382,11 @@ impl RenderOnce for KeyIcon {
 }
 
 impl KeyIcon {
-    pub(super) const fn new(icon: IconName, color: Option<Color>) -> Self {
+    const fn new(icon: IconName, color: Option<Color>) -> Self {
         Self { icon, color, size: None }
     }
 
-    pub(super) fn size(mut self, size: impl Into<Option<AbsoluteLength>>) -> Self {
+    fn size(mut self, size: impl Into<Option<AbsoluteLength>>) -> Self {
         self.size = size.into();
         self
     }
@@ -429,4 +440,16 @@ fn keystroke_text(modifiers: Modifiers, key: &str, platform_style: PlatformStyle
     text.push_str(key);
 
     text
+}
+
+#[cfg(test)]
+mod tests {
+    use super::capitalize;
+
+    #[test]
+    fn capitalize_first_letter() {
+        assert_eq!(capitalize("hello"), "Hello");
+        assert_eq!(capitalize("WORLD"), "WORLD");
+        assert_eq!(capitalize(""), "");
+    }
 }

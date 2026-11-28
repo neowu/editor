@@ -24,7 +24,7 @@ use crate::Editor;
 pub(super) struct LinkedEditingRanges(
     /// Ranges are non-overlapping and sorted by .0 (thus, [x + 1].start > [x].end must hold).
     #[allow(clippy::type_complexity)]
-    pub FxHashMap<BufferId, Vec<(Range<Anchor>, Vec<Range<Anchor>>)>>,
+    FxHashMap<BufferId, Vec<(Range<Anchor>, Vec<Range<Anchor>>)>>,
 );
 
 impl LinkedEditingRanges {
@@ -162,10 +162,10 @@ pub(super) fn refresh_linked_ranges(editor: &mut Editor, window: &Window, cx: &C
 /// so they track buffer changes and are only resolved to concrete points at
 /// apply time.
 #[allow(clippy::type_complexity)]
-pub struct LinkedEdits(FxHashMap<Entity<Buffer>, Vec<(Range<Anchor>, Arc<str>)>>);
+pub(crate) struct LinkedEdits(FxHashMap<Entity<Buffer>, Vec<(Range<Anchor>, Arc<str>)>>);
 
 impl LinkedEdits {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self(FxHashMap::default())
     }
 
@@ -181,7 +181,7 @@ impl LinkedEdits {
 
     /// Resolves all stored anchor ranges to points using the current buffer snapshot,
     /// sorts them, and applies the edits.
-    pub fn apply(self, cx: &mut Context<Editor>) {
+    pub(crate) fn apply(self, cx: &mut Context<Editor>) {
         self.apply_inner(false, cx);
     }
 
@@ -189,7 +189,7 @@ impl LinkedEdits {
     /// expanded one character to the left before applying. For context, this
     /// was introduced in order to be available to `backspace` so as to delete a
     /// character in each linked range even when the selection was a cursor.
-    pub fn apply_with_left_expansion(self, cx: &mut Context<Editor>) {
+    pub(crate) fn apply_with_left_expansion(self, cx: &mut Context<Editor>) {
         self.apply_inner(true, cx);
     }
 

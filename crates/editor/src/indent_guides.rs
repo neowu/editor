@@ -26,24 +26,24 @@ struct ActiveIndentedRange {
 
 #[derive(Default)]
 pub(crate) struct ActiveIndentGuidesState {
-    pub dirty: bool,
+    pub(crate) dirty: bool,
     cursor_row: MultiBufferRow,
     pending_refresh: Option<Task<()>>,
     active_indent_range: Option<ActiveIndentedRange>,
 }
 
 impl ActiveIndentGuidesState {
-    pub(crate) const fn should_refresh(&self) -> bool {
+    const fn should_refresh(&self) -> bool {
         self.pending_refresh.is_none() && self.dirty
     }
 }
 
 impl Editor {
-    pub fn indent_guides(
+    pub(crate) fn indent_guides(
         &self,
         visible_buffer_range: Range<MultiBufferRow>,
         snapshot: &DisplaySnapshot,
-        cx: &mut Context<Editor>,
+        cx: &Context<Editor>,
     ) -> Option<Vec<IndentGuide>> {
         let show_indent_guides = self.should_show_indent_guides().unwrap_or(INDENT_GUIDES.enabled);
 
@@ -60,11 +60,11 @@ impl Editor {
         ))
     }
 
-    pub fn find_active_indent_guide_indices(
+    pub(crate) fn find_active_indent_guide_indices(
         &mut self,
         indent_guides: &[IndentGuide],
         snapshot: &DisplaySnapshot,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Editor>,
     ) -> Option<FxHashSet<usize>> {
         let selection = self.selections.newest::<Point>(&self.display_snapshot(cx));
@@ -129,7 +129,7 @@ impl Editor {
     }
 }
 
-pub(crate) fn indent_guides_in_range(
+fn indent_guides_in_range(
     editor: &Editor,
     visible_buffer_range: Range<MultiBufferRow>,
     ignore_disabled_for_language: bool,

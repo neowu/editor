@@ -582,7 +582,7 @@ pub struct Cursor<'a> {
 }
 
 impl<'a> Cursor<'a> {
-    pub fn new(rope: &'a Rope, offset: usize) -> Self {
+    fn new(rope: &'a Rope, offset: usize) -> Self {
         let mut chunks = rope.chunks.cursor(());
         chunks.seek(&offset, Bias::Right);
         Self { rope, chunks, offset }
@@ -673,7 +673,7 @@ pub struct Chunks<'a> {
 }
 
 impl<'a> Chunks<'a> {
-    pub fn new(rope: &'a Rope, range: Range<usize>, reversed: bool) -> Self {
+    fn new(rope: &'a Rope, range: Range<usize>, reversed: bool) -> Self {
         let mut chunks = rope.chunks.cursor(());
         let offset = if reversed {
             chunks.seek(&range.end, Bias::Left);
@@ -962,7 +962,7 @@ pub struct Bytes<'a> {
 }
 
 impl<'a> Bytes<'a> {
-    pub fn new(rope: &'a Rope, range: Range<usize>, reversed: bool) -> Self {
+    fn new(rope: &'a Rope, range: Range<usize>, reversed: bool) -> Self {
         let mut chunks = rope.chunks.cursor(());
         if reversed {
             chunks.seek(&range.end, Bias::Left);
@@ -972,7 +972,7 @@ impl<'a> Bytes<'a> {
         Self { chunks, range, reversed }
     }
 
-    pub fn peek(&self) -> Option<&'a [u8]> {
+    fn peek(&self) -> Option<&'a [u8]> {
         let chunk = self.chunks.item()?;
         if self.reversed && self.range.start >= self.chunks.end() {
             return None;
@@ -1151,7 +1151,7 @@ pub struct TextSummary {
 }
 
 impl TextSummary {
-    pub const fn lines_utf16(&self) -> PointUtf16 {
+    const fn lines_utf16(&self) -> PointUtf16 {
         PointUtf16 { row: self.lines.row, column: self.last_line_len_utf16 }
     }
 

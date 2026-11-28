@@ -19,7 +19,7 @@ use util::markdown::generate_heading_slug;
 use crate::MarkdownOptions;
 use crate::path_range::PathWithRange;
 
-pub const PARSE_OPTIONS: Options = Options::ENABLE_TABLES
+const PARSE_OPTIONS: Options = Options::ENABLE_TABLES
     .union(Options::ENABLE_FOOTNOTES)
     .union(Options::ENABLE_STRIKETHROUGH)
     .union(Options::ENABLE_TASKLISTS)
@@ -32,41 +32,41 @@ pub const PARSE_OPTIONS: Options = Options::ENABLE_TABLES
     .union(Options::ENABLE_SUBSCRIPT);
 
 #[derive(Default)]
-pub(crate) struct ParseState {
-    pub(crate) events: Vec<(Range<usize>, MarkdownEvent)>,
+struct ParseState {
+    events: Vec<(Range<usize>, MarkdownEvent)>,
     root_block_starts: Vec<usize>,
     depth: usize,
 }
 
 #[derive(Debug, Default)]
 pub(crate) struct ParsedMarkdownData {
-    pub events: Vec<(Range<usize>, MarkdownEvent)>,
-    pub language_names: FxHashSet<SharedString>,
-    pub language_paths: FxHashSet<Arc<str>>,
-    pub root_block_starts: Vec<usize>,
-    pub metadata_blocks: BTreeMap<usize, ParsedMetadataBlock>,
-    pub heading_slugs: FxHashMap<SharedString, usize>,
-    pub footnote_definitions: FxHashMap<SharedString, usize>,
+    pub(crate) events: Vec<(Range<usize>, MarkdownEvent)>,
+    pub(crate) language_names: FxHashSet<SharedString>,
+    pub(crate) language_paths: FxHashSet<Arc<str>>,
+    pub(crate) root_block_starts: Vec<usize>,
+    pub(crate) metadata_blocks: BTreeMap<usize, ParsedMetadataBlock>,
+    pub(crate) heading_slugs: FxHashMap<SharedString, usize>,
+    pub(crate) footnote_definitions: FxHashMap<SharedString, usize>,
     /// Source spans of link reference definitions (`[id]: https://example.com`), which are
     /// consumed by the parser and never appear in any event range.
-    pub link_definition_spans: Vec<Range<usize>>,
-    pub has_untagged_code_block: bool,
+    pub(crate) link_definition_spans: Vec<Range<usize>>,
+    pub(crate) has_untagged_code_block: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ParsedMetadataBlock {
-    pub content_range: Range<usize>,
-    pub rows: Option<Vec<MetadataRow>>,
+    pub(crate) content_range: Range<usize>,
+    pub(crate) rows: Option<Vec<MetadataRow>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MetadataRow {
-    pub key: Range<usize>,
-    pub value: Range<usize>,
+    pub(crate) key: Range<usize>,
+    pub(crate) value: Range<usize>,
 }
 
 impl ParseState {
-    pub(crate) fn push_event(&mut self, range: Range<usize>, event: MarkdownEvent) {
+    fn push_event(&mut self, range: Range<usize>, event: MarkdownEvent) {
         match &event {
             MarkdownEvent::Start(_) => {
                 if self.depth == 0 {
@@ -93,6 +93,7 @@ impl ParseState {
                 self.events.push((range.clone(), event));
                 self.events.push((range, MarkdownEvent::RootEnd(root_block_index)));
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {
                 self.events.push((range, event));
             }
@@ -159,6 +160,7 @@ fn build_heading_slugs(source: &str, events: &[(Range<usize>, MarkdownEvent)]) -
                 }
                 heading_text.push_str(substituted);
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }
@@ -618,6 +620,7 @@ fn build_footnote_definitions(events: &[(Range<usize>, MarkdownEvent)]) -> FxHas
                     definitions.entry(label).or_insert(range.start);
                 }
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }
@@ -764,9 +767,9 @@ pub enum CodeBlockKind {
 
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct CodeBlockMetadata {
-    pub content_range: Range<usize>,
-    pub line_count: usize,
-    pub is_fenced_closed: bool,
+    pub(crate) content_range: Range<usize>,
+    line_count: usize,
+    pub(crate) is_fenced_closed: bool,
 }
 
 fn extract_code_content_range(text: &str) -> Range<usize> {

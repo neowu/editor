@@ -17,7 +17,7 @@ pub(crate) const END: u16 = 0;
 /// The end of input.
 pub(crate) const EOF: u16 = 1;
 /// Text no rule matches.
-pub(crate) const INVALID: u16 = 2;
+const INVALID: u16 = 2;
 /// Line breaks.
 pub(crate) const NEWLINE: u16 = 3;
 /// `timeline`.
@@ -41,26 +41,6 @@ pub(crate) const EVENT: u16 = 15;
 pub(crate) const ACC_DESCR: u16 = ACC_TITLE + 2;
 /// The text of an `accDescr { ... }` block.
 pub(crate) const ACC_DESCR_MULTILINE_VALUE: u16 = ACC_TITLE + 4;
-
-/// The names the generated parser prints, by token type.
-pub(crate) const TOKEN_NAMES: [&str; 16] = [
-    "$end",
-    "EOF",
-    "INVALID",
-    "NEWLINE",
-    "timeline",
-    "timeline_lr",
-    "timeline_td",
-    "title",
-    "acc_title",
-    "acc_title_value",
-    "acc_descr",
-    "acc_descr_value",
-    "acc_descr_multiline_value",
-    "section",
-    "period",
-    "event",
-];
 
 /// The character at `p`, as a code point, when `p` is inside `src`.
 fn code_at(src: &str, p: usize) -> Option<u32> {

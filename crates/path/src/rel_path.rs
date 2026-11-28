@@ -180,7 +180,7 @@ impl RelPath {
         Err(StripPrefixError)
     }
 
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         if self.0.is_empty() { 0 } else { self.0.matches('/').count() + 1 }
     }
 

@@ -12,9 +12,12 @@ use gpui::Entity;
 use gpui::TaskExt as _;
 use gpui::Window;
 use itertools::Itertools as _;
+use language::Buffer;
 use language::Capability;
 use language::Language;
 use language::OutlineItem;
+use lsp::LanguageServerId;
+use lsp::LanguageServerName;
 use lsp_types::request::Request;
 use multi_buffer::MultiBuffer;
 use project::Project;
@@ -23,6 +26,7 @@ use project::lsp_store::lsp_ext_command::ExpandMacro;
 use project::lsp_store::lsp_ext_command::MemoryLayoutNode;
 use project::lsp_store::lsp_ext_command::PositionRequest;
 use project::lsp_store::rust_analyzer_ext::RUST_ANALYZER_NAME;
+use rustc_hash::FxHashSet;
 use text::ToPointUtf16 as _;
 use url::Url;
 use workspace::Toast;
@@ -37,18 +41,43 @@ use crate::actions::ViewHir;
 use crate::actions::ViewMemoryLayout;
 use crate::actions::ViewMir;
 use crate::hover_links::HoverLink;
-use crate::lsp_ext::find_specific_language_server_in_selection;
 
 pub(crate) fn is_rust_language(language: &Language) -> bool {
     language.name() == "Rust"
 }
 
-pub(crate) fn has_rust_buffer(editor: &Editor, cx: &App) -> bool {
-    editor
-        .buffer()
-        .read(cx)
-        .all_buffers_iter()
-        .any(|buffer| buffer.read(cx).language().is_some_and(|language| is_rust_language(language)))
+fn find_specific_language_server_in_selection<F>(
+    editor: &Editor,
+    cx: &mut App,
+    filter_language: F,
+    language_server_name: LanguageServerName,
+) -> Option<(text::Anchor, Arc<Language>, LanguageServerId, Entity<Buffer>)>
+where
+    F: Fn(&Language) -> bool,
+{
+    let project = editor.project.clone()?;
+    let multi_buffer = editor.buffer();
+    let mut seen_buffer_ids = FxHashSet::default();
+    editor.selections.disjoint_anchors_arc().iter().find_map(|selection| {
+        let multi_buffer = multi_buffer.read(cx);
+        let multi_buffer_snapshot = multi_buffer.snapshot(cx);
+        let (position, buffer) = multi_buffer_snapshot
+            .anchor_to_buffer_anchor(selection.head())
+            .and_then(|(anchor, _)| Some((anchor, multi_buffer.buffer(anchor.buffer_id)?)))?;
+        if !seen_buffer_ids.insert(buffer.read(cx).buffer_id()) {
+            return None;
+        }
+
+        let language = buffer.read(cx).language_at(position)?;
+        if filter_language(&language) {
+            let server_id = buffer.update(cx, |buffer, cx| {
+                project.read(cx).language_server_id_for_name(buffer, &language_server_name, cx)
+            })?;
+            Some((position, language, server_id, buffer))
+        } else {
+            None
+        }
+    })
 }
 
 pub(crate) fn go_to_related_tests(

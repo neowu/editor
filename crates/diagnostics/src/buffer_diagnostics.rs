@@ -93,13 +93,13 @@ actions!(
 /// with diagnostics for a single buffer, as only the excerpts of the buffer
 /// where diagnostics are available are displayed.
 pub(crate) struct BufferDiagnosticsEditor {
-    pub project: Entity<Project>,
+    project: Entity<Project>,
     focus_handle: FocusHandle,
     editor: Entity<Editor>,
     /// The current diagnostic entries in the `BufferDiagnosticsEditor`. Used to
     /// allow quick comparison of updated diagnostics, to confirm if anything
     /// has changed.
-    pub(crate) diagnostics: Vec<DiagnosticEntry<Anchor>>,
+    diagnostics: Vec<DiagnosticEntry<Anchor>>,
     /// The blocks used to display the diagnostics' content in the editor, next
     /// to the excerpts where the diagnostic originated.
     blocks: Vec<CustomBlockId>,
@@ -116,7 +116,7 @@ pub(crate) struct BufferDiagnosticsEditor {
     summary: DiagnosticSummary,
     /// Keeps track of whether there's a background task already running to
     /// update the excerpts, in order to avoid firing multiple tasks for this purpose.
-    pub(crate) update_excerpts_task: Option<Task<Result<()>>>,
+    update_excerpts_task: Option<Task<Result<()>>>,
     /// The project's subscription, responsible for processing events related to
     /// diagnostics.
     _subscription: Subscription,
@@ -125,7 +125,7 @@ pub(crate) struct BufferDiagnosticsEditor {
 impl BufferDiagnosticsEditor {
     /// Creates new instance of the `BufferDiagnosticsEditor` which can then be
     /// displayed by adding it to a pane.
-    pub(crate) fn new(
+    fn new(
         project_path: ProjectPath,
         project_handle: Entity<Project>,
         buffer: Option<Entity<Buffer>>,
@@ -162,6 +162,7 @@ impl BufferDiagnosticsEditor {
                             buffer_diagnostics_editor.update_all_excerpts(window, cx);
                         }
                     }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             },
         );
@@ -205,6 +206,7 @@ impl BufferDiagnosticsEditor {
                     }
                 }
                 EditorEvent::Blurred => buffer_diagnostics_editor.update_all_excerpts(window, cx),
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             }
         })
@@ -279,7 +281,7 @@ impl BufferDiagnosticsEditor {
 
     /// Enqueue an update to the excerpts and diagnostic blocks being shown in
     /// the editor.
-    pub(crate) fn update_all_excerpts(&mut self, window: &Window, cx: &Context<Self>) {
+    fn update_all_excerpts(&mut self, window: &Window, cx: &Context<Self>) {
         // If there's already a task updating the excerpts, early return and let
         // the other task finish.
         if self.update_excerpts_task.is_some() {

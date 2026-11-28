@@ -10,7 +10,7 @@ pub enum ErrorSeverity {
 }
 
 impl ErrorSeverity {
-    pub const fn auto_dismiss_delay(&self) -> Option<Duration> {
+    pub(crate) const fn auto_dismiss_delay(self) -> Option<Duration> {
         match self {
             ErrorSeverity::Critical => None,
             ErrorSeverity::Error => Some(Duration::from_secs(30)),

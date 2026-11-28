@@ -67,7 +67,7 @@ pub fn source_position_from_fragment(fragment: &str) -> Option<(u32, u32)> {
 
 /// Indicates that the wrapped `String` is markdown text.
 #[derive(Debug, Clone)]
-pub struct MarkdownString(pub String);
+pub struct MarkdownString(String);
 
 impl Display for MarkdownString {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {

@@ -71,7 +71,7 @@ impl Editor {
         });
     }
 
-    pub fn backspace(&mut self, _: &Backspace, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn backspace(&mut self, _: &Backspace, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -116,7 +116,7 @@ impl Editor {
         });
     }
 
-    pub fn delete(&mut self, _: &Delete, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn delete(&mut self, _: &Delete, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -139,7 +139,7 @@ impl Editor {
         });
     }
 
-    pub fn backtab(&mut self, _: &Backtab, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn backtab(&mut self, _: &Backtab, window: &mut Window, cx: &mut Context<Self>) {
         if self.mode.is_single_line() {
             cx.propagate();
             return;
@@ -151,7 +151,7 @@ impl Editor {
         self.outdent(&Outdent, window, cx);
     }
 
-    pub fn tab(&mut self, _: &Tab, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn tab(&mut self, _: &Tab, window: &mut Window, cx: &mut Context<Self>) {
         if self.mode.is_single_line() {
             cx.propagate();
             return;
@@ -268,7 +268,7 @@ impl Editor {
         });
     }
 
-    pub fn indent(&mut self, _: &Indent, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn indent(&mut self, _: &Indent, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -373,7 +373,7 @@ impl Editor {
         }
     }
 
-    pub fn outdent(&mut self, _: &Outdent, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn outdent(&mut self, _: &Outdent, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -431,7 +431,7 @@ impl Editor {
         });
     }
 
-    pub fn autoindent(&mut self, _: &AutoIndent, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn autoindent(&mut self, _: &AutoIndent, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -452,7 +452,7 @@ impl Editor {
         });
     }
 
-    pub fn delete_line(&mut self, _: &DeleteLine, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn delete_line(&mut self, _: &DeleteLine, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -522,7 +522,7 @@ impl Editor {
         });
     }
 
-    pub fn join_lines_impl(&mut self, insert_whitespace: bool, window: &mut Window, cx: &mut Context<Self>) {
+    fn join_lines_impl(&mut self, insert_whitespace: bool, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -640,11 +640,11 @@ impl Editor {
         });
     }
 
-    pub fn join_lines(&mut self, _: &JoinLines, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn join_lines(&mut self, _: &JoinLines, window: &mut Window, cx: &mut Context<Self>) {
         self.join_lines_impl(true, window, cx);
     }
 
-    pub fn sort_lines_case_sensitive(
+    pub(crate) fn sort_lines_case_sensitive(
         &mut self,
         _: &SortLinesCaseSensitive,
         window: &mut Window,
@@ -653,11 +653,11 @@ impl Editor {
         self.manipulate_immutable_lines(window, cx, |lines| lines.sort_unstable());
     }
 
-    pub fn sort_lines_by_length(&mut self, _: &SortLinesByLength, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn sort_lines_by_length(&mut self, _: &SortLinesByLength, window: &mut Window, cx: &mut Context<Self>) {
         self.manipulate_immutable_lines(window, cx, |lines| lines.sort_by_key(|&line| line.chars().count()));
     }
 
-    pub fn sort_lines_case_insensitive(
+    pub(crate) fn sort_lines_case_insensitive(
         &mut self,
         _: &SortLinesCaseInsensitive,
         window: &mut Window,
@@ -666,7 +666,7 @@ impl Editor {
         self.manipulate_immutable_lines(window, cx, |lines| lines.sort_by_key(|line| line.to_lowercase()));
     }
 
-    pub fn unique_lines_case_insensitive(
+    pub(crate) fn unique_lines_case_insensitive(
         &mut self,
         _: &UniqueLinesCaseInsensitive,
         window: &mut Window,
@@ -678,7 +678,7 @@ impl Editor {
         });
     }
 
-    pub fn unique_lines_case_sensitive(
+    pub(crate) fn unique_lines_case_sensitive(
         &mut self,
         _: &UniqueLinesCaseSensitive,
         window: &mut Window,
@@ -798,7 +798,7 @@ impl Editor {
         });
     }
 
-    pub fn convert_indentation_to_spaces(
+    pub(crate) fn convert_indentation_to_spaces(
         &mut self,
         _: &ConvertIndentationToSpaces,
         window: &mut Window,
@@ -852,7 +852,7 @@ impl Editor {
         });
     }
 
-    pub fn convert_indentation_to_tabs(
+    pub(crate) fn convert_indentation_to_tabs(
         &mut self,
         _: &ConvertIndentationToTabs,
         window: &mut Window,
@@ -917,7 +917,7 @@ impl Editor {
         });
     }
 
-    pub fn duplicate(&mut self, upwards: bool, whole_lines: bool, window: &mut Window, cx: &mut Context<Self>) {
+    fn duplicate(&mut self, upwards: bool, whole_lines: bool, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -1028,19 +1028,19 @@ impl Editor {
         });
     }
 
-    pub fn duplicate_line_up(&mut self, _: &DuplicateLineUp, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn duplicate_line_up(&mut self, _: &DuplicateLineUp, window: &mut Window, cx: &mut Context<Self>) {
         self.duplicate(true, true, window, cx);
     }
 
-    pub fn duplicate_line_down(&mut self, _: &DuplicateLineDown, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn duplicate_line_down(&mut self, _: &DuplicateLineDown, window: &mut Window, cx: &mut Context<Self>) {
         self.duplicate(false, true, window, cx);
     }
 
-    pub fn duplicate_selection(&mut self, _: &DuplicateSelection, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn duplicate_selection(&mut self, _: &DuplicateSelection, window: &mut Window, cx: &mut Context<Self>) {
         self.duplicate(false, false, window, cx);
     }
 
-    pub fn move_line_up(&mut self, _: &MoveLineUp, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_line_up(&mut self, _: &MoveLineUp, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -1129,7 +1129,7 @@ impl Editor {
         });
     }
 
-    pub fn move_line_down(&mut self, _: &MoveLineDown, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_line_down(&mut self, _: &MoveLineDown, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -1211,7 +1211,7 @@ impl Editor {
         });
     }
 
-    pub fn transpose(&mut self, _: &Transpose, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn transpose(&mut self, _: &Transpose, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -1265,7 +1265,7 @@ impl Editor {
     }
 }
 
-pub(super) fn consume_contiguous_rows(
+fn consume_contiguous_rows(
     contiguous_row_selections: &mut Vec<Selection<Point>>,
     selection: &Selection<Point>,
     display_map: &DisplaySnapshot,
@@ -1286,7 +1286,7 @@ pub(super) fn consume_contiguous_rows(
     (start_row, end_row)
 }
 
-pub(super) fn starting_row(selection: &Selection<Point>, display_map: &DisplaySnapshot) -> MultiBufferRow {
+fn starting_row(selection: &Selection<Point>, display_map: &DisplaySnapshot) -> MultiBufferRow {
     if selection.start.column > 0 {
         MultiBufferRow(display_map.prev_line_boundary(selection.start).0.row)
     } else {
@@ -1294,7 +1294,7 @@ pub(super) fn starting_row(selection: &Selection<Point>, display_map: &DisplaySn
     }
 }
 
-pub(super) fn ending_row(next_selection: &Selection<Point>, display_map: &DisplaySnapshot) -> MultiBufferRow {
+fn ending_row(next_selection: &Selection<Point>, display_map: &DisplaySnapshot) -> MultiBufferRow {
     if next_selection.end.column > 0 || next_selection.is_empty() {
         MultiBufferRow(display_map.next_line_boundary(next_selection.end).0.row + 1)
     } else {
@@ -1302,8 +1302,8 @@ pub(super) fn ending_row(next_selection: &Selection<Point>, display_map: &Displa
     }
 }
 
-pub(super) struct LineManipulationResult {
-    pub new_text: String,
-    pub line_count_before: usize,
-    pub line_count_after: usize,
+struct LineManipulationResult {
+    new_text: String,
+    line_count_before: usize,
+    line_count_after: usize,
 }

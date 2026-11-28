@@ -332,7 +332,7 @@ impl Anchor {
         }
     }
 
-    pub fn summary<D>(&self, snapshot: &MultiBufferSnapshot) -> D
+    fn summary<D>(&self, snapshot: &MultiBufferSnapshot) -> D
     where
         D: MultiBufferDimension
             + Ord
@@ -399,7 +399,7 @@ impl Anchor {
         }
     }
 
-    pub(crate) const fn text_anchor(&self) -> Option<text::Anchor> {
+    const fn text_anchor(&self) -> Option<text::Anchor> {
         match self {
             Anchor::Min | Anchor::Max => None,
             Anchor::Excerpt(excerpt_anchor) => Some(excerpt_anchor.text_anchor()),

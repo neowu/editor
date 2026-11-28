@@ -102,7 +102,7 @@ pub(super) enum ActiveDiagnostic {
 }
 
 impl Editor {
-    pub fn go_to_diagnostic(&mut self, action: &GoToDiagnostic, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn go_to_diagnostic(&mut self, action: &GoToDiagnostic, window: &mut Window, cx: &mut Context<Self>) {
         if !self.diagnostics_enabled() {
             return;
         }
@@ -110,7 +110,7 @@ impl Editor {
         self.go_to_diagnostic_at_cursor(Direction::Next, action.severity, window, cx);
     }
 
-    pub fn go_to_prev_diagnostic(
+    pub(crate) fn go_to_prev_diagnostic(
         &mut self,
         action: &GoToPreviousDiagnostic,
         window: &mut Window,
@@ -169,6 +169,7 @@ impl Editor {
         let after = Self::diagnostics_after_cursor(&buffer, selection.start, severity);
         let active_group_id = match &self.active_diagnostics {
             ActiveDiagnostic::Group(group) => Some(group.group_id),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         };
 
@@ -218,7 +219,7 @@ impl Editor {
         self.activate_diagnostics(buffer_id, diagnostic, window, cx);
     }
 
-    pub fn go_to_diagnostic_in_direction(
+    fn go_to_diagnostic_in_direction(
         &mut self,
         buffer: &MultiBufferSnapshot,
         selection: &Selection<MultiBufferOffset>,
@@ -233,6 +234,7 @@ impl Editor {
             {
                 Some(active_group.group_id)
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         };
 
@@ -284,7 +286,7 @@ impl Editor {
         self.inline_diagnostics.clear();
     }
 
-    pub fn disable_diagnostics(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn disable_diagnostics(&mut self, cx: &mut Context<Self>) {
         self.diagnostics_enabled = false;
         self.set_max_diagnostics_severity(DiagnosticSeverity::Off, cx);
         self.dismiss_diagnostics(cx);
@@ -292,11 +294,11 @@ impl Editor {
         self.inline_diagnostics.clear();
     }
 
-    pub const fn diagnostics_enabled(&self) -> bool {
+    const fn diagnostics_enabled(&self) -> bool {
         self.diagnostics_enabled && self.lsp_data_enabled()
     }
 
-    pub const fn inline_diagnostics_enabled(&self) -> bool {
+    pub(crate) const fn inline_diagnostics_enabled(&self) -> bool {
         self.inline_diagnostics_enabled && self.diagnostics_enabled()
     }
 
@@ -307,7 +309,7 @@ impl Editor {
         });
     }
 
-    pub fn toggle_diagnostics(&mut self, _: &ToggleDiagnostics, window: &mut Window, cx: &mut Context<Editor>) {
+    pub(crate) fn toggle_diagnostics(&mut self, _: &ToggleDiagnostics, window: &mut Window, cx: &mut Context<Editor>) {
         let diagnostics_enabled =
             self.diagnostics_enabled() && self.diagnostics_max_severity != DiagnosticSeverity::Off;
         self.diagnostics_enabled = !diagnostics_enabled;
@@ -331,6 +333,7 @@ impl Editor {
     pub(super) const fn active_diagnostic_group_id(&self) -> Option<usize> {
         match &self.active_diagnostics {
             ActiveDiagnostic::Group(group) => Some(group.group_id),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         }
     }
@@ -362,7 +365,7 @@ impl Editor {
         }
     }
 
-    pub(super) fn activate_diagnostics(
+    fn activate_diagnostics(
         &mut self,
         buffer_id: BufferId,
         diagnostic: DiagnosticEntryRef<'_, MultiBufferOffset>,
@@ -416,7 +419,7 @@ impl Editor {
         }
     }
 
-    pub(super) fn refresh_inline_diagnostics(&mut self, debounce: bool, window: &Window, cx: &mut Context<Self>) {
+    fn refresh_inline_diagnostics(&mut self, debounce: bool, window: &Window, cx: &mut Context<Self>) {
         if !self.inline_diagnostics_enabled() || !self.diagnostics_enabled() {
             self.inline_diagnostics_update = Task::ready(());
             self.inline_diagnostics.clear();

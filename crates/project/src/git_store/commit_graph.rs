@@ -63,7 +63,7 @@ pub(super) enum CommitDataHandlerState {
 pub struct InitialGitGraphData {
     fetch_task: Task<()>,
     pub error: Option<SharedString>,
-    pub commit_data: Vec<Arc<InitialGraphCommitData>>,
+    commit_data: Vec<Arc<InitialGraphCommitData>>,
     pub commit_oid_to_index: FxHashMap<Oid, usize>,
     subscribers: Vec<Sender<Result<Vec<Arc<InitialGraphCommitData>>, SharedString>>>,
 }

@@ -1,14 +1,14 @@
 //! C4 diagrams: people, systems, containers and components in nested boundaries, joined by
 //! relations. Port of Pele's `src/diagrams/c4/index.ts`.
 
-pub(crate) mod db;
-pub(crate) mod layout;
-pub(crate) mod lexer;
-pub(crate) mod parser;
-pub(crate) mod render;
-pub(crate) mod route;
-pub(crate) mod tokens;
-pub(crate) mod types;
+mod db;
+mod layout;
+mod lexer;
+mod parser;
+mod render;
+mod route;
+mod tokens;
+mod types;
 
 use super::Diagram;
 use super::Input;
@@ -33,7 +33,7 @@ pub(crate) use db::C4Db as Model;
 /// # Errors
 ///
 /// Returns a syntax error for input Mermaid rejects.
-pub(crate) fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
+fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
     let mut db = Model::default();
     if let Some(title) = title.filter(|title| !title.is_empty()) {
         db.title = Some(title.to_owned());

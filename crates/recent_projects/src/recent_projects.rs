@@ -92,7 +92,14 @@ use workspace::WorkspaceMode;
 use workspace::notifications::DetachAndPromptErr as _;
 use workspace::with_active_or_new_workspace;
 
-actions!(recent_projects, [ToggleActionsMenu, RemoveSelected, AddToWorkspace,]);
+actions!(
+    recent_projects,
+    [
+        pub(crate) ToggleActionsMenu,
+        pub RemoveSelected,
+        pub AddToWorkspace,
+    ]
+);
 
 #[derive(Clone, Debug)]
 struct OpenFolderEntry {
@@ -245,7 +252,7 @@ pub fn init(cx: &mut App) {
 }
 
 pub struct RecentProjects {
-    pub picker: Entity<Picker<RecentProjectsDelegate>>,
+    picker: Entity<Picker<RecentProjectsDelegate>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -304,7 +311,7 @@ impl RecentProjects {
         Self { picker, _subscriptions: subscriptions }
     }
 
-    pub fn open(
+    fn open(
         workspace: &mut Workspace,
         create_new_window: Option<bool>,
         window: &mut Window,
@@ -431,7 +438,7 @@ impl Render for RecentProjects {
     }
 }
 
-pub struct RecentProjectsDelegate {
+struct RecentProjectsDelegate {
     workspace: WeakEntity<Workspace>,
     open_folders: Vec<OpenFolderEntry>,
     workspaces: Vec<RecentWorkspace>,
@@ -469,7 +476,7 @@ impl RecentProjectsDelegate {
         }
     }
 
-    pub fn set_workspaces(&mut self, workspaces: Vec<RecentWorkspace>) {
+    fn set_workspaces(&mut self, workspaces: Vec<RecentWorkspace>) {
         self.workspaces = workspaces;
     }
 

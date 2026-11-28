@@ -65,7 +65,7 @@ pub enum ObjectFit {
 
 impl ObjectFit {
     /// Get the bounds of the image within the given bounds.
-    pub fn get_bounds(&self, bounds: Bounds<Pixels>, image_size: Size<DevicePixels>) -> Bounds<Pixels> {
+    pub(crate) fn get_bounds(&self, bounds: Bounds<Pixels>, image_size: Size<DevicePixels>) -> Bounds<Pixels> {
         let image_size = image_size.map(|dimension| Pixels::from(u32::from(dimension)));
         let image_ratio = image_size.width / image_size.height;
         let bounds_ratio = bounds.size.width / bounds.size.height;
@@ -139,7 +139,7 @@ impl ObjectFit {
 
 /// The minimum size of a column or row in a grid layout.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default, Serialize, Deserialize)]
-pub enum GridTemplateMinSize {
+pub(crate) enum GridTemplateMinSize {
     /// The column or row size may be 0.
     #[default]
     Zero,
@@ -153,9 +153,9 @@ pub enum GridTemplateMinSize {
 #[derive(Copy, Clone, Refineable, PartialEq, Eq, PartialOrd, Ord, Debug, Default, Serialize, Deserialize)]
 pub struct GridTemplate {
     /// How this template directive should be repeated.
-    pub repeat: u16,
+    pub(crate) repeat: u16,
     /// The minimum size in the repeat(<>, minmax(_, 1fr)) equation.
-    pub min_size: GridTemplateMinSize,
+    pub(crate) min_size: GridTemplateMinSize,
 }
 
 /// The CSS styling that can be applied to an element via the `Styled` trait.
@@ -305,7 +305,7 @@ impl Styled for StyleRefinement {
 
 impl StyleRefinement {
     /// The grid location of this element.
-    pub fn grid_location_mut(&mut self) -> &mut GridLocation {
+    pub(crate) fn grid_location_mut(&mut self) -> &mut GridLocation {
         self.grid_location.get_or_insert_default()
     }
 }
@@ -324,15 +324,15 @@ pub enum Visibility {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BoxShadow {
     /// What color should the shadow have?
-    pub color: Hsla,
+    pub(crate) color: Hsla,
     /// How should it be offset from its element?
-    pub offset: Point<Pixels>,
+    pub(crate) offset: Point<Pixels>,
     /// How much should the shadow be blurred?
-    pub blur_radius: Pixels,
+    pub(crate) blur_radius: Pixels,
     /// How much should the shadow spread?
-    pub spread_radius: Pixels,
+    pub(crate) spread_radius: Pixels,
     /// Whether this is an inset shadow (drawn inside the element's bounds).
-    pub inset: bool,
+    pub(crate) inset: bool,
 }
 
 impl BoxShadow {
@@ -579,13 +579,13 @@ impl Hash for HighlightStyle {
 
 impl Style {
     /// Get the text style in this element style.
-    pub fn text_style(&self) -> Option<&TextStyleRefinement> {
+    pub(crate) fn text_style(&self) -> Option<&TextStyleRefinement> {
         self.text.is_some().then_some(&self.text)
     }
 
     /// Get the content mask for this element style, based on the given bounds.
     /// If the element does not hide its overflow, this will return `None`.
-    pub fn overflow_mask(&self, bounds: Bounds<Pixels>, rem_size: Pixels) -> Option<ContentMask<Pixels>> {
+    pub(crate) fn overflow_mask(&self, bounds: Bounds<Pixels>, rem_size: Pixels) -> Option<ContentMask<Pixels>> {
         if self.overflow == (Point { x: Overflow::Visible, y: Overflow::Visible }) {
             None
         } else {
@@ -619,7 +619,7 @@ impl Style {
     }
 
     /// Paints the background of an element styled with this style.
-    pub fn paint(
+    pub(crate) fn paint(
         &self,
         bounds: Bounds<Pixels>,
         window: &mut Window,
@@ -631,7 +631,7 @@ impl Style {
 
         window.paint_drop_shadows(bounds, corner_radii, &self.box_shadow);
 
-        let background_color = self.background.as_ref().and_then(Fill::color);
+        let background_color = self.background.as_ref().map(Fill::color);
         if background_color.is_some_and(|color| !color.is_transparent()) {
             let mut border_color = match background_color {
                 Some(color) => match color.tag {
@@ -753,12 +753,10 @@ pub enum Fill {
 }
 
 impl Fill {
-    /// Unwrap this fill into a solid color, if it is one.
-    ///
-    /// If the fill is not a solid color, this method returns `None`.
-    pub const fn color(&self) -> Option<Background> {
+    /// Unwrap this fill into its solid color.
+    const fn color(&self) -> Background {
         match self {
-            Fill::Color(color) => Some(*color),
+            Fill::Color(color) => *color,
         }
     }
 }

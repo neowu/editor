@@ -21,7 +21,7 @@ use crate::util::chars::is_space;
 
 /// The notation the source's keyword names: `^\s*railroad-(ebnf-|abnf-|peg-)?beta`, without
 /// regard to case. Mermaid has a detector per keyword.
-pub(crate) fn notation_of(source: &str) -> Option<Notation> {
+fn notation_of(source: &str) -> Option<Notation> {
     let rest = trim_start(source);
     let starts = |text: &str, word: &str| {
         text.as_bytes().get(..word.len()).is_some_and(|head| head.eq_ignore_ascii_case(word.as_bytes()))

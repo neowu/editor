@@ -61,7 +61,7 @@ impl MultiBufferSnapshot {
     }
 
     // move this to be a generator once those are a thing
-    pub fn suggested_indents_callback(
+    fn suggested_indents_callback(
         &self,
         rows: impl IntoIterator<Item = u32>,
         cb: &mut dyn FnMut(MultiBufferRow, IndentSize) -> ControlFlow<()>,
@@ -266,7 +266,7 @@ impl MultiBufferSnapshot {
         })
     }
 
-    pub fn line_indents(
+    fn line_indents(
         &self,
         start_row: MultiBufferRow,
         buffer_filter: impl Fn(&BufferSnapshot) -> bool,
@@ -304,7 +304,7 @@ impl MultiBufferSnapshot {
         .flatten()
     }
 
-    pub fn reversed_line_indents(
+    fn reversed_line_indents(
         &self,
         end_row: MultiBufferRow,
         buffer_filter: impl Fn(&BufferSnapshot) -> bool,

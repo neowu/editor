@@ -130,7 +130,7 @@ pub(crate) enum T {
 }
 
 /// The names Mermaid's parser reports for each token kind, indexed by [`T`].
-pub(crate) const NAMES: [&str; 61] = [
+const NAMES: [&str; 61] = [
     "$end",
     "INVALID",
     "CLASS_DIAGRAM",

@@ -90,7 +90,7 @@ impl Ord for PathMatch {
     }
 }
 
-pub(crate) fn distance_between_paths(path: &RelPath, relative_to: &RelPath) -> usize {
+fn distance_between_paths(path: &RelPath, relative_to: &RelPath) -> usize {
     let mut path_components = path.components();
     let mut relative_components = relative_to.components();
 

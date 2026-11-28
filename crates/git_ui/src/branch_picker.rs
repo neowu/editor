@@ -88,19 +88,19 @@ actions!(
     branch_picker,
     [
         /// Deletes the selected git branch. For a remote-tracking branch, this only removes the local tracking ref.
-        DeleteBranch,
+        pub DeleteBranch,
         /// Force deletes the selected git branch. For a remote-tracking branch, this only removes the local tracking ref.
-        ForceDeleteBranch,
+        pub ForceDeleteBranch,
         /// Show all branches.
-        ShowAllBranches,
+        pub(crate) ShowAllBranches,
         /// Show only local branches.
-        ShowLocalBranches,
+        pub(crate) ShowLocalBranches,
         /// Show only remote branches.
-        ShowRemoteBranches,
+        pub(crate) ShowRemoteBranches,
         /// Cycle through branch filters.
-        CycleBranchFilter,
+        pub CycleBranchFilter,
         /// Toggles the branch filter menu.
-        ToggleFilterMenu
+        pub ToggleFilterMenu
     ]
 );
 
@@ -108,7 +108,7 @@ pub fn switch(workspace: &mut Workspace, _: &git::Switch, window: &mut Window, c
     open(workspace, &git::Branch, window, cx);
 }
 
-pub fn open(workspace: &mut Workspace, _: &git::Branch, window: &mut Window, cx: &mut Context<Workspace>) {
+fn open(workspace: &mut Workspace, _: &git::Branch, window: &mut Window, cx: &mut Context<Workspace>) {
     let workspace_handle = workspace.weak_handle();
     let repository = workspace.project().read(cx).active_repository(cx);
 
@@ -134,7 +134,7 @@ pub fn popover(
     })
 }
 
-pub fn select_popover(
+pub(crate) fn select_popover(
     workspace: WeakEntity<Workspace>,
     repository: Option<Entity<Repository>>,
     selected_branch: Option<SharedString>,
@@ -158,7 +158,7 @@ pub fn select_popover(
     })
 }
 
-pub fn select_modal(
+pub(crate) fn select_modal(
     workspace: WeakEntity<Workspace>,
     repository: Option<Entity<Repository>>,
     selected_branch: Option<SharedString>,
@@ -180,9 +180,9 @@ pub fn select_modal(
     list
 }
 
-pub type SelectBranchCallback = Arc<dyn Fn(Branch, &mut Window, &mut App)>;
+pub(crate) type SelectBranchCallback = Arc<dyn Fn(Branch, &mut Window, &mut App)>;
 
-pub fn create_embedded(
+pub(crate) fn create_embedded(
     workspace: WeakEntity<Workspace>,
     repository: Option<Entity<Repository>>,
     width: Rems,
@@ -200,7 +200,7 @@ enum BranchListStyle {
 }
 
 pub struct BranchList {
-    pub picker: Entity<Picker<BranchListDelegate>>,
+    picker: Entity<Picker<BranchListDelegate>>,
     picker_focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
     _load_default_branch: Option<Task<()>>,
@@ -374,14 +374,19 @@ impl BranchList {
         this
     }
 
-    pub fn handle_modifiers_changed(&mut self, ev: &ModifiersChangedEvent, _: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn handle_modifiers_changed(
+        &mut self,
+        ev: &ModifiersChangedEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.picker.update(cx, |picker, cx| {
             picker.delegate.modifiers = ev.modifiers;
             cx.notify();
         });
     }
 
-    pub fn handle_delete(&mut self, _: &DeleteBranch, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn handle_delete(&mut self, _: &DeleteBranch, window: &mut Window, cx: &mut Context<Self>) {
         self.picker.update(cx, |picker, cx| {
             if picker.delegate.is_select_only() {
                 return;
@@ -390,7 +395,7 @@ impl BranchList {
         });
     }
 
-    pub fn handle_force_delete(&mut self, _: &ForceDeleteBranch, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn handle_force_delete(&mut self, _: &ForceDeleteBranch, window: &mut Window, cx: &mut Context<Self>) {
         self.picker.update(cx, |picker, cx| {
             if picker.delegate.is_select_only() {
                 return;
@@ -499,6 +504,7 @@ impl Entry {
     const fn as_branch(&self) -> Option<&Branch> {
         match self {
             Entry::Branch { branch, .. } => Some(branch),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         }
     }
@@ -578,7 +584,7 @@ fn branch_filter_menu(
     })
 }
 
-pub struct BranchListDelegate {
+struct BranchListDelegate {
     workspace: WeakEntity<Workspace>,
     matches: Vec<Entry>,
     all_branches: Vec<Branch>,
@@ -1047,6 +1053,7 @@ impl PickerDelegate for BranchListDelegate {
     fn no_matches_text(&self, _window: &mut Window, _cx: &mut App) -> Option<SharedString> {
         match self.state {
             PickerState::CreateRemote(_) => Some(SharedString::new_static("Remote name can't be empty")),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         }
     }

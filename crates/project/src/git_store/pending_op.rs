@@ -17,7 +17,7 @@ pub enum GitStatus {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum JobStatus {
+pub(crate) enum JobStatus {
     Running,
     Finished,
     Skipped,
@@ -32,19 +32,19 @@ pub struct PendingOps {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PendingOp {
-    pub id: PendingOpId,
+    pub(crate) id: PendingOpId,
     pub git_status: GitStatus,
-    pub job_status: JobStatus,
+    pub(crate) job_status: JobStatus,
 }
 
 #[derive(Clone, Debug)]
 pub struct PendingOpsSummary {
-    pub staged_count: usize,
+    staged_count: usize,
     pub staging_count: usize,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PendingOpId(pub u16);
+pub(crate) struct PendingOpId(u16);
 
 impl Item for PendingOps {
     type Summary = PathSummary<PendingOpsSummary>;
@@ -94,15 +94,15 @@ impl From<u16> for PendingOpId {
 }
 
 impl PendingOps {
-    pub fn new(path: &RepoPath) -> Self {
+    pub(crate) fn new(path: &RepoPath) -> Self {
         Self { repo_path: path.clone(), ops: Vec::new() }
     }
 
-    pub fn max_id(&self) -> PendingOpId {
+    pub(crate) fn max_id(&self) -> PendingOpId {
         self.ops.last().map_or_default(|op| op.id)
     }
 
-    pub fn op_by_id_mut(&mut self, id: PendingOpId) -> Option<&mut PendingOp> {
+    pub(crate) fn op_by_id_mut(&mut self, id: PendingOpId) -> Option<&mut PendingOp> {
         self.ops.iter_mut().find(|op| op.id == id)
     }
 
@@ -131,12 +131,12 @@ impl PendingOps {
     /// Checks whether the last operation in the pending operations resulted in
     /// an error.
     pub fn last_op_errored(&self) -> bool {
-        self.ops.last().is_some_and(PendingOp::error)
+        self.ops.last().is_some_and(|op| op.error())
     }
 }
 
 impl PendingOp {
-    pub fn running(&self) -> bool {
+    pub(crate) fn running(self) -> bool {
         self.job_status == JobStatus::Running
     }
 
@@ -144,7 +144,7 @@ impl PendingOp {
         matches!(self.job_status, JobStatus::Finished | JobStatus::Skipped)
     }
 
-    pub fn error(&self) -> bool {
+    fn error(self) -> bool {
         self.job_status == JobStatus::Error
     }
 }

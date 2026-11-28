@@ -57,7 +57,7 @@ impl RowChunks {
         }
     }
 
-    pub const fn version(&self) -> &clock::Global {
+    pub(crate) const fn version(&self) -> &clock::Global {
         self.buffer_snapshot.version()
     }
 
@@ -116,10 +116,10 @@ impl RowChunks {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RowChunk {
     pub id: RowChunkId,
-    pub start: BufferRow,
-    pub end_exclusive: BufferRow,
-    pub start_anchor: Anchor,
-    pub end_anchor: Anchor,
+    start: BufferRow,
+    end_exclusive: BufferRow,
+    start_anchor: Anchor,
+    end_anchor: Anchor,
 }
 
 impl RowChunk {

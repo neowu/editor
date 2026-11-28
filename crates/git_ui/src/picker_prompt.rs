@@ -36,17 +36,17 @@ use util::ResultExt as _;
 use workspace::ModalView;
 use workspace::Workspace;
 
-pub struct PickerPrompt {
-    pub picker: Entity<Picker<PickerPromptDelegate>>,
+struct PickerPrompt {
+    picker: Entity<Picker<PickerPromptDelegate>>,
     _subscription: Subscription,
 }
 
-pub fn prompt(
+pub(crate) fn prompt(
     prompt: &str,
     options: Vec<SharedString>,
     workspace: WeakEntity<Workspace>,
-    window: &mut Window,
-    cx: &mut App,
+    window: &Window,
+    cx: &App,
 ) -> Task<Option<usize>> {
     if options.is_empty() {
         return Task::ready(None);
@@ -97,7 +97,7 @@ impl Render for PickerPrompt {
     }
 }
 
-pub struct PickerPromptDelegate {
+struct PickerPromptDelegate {
     prompt: Arc<str>,
     matches: Vec<StringMatch>,
     all_options: Vec<SharedString>,
@@ -107,12 +107,7 @@ pub struct PickerPromptDelegate {
 }
 
 impl PickerPromptDelegate {
-    pub const fn new(
-        prompt: Arc<str>,
-        options: Vec<SharedString>,
-        tx: oneshot::Sender<usize>,
-        max_chars: usize,
-    ) -> Self {
+    const fn new(prompt: Arc<str>, options: Vec<SharedString>, tx: oneshot::Sender<usize>, max_chars: usize) -> Self {
         Self {
             prompt,
             all_options: options,

@@ -11,7 +11,7 @@ pub(crate) struct Fitted {
     /// The text, cut and ended with an ellipsis when it did not fit whole.
     pub(crate) text: String,
     /// The measured width.
-    pub(crate) width: f64,
+    width: f64,
 }
 
 /// Fits `text` into `max`: first by shrinking the font from `size` down to `min`, then by

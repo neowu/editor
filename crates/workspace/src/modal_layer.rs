@@ -109,14 +109,14 @@ impl<V: ModalView> ModalViewHandle for Entity<V> {
     }
 }
 
-pub(crate) struct ActiveModal {
+struct ActiveModal {
     modal: Box<dyn ModalViewHandle>,
     _subscriptions: [Subscription; 2],
     previous_focus_handle: Option<FocusHandle>,
     focus_handle: FocusHandle,
 }
 
-pub struct ModalLayer {
+pub(crate) struct ModalLayer {
     active_modal: Option<ActiveModal>,
     // Kept alive (hidden) rather than dropped on dismissal so `ReopenLastPicker`
     // can reveal it again with its exact prior state. Left intact across
@@ -141,7 +141,7 @@ impl Default for ModalLayer {
 }
 
 impl ModalLayer {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { active_modal: None, stashed_modal: None, reveal_stash_when_free: false, dismiss_on_focus_lost: false }
     }
 
@@ -152,7 +152,7 @@ impl ModalLayer {
     /// If closing the current modal fails (e.g., due to `on_before_dismiss` returning
     /// `DismissDecision::Dismiss(false)` or `DismissDecision::Pending`), the new modal
     /// will not be shown.
-    pub fn toggle_modal<V, B>(&mut self, window: &mut Window, cx: &mut Context<Self>, build_view: B)
+    pub(crate) fn toggle_modal<V, B>(&mut self, window: &mut Window, cx: &mut Context<Self>, build_view: B)
     where
         V: ModalView,
         B: FnOnce(&mut Window, &mut Context<V>) -> V,
@@ -207,7 +207,7 @@ impl ModalLayer {
 
     /// Reveals the most recently stashed reopenable modal, if any. Returns whether
     /// a modal was revealed.
-    pub fn reveal_stashed_modal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+    pub(crate) fn reveal_stashed_modal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         if self.stashed_modal.is_none() {
             return false;
         }
@@ -233,7 +233,7 @@ impl ModalLayer {
     /// focused element.
     ///
     /// Returns `true` if the modal was successfully hidden, `false` otherwise.
-    pub fn hide_modal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+    pub(crate) fn hide_modal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let Some(active_modal) = self.active_modal.as_mut() else {
             self.dismiss_on_focus_lost = false;
             return false;
@@ -275,7 +275,7 @@ impl ModalLayer {
     }
 
     /// Returns the currently active modal if it is of type `V`.
-    pub fn active_modal<V>(&self) -> Option<Entity<V>>
+    pub(crate) fn active_modal<V>(&self) -> Option<Entity<V>>
     where
         V: 'static,
     {
@@ -283,7 +283,7 @@ impl ModalLayer {
         active_modal.modal.view().downcast::<V>().ok()
     }
 
-    pub const fn has_active_modal(&self) -> bool {
+    pub(crate) const fn has_active_modal(&self) -> bool {
         self.active_modal.is_some()
     }
 }

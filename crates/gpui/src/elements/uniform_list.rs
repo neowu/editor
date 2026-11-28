@@ -121,12 +121,12 @@ pub enum ScrollStrategy {
 #[derive(Clone, Copy, Debug)]
 pub struct DeferredScrollToItem {
     /// The item index to scroll to.
-    pub item_index: usize,
+    item_index: usize,
     /// The scroll strategy to use.
-    pub strategy: ScrollStrategy,
+    strategy: ScrollStrategy,
     /// The offset in number of items.
-    pub offset: usize,
-    pub scroll_strict: bool,
+    offset: usize,
+    scroll_strict: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -136,7 +136,7 @@ pub struct UniformListScrollState {
     /// Size of the item, captured during last layout.
     pub last_item_size: Option<ItemSize>,
     /// Whether the list was vertically flipped during last layout.
-    pub y_flipped: bool,
+    y_flipped: bool,
 }
 
 #[derive(Copy, Clone, Debug, Default)]

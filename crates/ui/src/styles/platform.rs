@@ -10,14 +10,14 @@ macro_rules! alt_key_name {
 ///
 /// This can be used to abstract over platform differences.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-pub enum PlatformStyle {
+pub(crate) enum PlatformStyle {
     /// Display in macOS style.
     Mac,
 }
 
 impl PlatformStyle {
     /// Returns the [`PlatformStyle`] for the current platform.
-    pub const fn platform() -> Self {
+    pub(crate) const fn platform() -> Self {
         Self::Mac
     }
 }

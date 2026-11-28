@@ -227,11 +227,11 @@ impl Sub<OffsetUtf16> for MultiBufferOffsetUtf16 {
 }
 
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
-pub struct BufferOffsetUtf16(pub OffsetUtf16);
+pub struct BufferOffsetUtf16(OffsetUtf16);
 
 impl MultiBufferOffset {
     pub(super) const ZERO: Self = Self(0);
-    pub const fn saturating_sub(self, other: MultiBufferOffset) -> usize {
+    pub(crate) const fn saturating_sub(self, other: MultiBufferOffset) -> usize {
         self.0.saturating_sub(other.0)
     }
     pub const fn saturating_sub_usize(self, other: usize) -> MultiBufferOffset {
@@ -329,7 +329,7 @@ pub struct MBTextSummary {
     /// Length in UTF-8.
     pub chars: usize,
     /// Length in UTF-16 code units.
-    pub len_utf16: OffsetUtf16,
+    len_utf16: OffsetUtf16,
     /// A point representing the number of lines and the length of the last line.
     ///
     /// In other words, it marks the point after the last byte in the text, (if
@@ -338,9 +338,9 @@ pub struct MBTextSummary {
     /// How many `char`s are in the first line.
     pub first_line_chars: u32,
     /// How many `char`s are in the last line.
-    pub last_line_chars: u32,
+    last_line_chars: u32,
     /// How many UTF-16 code units are in the last line.
-    pub last_line_len_utf16: u32,
+    last_line_len_utf16: u32,
     /// The row idx of the longest row.
     pub longest_row: u32,
     /// How many `char`s are in the longest row.
@@ -439,7 +439,7 @@ impl AddAssign<TextSummary> for MBTextSummary {
 }
 
 impl MBTextSummary {
-    pub const fn lines_utf16(&self) -> PointUtf16 {
+    const fn lines_utf16(&self) -> PointUtf16 {
         PointUtf16 { row: self.lines.row, column: self.last_line_len_utf16 }
     }
 }

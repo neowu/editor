@@ -1,6 +1,6 @@
 pub(crate) struct ReversibleIterable<It> {
-    pub(crate) it: It,
-    pub(crate) reverse: bool,
+    it: It,
+    reverse: bool,
 }
 
 impl<T> ReversibleIterable<T> {

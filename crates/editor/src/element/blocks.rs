@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::ops::Range;
 
 use gpui::AnyElement;
@@ -39,9 +38,7 @@ use crate::DisplayRow;
 use crate::EditorSnapshot;
 use crate::FILE_HEADER_HEIGHT;
 use crate::FocusedBlock;
-use crate::Point;
 use crate::RowExt as _;
-use crate::Selection;
 use crate::ToPoint as _;
 use crate::display_map::Block;
 use crate::display_map::BlockContext;
@@ -75,12 +72,9 @@ impl EditorElement {
         editor_margins: &EditorMargins,
         line_height: Pixels,
         em_width: Pixels,
-        text_hitbox: &Hitbox,
         editor_width: Pixels,
-        scroll_width: Pixels,
         resized_blocks: &mut FxHashMap<CustomBlockId, u32>,
         row_block_types: &mut FxHashMap<DisplayRow, bool>,
-        selections: &[Selection<Point>],
         selected_buffer_ids: &[BufferId],
         latest_selection_anchors: &FxHashMap<BufferId, Anchor>,
         is_row_soft_wrapped: impl Copy + Fn(usize) -> bool,
@@ -94,7 +88,6 @@ impl EditorElement {
         let mut element = match block {
             Block::Custom(custom) => {
                 let block_start = custom.start().to_point(snapshot.buffer_snapshot());
-                let block_end = custom.end().to_point(snapshot.buffer_snapshot());
                 if block.place_near() && snapshot.is_line_folded(MultiBufferRow(block_start.row)) {
                     return None;
                 }
@@ -107,31 +100,11 @@ impl EditorElement {
                 {
                     x_and_width(layout)
                 } else {
-                    x_and_width(&layout_line(
-                        align_to.row(),
-                        snapshot,
-                        &self.style,
-                        editor_width,
-                        is_row_soft_wrapped,
-                        window,
-                        cx,
-                    ))
+                    x_and_width(&layout_line(align_to.row(), snapshot, &self.style, is_row_soft_wrapped, window, cx))
                 };
 
                 let anchor_x = custom_block_x_position.0;
                 x_position = Some(custom_block_x_position);
-
-                let selected = selections
-                    .binary_search_by(|selection| {
-                        if selection.end <= block_start {
-                            Ordering::Less
-                        } else if selection.start >= block_end {
-                            Ordering::Greater
-                        } else {
-                            Ordering::Equal
-                        }
-                    })
-                    .is_ok();
 
                 div()
                     .size_full()
@@ -144,8 +117,6 @@ impl EditorElement {
                         em_width,
                         block_id,
                         height: custom.height.unwrap_or(1),
-                        selected,
-                        max_width: text_hitbox.size.width.max(scroll_width),
                         editor_style: &self.style,
                         indent_guide_padding: indent_guides.map_or(px(0.0), |guides| {
                             Self::depth_zero_indent_guide_padding_for_row(guides, block_row_start)
@@ -301,12 +272,12 @@ impl EditorElement {
         if (size_floor - target_height).abs() <= (size_ceil - target_height).abs() { size_floor } else { size_ceil }
     }
 
-    pub fn render_spacer_block(
+    pub(crate) fn render_spacer_block(
         block_id: BlockId,
         block_height: u32,
         line_height: Pixels,
         indent_guide_padding: Pixels,
-        window: &mut Window,
+        window: &Window,
     ) -> AnyElement {
         let target_size = 16.0;
         let scale = window.scale_factor();
@@ -338,7 +309,6 @@ impl EditorElement {
         rows: Range<DisplayRow>,
         snapshot: &EditorSnapshot,
         hitbox: &Hitbox,
-        text_hitbox: &Hitbox,
         editor_width: Pixels,
         scroll_width: &mut Pixels,
         editor_margins: &EditorMargins,
@@ -346,7 +316,6 @@ impl EditorElement {
         text_x: Pixels,
         line_height: Pixels,
         line_layouts: &[LineWithInvisibles],
-        selections: &[Selection<Point>],
         selected_buffer_ids: &[BufferId],
         latest_selection_anchors: &FxHashMap<BufferId, Anchor>,
         is_row_soft_wrapped: impl Copy + Fn(usize) -> bool,
@@ -386,12 +355,9 @@ impl EditorElement {
                 editor_margins,
                 line_height,
                 em_width,
-                text_hitbox,
                 editor_width,
-                *scroll_width,
                 &mut resized_blocks,
                 &mut row_block_types,
-                selections,
                 selected_buffer_ids,
                 latest_selection_anchors,
                 is_row_soft_wrapped,
@@ -452,12 +418,9 @@ impl EditorElement {
                 editor_margins,
                 line_height,
                 em_width,
-                text_hitbox,
                 editor_width,
-                *scroll_width,
                 &mut resized_blocks,
                 &mut row_block_types,
-                selections,
                 selected_buffer_ids,
                 latest_selection_anchors,
                 is_row_soft_wrapped,
@@ -518,12 +481,9 @@ impl EditorElement {
                 editor_margins,
                 line_height,
                 em_width,
-                text_hitbox,
                 editor_width,
-                *scroll_width,
                 &mut resized_blocks,
                 &mut row_block_types,
-                selections,
                 selected_buffer_ids,
                 latest_selection_anchors,
                 is_row_soft_wrapped,
@@ -626,12 +586,12 @@ impl EditorElement {
 }
 
 pub(crate) struct BlockLayout {
-    pub(crate) id: BlockId,
-    pub(crate) x_offset: Pixels,
+    id: BlockId,
+    x_offset: Pixels,
     pub(crate) row: Option<DisplayRow>,
-    pub(crate) element: AnyElement,
-    pub(crate) available_space: Size<AvailableSpace>,
-    pub(crate) style: BlockStyle,
-    pub(crate) overlaps_gutter: bool,
+    element: AnyElement,
+    available_space: Size<AvailableSpace>,
+    style: BlockStyle,
+    overlaps_gutter: bool,
     pub(crate) is_buffer_header: bool,
 }

@@ -7,19 +7,19 @@ use std::hash::Hasher;
 use std::path::Component;
 
 mod biome;
-pub mod buffer_store;
-pub mod color_extractor;
+mod buffer_store;
+mod color_extractor;
 pub mod git_store;
 pub mod image_store;
 pub mod library;
-pub mod lsp_command;
+mod lsp_command;
 pub mod lsp_store;
-pub mod manifest_tree;
-pub mod project_search;
+mod manifest_tree;
+mod project_search;
 pub mod project_settings;
 mod runnables;
 pub mod search;
-pub mod terminals;
+mod terminals;
 pub mod worktree_store;
 
 mod environment;
@@ -89,7 +89,7 @@ use gpui::WeakEntity;
 use gpui::Window;
 pub use image_store::ImageItem;
 use image_store::ImageItemEvent;
-pub use image_store::ImageStore;
+pub(crate) use image_store::ImageStore;
 use image_store::ImageStoreEvent;
 use language::Buffer;
 use language::BufferEvent;
@@ -136,7 +136,7 @@ use lsp_types::DocumentHighlightKind;
 use lsp_types::InsertTextMode;
 use lsp_types::request::Request;
 pub use manifest_tree::ManifestProvidersStore;
-pub use manifest_tree::ManifestTree;
+pub(crate) use manifest_tree::ManifestTree;
 pub use project_search::Search;
 pub use project_search::SearchResults;
 use rustc_hash::FxHashMap;
@@ -167,7 +167,7 @@ pub use worktree::Worktree;
 pub use worktree::WorktreeId;
 pub use worktree::WorktreeSettings;
 pub use worktree::discover_root_repo_common_dir;
-pub use worktree_store::WorktreePaths;
+pub(crate) use worktree_store::WorktreePaths;
 use worktree_store::WorktreeStore;
 use worktree_store::WorktreeStoreEvent;
 
@@ -390,7 +390,7 @@ pub enum CompletionIntent {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompletionGroup {
     /// Identity of this group, used to detect transitions between consecutive items.
-    pub key: SharedString,
+    key: SharedString,
     /// When set, a non-selectable header with this text is rendered below the divider.
     pub label: Option<SharedString>,
 }
@@ -455,11 +455,11 @@ pub enum CompletionSource {
 }
 
 impl CompletionSource {
-    pub const fn server_id(&self) -> Option<LanguageServerId> {
+    const fn server_id(&self) -> Option<LanguageServerId> {
         if let CompletionSource::Lsp { server_id, .. } = self { Some(*server_id) } else { None }
     }
 
-    pub fn filter_text(&self) -> Option<&str> {
+    fn filter_text(&self) -> Option<&str> {
         if let Self::Lsp { lsp_completion, .. } = self {
             Some(lsp_completion.filter_text.as_deref().unwrap_or(lsp_completion.label.as_str()))
         } else {
@@ -559,10 +559,10 @@ impl CompletionDisplayOptions {
 /// Response from language server completion request.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct CoreCompletionResponse {
-    pub completions: Vec<CoreCompletion>,
+    completions: Vec<CoreCompletion>,
     /// When false, indicates that the list is complete and does not need to be re-queried if it
     /// can be filtered instead.
-    pub is_incomplete: bool,
+    is_incomplete: bool,
 }
 
 /// A generic completion that can come from different sources.
@@ -608,7 +608,7 @@ impl LspAction {
         }
     }
 
-    pub fn action_kind(&self) -> Option<CodeActionKind> {
+    fn action_kind(&self) -> Option<CodeActionKind> {
         match self {
             Self::Action(action) => action.kind.clone(),
             Self::Command(_) => Some(CodeActionKind::new("command")),
@@ -616,7 +616,7 @@ impl LspAction {
         }
     }
 
-    pub fn edit(&self) -> Option<&lsp_types::WorkspaceEdit> {
+    fn edit(&self) -> Option<&lsp_types::WorkspaceEdit> {
         match self {
             Self::Action(action) => action.edit.as_ref(),
             Self::Command(_) => None,
@@ -711,11 +711,10 @@ pub struct Symbol {
 
 #[derive(Clone, Debug)]
 pub struct DocumentSymbol {
-    pub name: String,
-    pub kind: language::SymbolKind,
-    pub range: Range<Unclipped<PointUtf16>>,
-    pub selection_range: Range<Unclipped<PointUtf16>>,
-    pub children: Vec<DocumentSymbol>,
+    name: String,
+    range: Range<Unclipped<PointUtf16>>,
+    selection_range: Range<Unclipped<PointUtf16>>,
+    children: Vec<DocumentSymbol>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -754,8 +753,8 @@ pub struct DirectoryItem {
 pub struct DocumentColor {
     pub lsp_range: lsp_types::Range,
     pub color: lsp_types::Color,
-    pub resolved: bool,
-    pub color_presentations: Vec<ColorPresentation>,
+    resolved: bool,
+    color_presentations: Vec<ColorPresentation>,
 }
 
 impl Eq for DocumentColor {}
@@ -773,10 +772,10 @@ impl Hash for DocumentColor {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ColorPresentation {
-    pub label: SharedString,
-    pub text_edit: Option<lsp_types::TextEdit>,
-    pub additional_text_edits: Vec<lsp_types::TextEdit>,
+struct ColorPresentation {
+    label: SharedString,
+    text_edit: Option<lsp_types::TextEdit>,
+    additional_text_edits: Vec<lsp_types::TextEdit>,
 }
 
 impl Hash for ColorPresentation {
@@ -837,7 +836,7 @@ impl DirectoryLister {
 
 /// An LSP diagnostics associated with a certain language server.
 #[derive(Clone, Debug, Default)]
-pub enum LspPullDiagnostics {
+pub(crate) enum LspPullDiagnostics {
     #[default]
     Default,
     Response {
@@ -853,7 +852,7 @@ pub enum LspPullDiagnostics {
 }
 
 #[derive(Clone, Debug)]
-pub enum PulledDiagnostics {
+pub(crate) enum PulledDiagnostics {
     Unchanged {
         /// An ID the current pulled batch for this file.
         /// If given, can be used to query workspace diagnostics partially.
@@ -1373,8 +1372,8 @@ impl Project {
     /// Stages the worktree changes covered by `worktree_ranges` (in the worktree
     /// buffer's coordinates), acting on the given unstaged diff. Used by both the
     /// unstaged-changes view and the uncommitted (gutter) controls.
-    pub fn stage_hunks(
-        &mut self,
+    fn stage_hunks(
+        &self,
         buffer: Entity<Buffer>,
         unstaged_diff: Entity<BufferDiff>,
         worktree_ranges: Vec<Range<Anchor>>,
@@ -1386,8 +1385,8 @@ impl Project {
     /// Unstages the worktree changes covered by `worktree_ranges` (in the worktree
     /// buffer's coordinates), acting on the given uncommitted diff. Used by the
     /// uncommitted (gutter) controls.
-    pub fn unstage_uncommitted_hunks(
-        &mut self,
+    fn unstage_uncommitted_hunks(
+        &self,
         buffer: Entity<Buffer>,
         uncommitted_diff: Entity<BufferDiff>,
         worktree_ranges: Vec<Range<Anchor>>,
@@ -1401,8 +1400,8 @@ impl Project {
     /// Unstages the staged changes covered by `index_ranges` (in the index
     /// buffer's coordinates), acting on the given staged diff. Used by the
     /// staged-changes view.
-    pub fn unstage_staged_hunks(
-        &mut self,
+    fn unstage_staged_hunks(
+        &self,
         staged_diff: Entity<BufferDiff>,
         index_ranges: Vec<Range<Anchor>>,
         cx: &mut Context<Self>,
@@ -1473,7 +1472,7 @@ impl Project {
     }
 
     fn on_buffer_store_event(&mut self, _: Entity<BufferStore>, event: &BufferStoreEvent, cx: &mut Context<Self>) {
-        if let BufferStoreEvent::BufferAdded(buffer) = event {
+        if let BufferStoreEvent::Added(buffer) = event {
             self.register_buffer(buffer, cx);
         }
     }
@@ -1568,26 +1567,25 @@ impl Project {
         cx: &mut Context<Self>,
     ) {
         match event {
-            WorktreeStoreEvent::WorktreeAdded(worktree) => {
+            WorktreeStoreEvent::Added(worktree) => {
                 cx.emit(Event::WorktreeAdded(worktree.read(cx).id()));
             }
-            WorktreeStoreEvent::WorktreeRemoved(_, id) => {
+            WorktreeStoreEvent::Removed(_, id) => {
                 cx.emit(Event::WorktreeRemoved(*id));
             }
-            WorktreeStoreEvent::WorktreeReleased(..) => {}
-            WorktreeStoreEvent::WorktreeOrderChanged => cx.emit(Event::WorktreeOrderChanged),
-            WorktreeStoreEvent::WorktreeUpdatedEntries(worktree_id, changes) => {
+            WorktreeStoreEvent::OrderChanged => cx.emit(Event::WorktreeOrderChanged),
+            WorktreeStoreEvent::UpdatedEntries(worktree_id, changes) => {
                 cx.emit(Event::WorktreeUpdatedEntries(*worktree_id, Arc::clone(changes)));
                 if self.pending_active_path.as_ref().is_some_and(|path| path.worktree_id == *worktree_id) {
                     let pending_active_path = self.pending_active_path.take();
                     self.set_active_path(pending_active_path, cx);
                 }
             }
-            WorktreeStoreEvent::WorktreeDeletedEntry(worktree_id, id) => {
+            WorktreeStoreEvent::DeletedEntry(worktree_id, id) => {
                 cx.emit(Event::DeletedEntry(*worktree_id, *id));
             }
             // Listen to the GitStore instead.
-            WorktreeStoreEvent::WorktreeUpdatedGitRepositories(_, _) => {}
+            WorktreeStoreEvent::UpdatedGitRepositories(_, _) => {}
         }
     }
 
@@ -1726,7 +1724,7 @@ impl Project {
         self.buffer_store.update(cx, |buffer_store, cx| buffer_store.reload_buffers(buffers, push_to_history, cx))
     }
 
-    pub fn reload_images(&self, images: FxHashSet<Entity<ImageItem>>, cx: &mut Context<Self>) -> Task<Result<()>> {
+    fn reload_images(&self, images: FxHashSet<Entity<ImageItem>>, cx: &mut Context<Self>) -> Task<Result<()>> {
         self.image_store.update(cx, |image_store, cx| image_store.reload_images(images, cx))
     }
 
@@ -1938,7 +1936,7 @@ impl Project {
             .update(cx, |lsp_store, cx| lsp_store.on_type_format(buffer, position, trigger, push_to_history, cx))
     }
 
-    fn search_impl(&self, query: SearchQuery, cx: &mut Context<Self>) -> SearchResultsHandle {
+    fn search_impl(&self, query: SearchQuery, cx: &Context<Self>) -> SearchResultsHandle {
         let searcher = if query.is_opened_only() {
             Search::open_buffers_only(
                 self.buffer_store.clone(),
@@ -2163,7 +2161,7 @@ impl Project {
         self.lsp_store.read(cx).diagnostic_summaries(include_ignored, cx)
     }
 
-    pub const fn active_entry(&self) -> Option<ProjectEntryId> {
+    const fn active_entry(&self) -> Option<ProjectEntryId> {
         self.active_entry
     }
 
@@ -2546,7 +2544,7 @@ impl ResolvedPath {
         !self.is_dir()
     }
 
-    pub const fn is_dir(&self) -> bool {
+    const fn is_dir(&self) -> bool {
         match self {
             Self::ProjectPath { is_dir, .. } => *is_dir,
             Self::AbsPath { is_dir, .. } => *is_dir,

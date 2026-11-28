@@ -110,7 +110,7 @@ impl From<&str> for CodeLabel {
 }
 
 impl CodeLabelBuilder {
-    pub fn respan_filter_range(&mut self, filter_text: Option<&str>) {
+    fn respan_filter_range(&mut self, filter_text: Option<&str>) {
         self.filter_range = filter_text
             .and_then(|filter| self.text.find(filter).map(|index| index..index + filter.len()))
             .unwrap_or(0..self.text.len());

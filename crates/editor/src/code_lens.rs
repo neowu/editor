@@ -29,7 +29,7 @@ pub(crate) struct HoverCodeLens {
     pub(crate) action: Option<CodeAction>,
 }
 
-pub(super) fn try_handle_client_command(
+fn try_handle_client_command(
     action: &CodeAction,
     editor: &mut Editor,
     workspace: &Entity<workspace::Workspace>,

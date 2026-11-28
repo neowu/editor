@@ -164,7 +164,7 @@ pub struct GitStore {
 
 const MIN_PARKED_REPOSITORY_DEPTH: usize = 2;
 
-pub const MAX_CONCURRENT_OBJECT_READS: usize = 16;
+const MAX_CONCURRENT_OBJECT_READS: usize = 16;
 
 /// Git matches every pathspec against every index entry, so the cost of a
 /// scoped `git status`/`git diff` grows with the number of paths. On large
@@ -172,7 +172,7 @@ pub const MAX_CONCURRENT_OBJECT_READS: usize = 16;
 const MAX_SCOPED_STATUS_PATHS: usize = 64;
 
 #[derive(Clone, Debug)]
-pub struct ParkedRepository {
+struct ParkedRepository {
     worktree_id: WorktreeId,
     work_directory_abs_path: Arc<Path>,
     dot_git_abs_path: Arc<Path>,
@@ -312,7 +312,7 @@ pub struct RepositoryId(pub u64);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MergeDetails {
-    pub merge_heads_by_conflicted_path: TreeMap<RepoPath, Vec<Option<SharedString>>>,
+    merge_heads_by_conflicted_path: TreeMap<RepoPath, Vec<Option<SharedString>>>,
     pub message: Option<SharedString>,
     /// A rebase is stopped on conflicts, waiting to be continued or aborted.
     pub rebase_in_progress: bool,
@@ -323,12 +323,12 @@ pub struct RepositorySnapshot {
     pub id: RepositoryId,
     pub statuses_by_path: SumTree<StatusEntry>,
     pub work_directory_abs_path: Arc<Path>,
-    pub dot_git_abs_path: Arc<Path>,
+    dot_git_abs_path: Arc<Path>,
     /// Absolute path to the directory holding this worktree's Git state.
     ///
     /// For a linked worktree this is the worktree-specific directory under the
     /// common Git directory, such as `<main>/.git/worktrees/<name>`.
-    pub repository_dir_abs_path: Arc<Path>,
+    repository_dir_abs_path: Arc<Path>,
     /// Absolute path to the repository's common Git directory.
     ///
     /// For a normal checkout this is `<work_directory>/.git`. For a linked
@@ -342,10 +342,10 @@ pub struct RepositorySnapshot {
     pub head_commit: Option<CommitDetails>,
     pub scan_id: u64,
     pub merge: MergeDetails,
-    pub remote_origin_url: Option<String>,
-    pub remote_upstream_url: Option<String>,
+    remote_origin_url: Option<String>,
+    remote_upstream_url: Option<String>,
     pub stash_entries: GitStash,
-    pub linked_worktrees: Arc<[GitWorktree]>,
+    linked_worktrees: Arc<[GitWorktree]>,
 }
 
 type JobId = u64;
@@ -396,10 +396,10 @@ impl Deref for Repository {
 }
 
 #[derive(Clone)]
-pub struct RepositoryState {
-    pub fs: Arc<Fs>,
-    pub backend: Arc<dyn GitRepository>,
-    pub environment: Arc<FxHashMap<String, String>>,
+struct RepositoryState {
+    fs: Arc<Fs>,
+    backend: Arc<dyn GitRepository>,
+    environment: Arc<FxHashMap<String, String>>,
 }
 
 impl RepositoryState {
@@ -455,7 +455,7 @@ pub enum RepositoryEvent {
 }
 
 #[derive(Clone, Debug)]
-pub struct JobsUpdated;
+struct JobsUpdated;
 
 #[derive(Debug)]
 pub enum GitStoreEvent {
@@ -478,7 +478,7 @@ impl EventEmitter<JobsUpdated> for Repository {}
 
 impl EventEmitter<GitStoreEvent> for GitStore {}
 
-pub struct GitJob {
+struct GitJob {
     #[allow(clippy::type_complexity)]
     job: Box<dyn FnOnce(RepositoryState, &mut AsyncApp) -> Task<()>>,
     key: Option<GitJobKey>,
@@ -493,7 +493,7 @@ enum GitJobKey {
 }
 
 impl GitStore {
-    pub fn local(
+    pub(crate) fn local(
         worktree_store: &Entity<WorktreeStore>,
         buffer_store: Entity<BufferStore>,
         environment: Entity<ProjectEnvironment>,
@@ -733,11 +733,11 @@ impl GitStore {
     }
 
     /// Blames a buffer.
-    pub fn blame_buffer(
+    pub(crate) fn blame_buffer(
         &self,
         buffer: &Entity<Buffer>,
         version: Option<clock::Global>,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Task<Result<Option<Blame>>> {
         let buffer = buffer.read(cx);
         let Some((repo, repo_path)) = self.repository_and_path_for_buffer_id(buffer.buffer_id(), cx) else {
@@ -773,7 +773,7 @@ impl GitStore {
         let GitStoreState { project_environment, fs, .. } = &self.state;
 
         match event {
-            WorktreeStoreEvent::WorktreeUpdatedEntries(worktree_id, updated_entries) => {
+            WorktreeStoreEvent::UpdatedEntries(worktree_id, updated_entries) => {
                 if let Some(worktree) = self.worktree_store.read(cx).worktree_for_id(*worktree_id, cx) {
                     let paths_by_git_repo = self.process_updated_entries(&worktree, updated_entries, cx);
                     cx.spawn(async move |_, cx| {
@@ -787,7 +787,7 @@ impl GitStore {
                     .detach();
                 }
             }
-            WorktreeStoreEvent::WorktreeUpdatedGitRepositories(worktree_id, changed_repos) => {
+            WorktreeStoreEvent::UpdatedGitRepositories(worktree_id, changed_repos) => {
                 if worktree_store.read(cx).worktree_for_id(*worktree_id, cx).is_none() {
                     return;
                 }
@@ -801,7 +801,7 @@ impl GitStore {
                 );
                 self.local_worktree_git_repos_changed(changed_repos, cx);
             }
-            WorktreeStoreEvent::WorktreeRemoved(_entity_id, worktree_id) => {
+            WorktreeStoreEvent::Removed(_entity_id, worktree_id) => {
                 self.parked_repositories.retain(|parked| parked.worktree_id != *worktree_id);
                 let repos_without_worktree: Vec<RepositoryId> = self
                     .worktree_ids
@@ -827,6 +827,7 @@ impl GitStore {
                     self.select_fallback_active_repository(cx);
                 }
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }
@@ -1141,7 +1142,7 @@ impl GitStore {
 
     fn on_buffer_store_event(&mut self, _: Entity<BufferStore>, event: &BufferStoreEvent, cx: &mut Context<Self>) {
         match event {
-            BufferStoreEvent::BufferAdded(buffer) => {
+            BufferStoreEvent::Added(buffer) => {
                 self.activate_parked_repositories_for_buffer(buffer, cx);
                 cx.subscribe(buffer, |this, buffer, event, cx| {
                     if let BufferEvent::LanguageChanged(_) = event {
@@ -1155,11 +1156,11 @@ impl GitStore {
                 })
                 .detach();
             }
-            BufferStoreEvent::BufferDropped(buffer_id) => {
+            BufferStoreEvent::Dropped(buffer_id) => {
                 self.diffs.remove(buffer_id);
                 self.buffer_ids_by_index_text_buffer_id.retain(|_, main_buffer_id| main_buffer_id != buffer_id);
             }
-            BufferStoreEvent::BufferChangedFilePath { buffer, .. } => {
+            BufferStoreEvent::ChangedFilePath { buffer, .. } => {
                 self.activate_parked_repositories_for_buffer(buffer, cx);
                 // Whenever a buffer's file path changes, it's possible that the
                 // new path is actually a path that is being tracked by a git
@@ -1250,7 +1251,7 @@ impl GitStore {
             .max_by_key(|(repo, _)| Arc::clone(&repo.read(cx).work_directory_abs_path))
     }
 
-    pub fn git_init(&self, path: Arc<Path>, fallback_branch_name: String, cx: &App) -> Task<Result<()>> {
+    pub(crate) fn git_init(&self, path: Arc<Path>, fallback_branch_name: String, cx: &App) -> Task<Result<()>> {
         let fs = Arc::clone(&self.state.fs);
         cx.background_executor().spawn(async move { fs.git_init(&path, fallback_branch_name).await })
     }
@@ -1261,7 +1262,7 @@ impl GitStore {
         cx.background_executor().spawn(async move { fs.git_clone(&path, &repo).await })
     }
 
-    pub fn git_config(&self, path: Arc<Path>, args: Vec<String>, cx: &App) -> Task<Result<String>> {
+    pub(crate) fn git_config(&self, path: Arc<Path>, args: Vec<String>, cx: &App) -> Task<Result<String>> {
         let fs = Arc::clone(&self.state.fs);
         cx.background_executor().spawn(async move { fs.git_config(&path, args).await })
     }
@@ -1441,7 +1442,7 @@ impl RepositorySnapshot {
         self.repository_dir_abs_path != self.common_dir_abs_path
     }
 
-    pub fn status(&self) -> impl Iterator<Item = StatusEntry> + '_ {
+    fn status(&self) -> impl Iterator<Item = StatusEntry> + '_ {
         self.statuses_by_path.iter().cloned()
     }
 
@@ -1453,7 +1454,7 @@ impl RepositorySnapshot {
         self.statuses_by_path.get(&PathKey(Arc::clone(path.as_ref())), ()).cloned()
     }
 
-    pub fn diff_stat_for_path(&self, path: &RepoPath) -> Option<DiffStat> {
+    fn diff_stat_for_path(&self, path: &RepoPath) -> Option<DiffStat> {
         self.statuses_by_path.get(&PathKey(Arc::clone(path.as_ref())), ()).and_then(|entry| entry.diff_stat)
     }
 
@@ -1478,7 +1479,7 @@ impl RepositorySnapshot {
         self.merge.merge_heads_by_conflicted_path.contains_key(repo_path)
     }
 
-    pub fn has_conflict(&self, repo_path: &RepoPath) -> bool {
+    fn has_conflict(&self, repo_path: &RepoPath) -> bool {
         let had_conflict_on_last_merge_head_change = self.merge.merge_heads_by_conflicted_path.contains_key(repo_path);
         let has_conflict_currently = self.status_for_path(repo_path).is_some_and(|entry| entry.status.is_conflicted());
         had_conflict_on_last_merge_head_change || has_conflict_currently
@@ -1674,6 +1675,7 @@ impl Repository {
             RepositoryEvent::StashEntriesChanged if self.scan_id > 2 => {
                 self.initial_graph_data.retain(|(log_source, _), _| *log_source != LogSource::All);
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }
@@ -1813,7 +1815,7 @@ impl Repository {
         }));
     }
 
-    pub fn send_job<F, Fut, R>(&mut self, status: Option<SharedString>, job: F) -> oneshot::Receiver<R>
+    fn send_job<F, Fut, R>(&mut self, status: Option<SharedString>, job: F) -> oneshot::Receiver<R>
     where
         F: FnOnce(RepositoryState, AsyncApp) -> Fut + 'static,
         Fut: Future<Output = R> + 'static,
@@ -2214,12 +2216,7 @@ impl Repository {
         self.stash_entries(to_stash, message, cx)
     }
 
-    pub fn stash_entries(
-        &mut self,
-        entries: Vec<RepoPath>,
-        message: Option<String>,
-        cx: &mut Context<Self>,
-    ) -> Task<Result<()>> {
+    fn stash_entries(&self, entries: Vec<RepoPath>, message: Option<String>, cx: &Context<Self>) -> Task<Result<()>> {
         cx.spawn(async move |this, cx| {
             this.update(cx, |this, _| {
                 this.send_job(None, move |git_repo, _cx| async move {
@@ -2769,7 +2766,7 @@ impl Repository {
         })
     }
 
-    pub fn diff_tree(&mut self, diff_type: DiffTreeType, _cx: &App) -> oneshot::Receiver<Result<TreeDiff>> {
+    fn diff_tree(&mut self, diff_type: DiffTreeType, _cx: &App) -> oneshot::Receiver<Result<TreeDiff>> {
         self.send_job(None, move |repo, _cx| async move {
             {
                 let RepositoryState { backend, .. } = repo;
@@ -3228,7 +3225,7 @@ pub async fn resolve_git_worktree_to_main_repo(fs: &Fs, path: &Path) -> Option<P
 
 /// Directory holding new linked worktrees of a repository: `<parent>/worktrees/<repo name>`,
 /// a sibling of the repository, scoped by its name so sibling repos don't collide.
-pub fn worktrees_directory_for_repo(repository_anchor_path: &Path) -> Result<PathBuf> {
+fn worktrees_directory_for_repo(repository_anchor_path: &Path) -> Result<PathBuf> {
     let parent = repository_anchor_path.parent().ok_or_else(|| anyhow!("git repo must have a parent directory"))?;
     let repo_name = repository_anchor_path.file_name().ok_or_else(|| anyhow!("git repo must have a directory name"))?;
     Ok(parent.join("worktrees").join(repo_name))
@@ -3284,7 +3281,7 @@ pub fn repo_identity_path(common_dir: &Path) -> &Path {
 /// is an independent project whose identity is its own working directory, so its
 /// path must not be resolved to the superproject's `.git/modules/...` directory
 /// (from which the working directory cannot be derived).
-pub fn is_submodule_git_dir(git_dir: &Path) -> bool {
+pub(crate) fn is_submodule_git_dir(git_dir: &Path) -> bool {
     let mut previous_was_git_dir = false;
     for component in git_dir.components() {
         if let Component::Normal(name) = component {

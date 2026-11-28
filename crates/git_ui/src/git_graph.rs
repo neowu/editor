@@ -154,9 +154,9 @@ use workspace::mode::GitHistory;
 
 use crate::branch_picker;
 use crate::commit_context_menu::CommitContextMenuData;
-pub use crate::commit_context_menu::CopyCommitSha;
-pub use crate::commit_context_menu::CopyCommitTag;
-pub use crate::commit_context_menu::OpenCommitView;
+use crate::commit_context_menu::CopyCommitSha;
+use crate::commit_context_menu::CopyCommitTag;
+use crate::commit_context_menu::OpenCommitView;
 use crate::commit_context_menu::commit_context_menu;
 use crate::commit_details_panel::CommitDetailsEvent;
 use crate::commit_details_panel::CommitDetailsPanel;
@@ -290,6 +290,7 @@ impl SearchState {
     fn confirmed_query(&self) -> Option<&str> {
         match &self.state {
             QueryState::Confirmed((query, _)) => Some(query.as_str()),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         }
     }
@@ -343,27 +344,27 @@ actions!(
         /// Focuses the search field.
         FocusSearch,
         /// Focuses the next git graph tab stop.
-        FocusNextTabStop,
+        pub FocusNextTabStop,
         /// Focuses the previous git graph tab stop.
-        FocusPreviousTabStop,
+        pub FocusPreviousTabStop,
         /// Selects a commit half a page above the current selection.
         ScrollUp,
         /// Selects a commit half a page below the current selection.
         ScrollDown,
         /// Toggles the selected commit's changed files between flat and tree views.
-        ToggleChangedFilesView,
+        pub(crate) ToggleChangedFilesView,
         /// Rereads the repository's refs and reloads the commits.
-        Refresh,
+        pub Refresh,
     ]
 );
 
 /// Opens the Git Graph Tab at a specific commit.
 #[derive(Clone, PartialEq, Eq, gpui::Action)]
 #[action(namespace = git_graph, no_build)]
-pub struct OpenAtCommit {
-    pub sha: String,
+pub(crate) struct OpenAtCommit {
+    pub(crate) sha: String,
     /// The commit's repository; the active repository when omitted.
-    pub repo_id: Option<u64>,
+    pub(crate) repo_id: Option<u64>,
 }
 
 pub(crate) fn format_timestamp(timestamp: i64) -> String {
@@ -761,7 +762,7 @@ impl GraphData {
     }
 }
 
-pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
+pub(crate) fn init(workspace_actions: &mut WorkspaceActions, cx: &App) {
     cx.observe_new(|workspace: &mut Workspace, window, cx| {
         // Git History follows the folder picked in the title bar while shown.
         if let Some(window) = window {
@@ -831,7 +832,7 @@ pub(crate) fn has_active_repository(workspace: &Workspace, cx: &App) -> bool {
 /// Resolves a `git::FileHistory` target from a known project path (used by
 /// callers like `project_panel` that own a focused selection but cannot be
 /// referenced from this module due to dependency direction).
-pub fn resolve_file_history_target_from_project_path(
+pub(crate) fn resolve_file_history_target_from_project_path(
     workspace: &Workspace,
     project_path: &ProjectPath,
     cx: &App,
@@ -857,7 +858,7 @@ fn file_history_target(workspace: &Workspace, cx: &App) -> Option<(RepositoryId,
 
 /// Switches to Git History for the active repository: keeps the active history
 /// tab if it belongs to that repository, otherwise shows its graph.
-pub fn show_active_repository_history(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
+fn show_active_repository_history(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
     let project = workspace.project().read(cx);
     let Some(active_repo_id) = project.active_repository(cx).map(|repo| repo.read(cx).id) else {
         return;
@@ -936,7 +937,7 @@ fn ensure_repository_graph(
 
 /// Shows the git graph for `repo_id` and `log_source` in the git history
 /// pane, reusing an open one, and switches the window to Git History mode.
-pub fn open_or_reuse_graph(
+pub(crate) fn open_or_reuse_graph(
     workspace: &mut Workspace,
     repo_id: RepositoryId,
     git_store: Entity<GitStore>,
@@ -1117,7 +1118,7 @@ impl RefMenuEntry {
     }
 }
 
-pub struct GitGraph {
+pub(crate) struct GitGraph {
     focus_handle: FocusHandle,
     search_state: SearchState,
     graph_data: GraphData,
@@ -1379,7 +1380,7 @@ impl GitGraph {
         ColumnWidthConfig::explicit(widths)
     }
 
-    pub fn new(
+    fn new(
         repo_id: RepositoryId,
         git_store: Entity<GitStore>,
         workspace: WeakEntity<Workspace>,
@@ -1566,6 +1567,7 @@ impl GitGraph {
                 }
             }
             RepositoryEvent::GraphEvent(_, _) => {}
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }
@@ -2099,7 +2101,7 @@ impl GitGraph {
         self.select_commit_by_sha(oid, cx);
     }
 
-    pub fn select_commit_by_sha(&mut self, sha: impl TryInto<Oid>, cx: &mut Context<Self>) {
+    fn select_commit_by_sha(&mut self, sha: impl TryInto<Oid>, cx: &mut Context<Self>) {
         fn inner(this: &mut GitGraph, oid: Oid, cx: &mut Context<GitGraph>) {
             let Some(selected_repository) = this.get_repository(cx) else {
                 return;
@@ -2126,7 +2128,7 @@ impl GitGraph {
         }
     }
 
-    fn open_selected_commit_view(&self, window: &mut Window, cx: &mut Context<Self>) {
+    fn open_selected_commit_view(&self, window: &Window, cx: &mut Context<Self>) {
         let Some(selected_entry_index) = self.selected_entry_idx else {
             return;
         };
@@ -2134,7 +2136,7 @@ impl GitGraph {
         self.open_commit_view(selected_entry_index, window, cx);
     }
 
-    fn open_commit_view(&self, entry_index: usize, window: &mut Window, cx: &mut Context<Self>) {
+    fn open_commit_view(&self, entry_index: usize, window: &Window, cx: &mut Context<Self>) {
         let Some(commit_entry) = self.graph_data.commits.get(entry_index) else {
             return;
         };
@@ -3525,6 +3527,7 @@ impl Item for GitGraph {
         });
         let path_history_path = match &self.log_source {
             LogSource::Path(path) => Some(path.as_unix_str().to_owned()),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         };
 

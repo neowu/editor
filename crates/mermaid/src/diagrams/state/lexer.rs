@@ -350,6 +350,7 @@ impl<'a> Lexer<'a> {
                 S::StateString => Some(T::StateDescr),
                 S::FloatingNote => Some(T::NoteText),
                 S::StateId | S::FloatingNoteId => Some(T::Id),
+                // lint: expect(wildcard_match) only a few variants of `S` matter here
                 _ => None,
             };
             if let Some(kind) = kind {

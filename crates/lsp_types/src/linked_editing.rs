@@ -15,20 +15,20 @@ pub type LinkedEditingRangeClientCapabilities = DynamicRegistrationClientCapabil
 #[serde(rename_all = "camelCase")]
 pub struct LinkedEditingRangeOptions {
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LinkedEditingRangeRegistrationOptions {
     #[serde(flatten)]
-    pub text_document_registration_options: TextDocumentRegistrationOptions,
+    text_document_registration_options: TextDocumentRegistrationOptions,
 
     #[serde(flatten)]
-    pub linked_editing_range_options: LinkedEditingRangeOptions,
+    linked_editing_range_options: LinkedEditingRangeOptions,
 
     #[serde(flatten)]
-    pub static_registration_options: StaticRegistrationOptions,
+    static_registration_options: StaticRegistrationOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
@@ -60,5 +60,5 @@ pub struct LinkedEditingRanges {
     /// the given ranges. If no pattern is provided, the client configuration's word
     /// pattern will be used.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub word_pattern: Option<String>,
+    word_pattern: Option<String>,
 }

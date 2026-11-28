@@ -39,6 +39,7 @@ impl StageIntent {
         match section {
             Section::Staged => StageIntent::Unstage,
             Section::Unstaged => StageIntent::Stage,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => StageIntent::Toggle,
         }
     }
@@ -237,11 +238,11 @@ impl GitPanel {
         }
     }
 
-    pub fn stage_all(&mut self, _: &StageAll, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn stage_all(&mut self, _: &StageAll, _window: &mut Window, cx: &mut Context<Self>) {
         self.change_all_files_stage(true, cx);
     }
 
-    pub fn unstage_all(&mut self, _: &UnstageAll, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn unstage_all(&mut self, _: &UnstageAll, _window: &mut Window, cx: &mut Context<Self>) {
         self.change_all_files_stage(false, cx);
     }
 
@@ -360,7 +361,7 @@ impl GitPanel {
         .detach();
     }
 
-    pub const fn total_staged_count(&self) -> usize {
+    pub(crate) const fn total_staged_count(&self) -> usize {
         self.tracked_staged_count + self.new_staged_count + self.conflicted_staged_count
     }
 
@@ -448,11 +449,11 @@ impl GitPanel {
         self.entry_count == 0 || self.has_unstaged_changes()
     }
 
-    pub fn can_stage_all(&self) -> bool {
+    pub(crate) fn can_stage_all(&self) -> bool {
         self.has_unstaged_changes()
     }
 
-    pub const fn can_unstage_all(&self) -> bool {
+    pub(crate) const fn can_unstage_all(&self) -> bool {
         self.has_staged_changes()
     }
 

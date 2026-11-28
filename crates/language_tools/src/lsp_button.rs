@@ -79,7 +79,7 @@ actions!(
     lsp_tool,
     [
         /// Toggles the language server tool menu.
-        ToggleMenu
+        pub ToggleMenu
     ]
 );
 
@@ -819,6 +819,7 @@ impl LspButton {
                     let message = match binary_status {
                         BinaryStatus::NotInstalled { message } => Some(message.as_str()),
                         BinaryStatus::Failed { error } => Some(error.as_str()),
+                        // lint: expect(wildcard_match) only some variants matter here
                         _ => None,
                     };
                     self.server_state.update(cx, |state, _| {
@@ -864,6 +865,7 @@ impl LspButton {
                 });
                 updated = true;
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
 
@@ -1103,6 +1105,7 @@ impl StatusItemView for LspButton {
                                 lsp_button.refresh_lsp_menu(false, window, cx);
                             }
                         }
+                        // lint: expect(wildcard_match) only some variants matter here
                         _ => {}
                     });
                 self.server_state.update(cx, |state, _| {

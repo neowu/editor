@@ -89,7 +89,7 @@ type RenderPipelineState = ProtocolObject<dyn MTLRenderPipelineState>;
 type Library = ProtocolObject<dyn MTLLibrary>;
 
 // Exported to metal
-pub(crate) type PointF = Point<f32>;
+type PointF = Point<f32>;
 
 #[cfg(not(feature = "runtime_shaders"))]
 const SHADERS_METALLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/shaders.metallib"));
@@ -124,18 +124,18 @@ impl Default for InstanceBufferPool {
     }
 }
 
-pub(crate) struct InstanceBuffer {
+struct InstanceBuffer {
     metal_buffer: Retained<Buffer>,
     size: usize,
 }
 
 impl InstanceBufferPool {
-    pub(crate) fn reset(&mut self, buffer_size: usize) {
+    fn reset(&mut self, buffer_size: usize) {
         self.buffer_size = buffer_size;
         self.buffers.clear();
     }
 
-    pub(crate) fn acquire(&mut self, device: &Device, unified_memory: bool) -> InstanceBuffer {
+    fn acquire(&mut self, device: &Device, unified_memory: bool) -> InstanceBuffer {
         let buffer = self.buffers.pop().unwrap_or_else(|| {
             let options = if unified_memory {
                 MTLResourceOptions::StorageModeShared
@@ -151,7 +151,7 @@ impl InstanceBufferPool {
         InstanceBuffer { metal_buffer: buffer, size: self.buffer_size }
     }
 
-    pub(crate) fn release(&mut self, buffer: InstanceBuffer) {
+    fn release(&mut self, buffer: InstanceBuffer) {
         if buffer.size == self.buffer_size {
             self.buffers.push(buffer.metal_buffer);
         }
@@ -196,11 +196,11 @@ pub(crate) struct MetalRenderer {
 }
 
 #[repr(C)]
-pub(crate) struct PathRasterizationVertex {
-    pub(crate) xy_position: Point<ScaledPixels>,
-    pub(crate) st_position: Point<f32>,
-    pub(crate) color: Background,
-    pub(crate) bounds: Bounds<ScaledPixels>,
+struct PathRasterizationVertex {
+    xy_position: Point<ScaledPixels>,
+    st_position: Point<f32>,
+    color: Background,
+    bounds: Bounds<ScaledPixels>,
 }
 
 impl MetalRenderer {
@@ -1385,8 +1385,8 @@ enum PathRasterizationInputIndex {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[repr(C)]
-pub(crate) struct PathSprite {
-    pub(crate) bounds: Bounds<ScaledPixels>,
+struct PathSprite {
+    bounds: Bounds<ScaledPixels>,
 }
 
 #[cfg(test)]

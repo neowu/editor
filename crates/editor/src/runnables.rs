@@ -72,27 +72,23 @@ impl RunnableData {
         self.runnables.get(&buffer_id)?.1.get(&buffer_row)
     }
 
-    pub(crate) fn all_runnables(&self) -> impl Iterator<Item = &RunnableTasks> {
+    fn all_runnables(&self) -> impl Iterator<Item = &RunnableTasks> {
         self.runnables.values().flat_map(|(_, tasks)| tasks.values())
     }
 
-    pub(crate) fn task_status(&self, (buffer_id, buffer_row): (BufferId, BufferRow)) -> Option<RunnableTaskStatus> {
+    fn task_status(&self, (buffer_id, buffer_row): (BufferId, BufferRow)) -> Option<RunnableTaskStatus> {
         self.task_statuses.get(&(buffer_id, buffer_row)).copied()
     }
 
-    pub(crate) fn set_task_status(
-        &mut self,
-        (buffer_id, buffer_row): (BufferId, BufferRow),
-        status: RunnableTaskStatus,
-    ) {
+    fn set_task_status(&mut self, (buffer_id, buffer_row): (BufferId, BufferRow), status: RunnableTaskStatus) {
         self.task_statuses.insert((buffer_id, buffer_row), status);
     }
 
-    pub(crate) fn clear_task_status(&mut self, (buffer_id, buffer_row): (BufferId, BufferRow)) {
+    fn clear_task_status(&mut self, (buffer_id, buffer_row): (BufferId, BufferRow)) {
         self.task_statuses.remove(&(buffer_id, buffer_row));
     }
 
-    pub(crate) fn has_cached(&self, buffer_id: BufferId, version: &Global) -> bool {
+    fn has_cached(&self, buffer_id: BufferId, version: &Global) -> bool {
         self.runnables.get(&buffer_id).is_some_and(|(cached_version, _)| !version.changed_since(cached_version))
     }
 
@@ -135,7 +131,7 @@ impl From<ScheduledTaskResult> for RunnableTaskStatus {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum RunnableSource {
+enum RunnableSource {
     /// Tasks the language server already built.
     Lsp(Vec<SpawnInTerminal>),
     /// A tree-sitter runnable; its language builds the tasks when the icon is clicked.
@@ -144,23 +140,23 @@ pub(crate) enum RunnableSource {
 
 #[derive(Clone, Debug)]
 pub(crate) struct RunnableTasks {
-    pub source: RunnableSource,
-    pub offset: Anchor,
+    source: RunnableSource,
+    offset: Anchor,
     /// Column of the runnable on its row, where the tasks are built for.
-    pub column: u32,
+    pub(crate) column: u32,
 }
 
 #[derive(Clone)]
-pub struct ResolvedTasks {
-    pub tasks: Vec<SpawnInTerminal>,
-    pub position: Anchor,
+pub(crate) struct ResolvedTasks {
+    pub(crate) tasks: Vec<SpawnInTerminal>,
+    pub(crate) position: Anchor,
 }
 
 impl Editor {
-    pub fn refresh_runnables(
+    pub(crate) fn refresh_runnables(
         &mut self,
         invalidate_buffer_data: Option<BufferId>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) {
         if !self.mode().is_full() || !self.enable_runnables {
@@ -288,7 +284,7 @@ impl Editor {
     }
 
     /// Fetches runnables again for the buffers whose language server provides them.
-    pub(crate) fn refresh_lsp_runnables(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn refresh_lsp_runnables(&mut self, window: &Window, cx: &mut Context<Self>) {
         let buffer_ids = self.lsp_task_sources(true, false, cx).into_values().flatten().collect::<Vec<_>>();
         for buffer_id in buffer_ids {
             self.refresh_runnables(Some(buffer_id), window, cx);
@@ -302,7 +298,7 @@ impl Editor {
         visible_range.start.row..visible_range.end.row
     }
 
-    pub fn clear_runnables(&mut self, for_buffer: Option<BufferId>) {
+    pub(crate) fn clear_runnables(&mut self, for_buffer: Option<BufferId>) {
         if let Some(buffer_id) = for_buffer {
             self.runnables.runnables.remove(&buffer_id);
             self.runnables.task_statuses.retain(|(status_buffer_id, _), _| *status_buffer_id != buffer_id);
@@ -356,7 +352,7 @@ impl Editor {
         Some((buffer_snapshot.buffer_id(), range.start.row))
     }
 
-    pub fn lsp_task_sources(
+    fn lsp_task_sources(
         &self,
         visible_only: bool,
         skip_cached: bool,

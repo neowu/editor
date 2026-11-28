@@ -170,7 +170,7 @@ pub struct FoldingRange {
     /// is used to categorize folding ranges and used by commands like 'Fold all comments'. See
     /// [FoldingRangeKind](#FoldingRangeKind) for an enumeration of standardized kinds.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub kind: Option<FoldingRangeKind>,
+    kind: Option<FoldingRangeKind>,
 
     /// The text that the client should show when the specified range is
     /// collapsed. If not defined or not supported by the client, a default

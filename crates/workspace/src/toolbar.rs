@@ -93,7 +93,7 @@ impl Toolbar {
             .map(|(item, _)| item.as_ref())
     }
 
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { active_item: None, items: Vec::default(), hidden: false }
     }
 
@@ -119,7 +119,12 @@ impl Toolbar {
         cx.notify();
     }
 
-    pub fn set_active_item(&mut self, item: Option<&dyn ItemHandle>, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn set_active_item(
+        &mut self,
+        item: Option<&dyn ItemHandle>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.active_item = item.map(|x| x.boxed_clone());
         self.hidden = self.active_item.as_ref().is_some_and(|item| !item.show_toolbar(cx));
 

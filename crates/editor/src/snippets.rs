@@ -45,7 +45,7 @@ impl Editor {
         )));
     }
 
-    pub fn insert_snippet(
+    pub(crate) fn insert_snippet(
         &mut self,
         insertion_ranges: &[Range<MultiBufferOffset>],
         snippet: Snippet,
@@ -61,7 +61,7 @@ impl Editor {
         );
     }
 
-    pub(crate) fn insert_snippet_with_autoindent(
+    fn insert_snippet_with_autoindent(
         &mut self,
         insertion_ranges: &[Range<MultiBufferOffset>],
         snippet: Snippet,
@@ -181,15 +181,15 @@ impl Editor {
         }
     }
 
-    pub fn move_to_next_snippet_tabstop(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+    pub(crate) fn move_to_next_snippet_tabstop(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         self.move_to_snippet_tabstop(Bias::Right, window, cx)
     }
 
-    pub fn move_to_prev_snippet_tabstop(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+    pub(crate) fn move_to_prev_snippet_tabstop(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         self.move_to_snippet_tabstop(Bias::Left, window, cx)
     }
 
-    pub fn move_to_snippet_tabstop(&mut self, bias: Bias, window: &mut Window, cx: &mut Context<Self>) -> bool {
+    fn move_to_snippet_tabstop(&mut self, bias: Bias, window: &mut Window, cx: &mut Context<Self>) -> bool {
         if let Some(mut snippet) = self.snippet_stack.pop() {
             match bias {
                 Bias::Left => {
@@ -233,7 +233,7 @@ impl Editor {
         false
     }
 
-    pub fn next_snippet_tabstop(&mut self, _: &NextSnippetTabstop, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn next_snippet_tabstop(&mut self, _: &NextSnippetTabstop, window: &mut Window, cx: &mut Context<Self>) {
         if self.mode.is_single_line() || self.snippet_stack.is_empty() {
             cx.propagate();
             return;
@@ -245,7 +245,7 @@ impl Editor {
         cx.propagate();
     }
 
-    pub fn previous_snippet_tabstop(
+    pub(crate) fn previous_snippet_tabstop(
         &mut self,
         _: &PreviousSnippetTabstop,
         window: &mut Window,

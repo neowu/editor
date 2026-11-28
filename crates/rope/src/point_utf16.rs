@@ -16,7 +16,7 @@ impl PointUtf16 {
         PointUtf16 { row, column }
     }
 
-    pub const fn zero() -> Self {
+    pub(crate) const fn zero() -> Self {
         PointUtf16::new(0, 0)
     }
 

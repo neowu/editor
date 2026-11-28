@@ -53,7 +53,7 @@ impl TabBar {
         self
     }
 
-    pub const fn start_children_mut(&mut self) -> &mut SmallVec<[AnyElement; 2]> {
+    const fn start_children_mut(&mut self) -> &mut SmallVec<[AnyElement; 2]> {
         &mut self.start_children
     }
 
@@ -65,7 +65,7 @@ impl TabBar {
         self
     }
 
-    pub const fn end_children_mut(&mut self) -> &mut SmallVec<[AnyElement; 2]> {
+    const fn end_children_mut(&mut self) -> &mut SmallVec<[AnyElement; 2]> {
         &mut self.end_children
     }
 

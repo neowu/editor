@@ -31,7 +31,7 @@ use image::Frame;
 use image::Rgba;
 use image::codecs::gif::GifDecoder;
 use image::codecs::webp::WebPDecoder;
-pub use keystroke::AsKeystroke;
+pub(crate) use keystroke::AsKeystroke;
 pub use keystroke::Capslock;
 pub use keystroke::InvalidKeystrokeError;
 pub use keystroke::KeybindingKeystroke;
@@ -106,7 +106,7 @@ pub enum WindowVisibility {
 
 impl WindowVisibility {
     /// Whether frames drawn for the window will be shown.
-    pub fn is_visible(self) -> bool {
+    pub(crate) fn is_visible(self) -> bool {
         self == Self::Visible
     }
 }
@@ -258,7 +258,7 @@ pub trait PlatformDisplay: Debug {
 
 /// An opaque identifier for a hardware display.
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
-pub struct DisplayId(pub(crate) u64);
+pub struct DisplayId(u64);
 
 impl DisplayId {
     /// Create a new `DisplayId` from a raw platform display identifier.
@@ -288,9 +288,9 @@ impl Debug for DisplayId {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
 pub struct RequestFrameOptions {
     /// Whether a presentation is required.
-    pub require_presentation: bool,
+    pub(crate) require_presentation: bool,
     /// Force refresh of all rendering states when true.
-    pub force_render: bool,
+    pub(crate) force_render: bool,
 }
 
 pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
@@ -536,7 +536,7 @@ pub enum AtlasKey {
 
 impl AtlasKey {
     /// Returns the texture kind for this atlas key.
-    pub const fn texture_kind(&self) -> AtlasTextureKind {
+    const fn texture_kind(&self) -> AtlasTextureKind {
         match self {
             AtlasKey::Glyph(params) => {
                 if params.is_emoji {
@@ -698,7 +698,7 @@ pub enum AtlasTextureKind {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
-pub struct TileId(pub u32);
+pub struct TileId(pub(crate) u32);
 
 impl From<etagere::AllocId> for TileId {
     fn from(id: etagere::AllocId) -> Self {
@@ -718,7 +718,7 @@ pub struct PlatformInputHandler {
 }
 
 impl PlatformInputHandler {
-    pub fn new(cx: AsyncWindowContext, handler: Box<dyn InputHandler>) -> Self {
+    pub(crate) fn new(cx: AsyncWindowContext, handler: Box<dyn InputHandler>) -> Self {
         Self { cx, handler }
     }
 
@@ -768,11 +768,11 @@ impl PlatformInputHandler {
         self.handler.apple_press_and_hold_enabled()
     }
 
-    pub fn dispatch_input(&mut self, input: &str, window: &mut Window, cx: &mut App) {
+    pub(crate) fn dispatch_input(&mut self, input: &str, window: &mut Window, cx: &mut App) {
         self.handler.replace_text_in_range(None, input, window, cx);
     }
 
-    pub fn compute_ime_candidate_bounds(
+    fn compute_ime_candidate_bounds(
         marked_range: Option<Range<usize>>,
         selection: &UTF16Selection,
         mut bounds_for_range: impl FnMut(Range<usize>) -> Option<Bounds<Pixels>>,
@@ -803,7 +803,7 @@ impl PlatformInputHandler {
         }
     }
 
-    pub fn selected_bounds(&mut self, window: &mut Window, cx: &mut App) -> Option<Bounds<Pixels>> {
+    pub(crate) fn selected_bounds(&mut self, window: &mut Window, cx: &mut App) -> Option<Bounds<Pixels>> {
         let marked_range = self.handler.marked_text_range(window, cx);
         let selection = self.handler.selected_text_range(true, window, cx)?;
         Self::compute_ime_candidate_bounds(marked_range, &selection, |range| {
@@ -817,7 +817,7 @@ impl PlatformInputHandler {
     }
 
     #[allow(dead_code)]
-    pub fn accepts_text_input(&mut self, window: &mut Window, cx: &mut App) -> bool {
+    pub(crate) fn accepts_text_input(&mut self, window: &mut Window, cx: &mut App) -> bool {
         self.handler.accepts_text_input(window, cx)
     }
 
@@ -1069,7 +1069,7 @@ impl Default for WindowBounds {
 
 impl WindowBounds {
     /// Retrieve the inner bounds.
-    pub const fn get_bounds(&self) -> Bounds<Pixels> {
+    pub(crate) const fn get_bounds(&self) -> Bounds<Pixels> {
         match self {
             WindowBounds::Windowed(bounds) => *bounds,
             WindowBounds::Maximized(bounds) => *bounds,
@@ -1459,7 +1459,7 @@ pub enum ImageFormat {
 
 impl ImageFormat {
     /// Returns the mime type for the ImageFormat.
-    pub const fn mime_type(self) -> &'static str {
+    const fn mime_type(self) -> &'static str {
         match self {
             ImageFormat::Png => "image/png",
             ImageFormat::Jpeg => "image/jpeg",
@@ -1514,7 +1514,7 @@ pub(crate) fn decode_static_image(bytes: &[u8], format: image::ImageFormat) -> R
     decode_static_image_from_decoder(decoder)
 }
 
-pub(crate) fn decode_static_image_from_decoder(mut decoder: impl image::ImageDecoder) -> Result<SmallVec<[Frame; 1]>> {
+fn decode_static_image_from_decoder(mut decoder: impl image::ImageDecoder) -> Result<SmallVec<[Frame; 1]>> {
     let orientation = decoder.orientation().context("reading decoder's orientation")?;
     let mut image = DynamicImage::from_decoder(decoder).context("decoding image")?;
     image.apply_orientation(orientation);
@@ -1609,7 +1609,7 @@ impl Image {
     }
 
     /// Convert the clipboard image to an `ImageData` object.
-    pub fn to_image_data(&self, svg_renderer: SvgRenderer) -> Result<Arc<RenderImage>> {
+    pub(crate) fn to_image_data(&self, svg_renderer: SvgRenderer) -> Result<Arc<RenderImage>> {
         let frames = match self.format {
             ImageFormat::Gif => decode_gif_image(&self.bytes)?,
             ImageFormat::Png => decode_static_image(&self.bytes, image::ImageFormat::Png)?,
@@ -1645,13 +1645,13 @@ pub struct ClipboardString {
 
 impl ClipboardString {
     /// Create a new clipboard string with the given text.
-    pub const fn new(text: String) -> Self {
+    const fn new(text: String) -> Self {
         Self { text, metadata: None }
     }
 
     /// Return a new clipboard item with the metadata replaced by the given metadata,
     /// after serializing it as JSON.
-    pub fn with_json_metadata<T: Serialize>(mut self, metadata: T) -> Self {
+    fn with_json_metadata<T: Serialize>(mut self, metadata: T) -> Self {
         self.metadata = Some(serde_json::to_string(&metadata).expect("metadata serializes to json"));
         self
     }

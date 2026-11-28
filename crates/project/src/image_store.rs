@@ -42,7 +42,7 @@ use crate::worktree_store::WorktreeStore;
 use crate::worktree_store::WorktreeStoreEvent;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, PartialOrd, Ord, Eq)]
-pub struct ImageId(NonZeroU64);
+struct ImageId(NonZeroU64);
 impl Display for ImageId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
@@ -65,7 +65,7 @@ pub enum ImageItemEvent {
 
 impl EventEmitter<ImageItemEvent> for ImageItem {}
 
-pub enum ImageStoreEvent {
+pub(crate) enum ImageStoreEvent {
     ImageAdded(Entity<ImageItem>),
 }
 
@@ -89,11 +89,11 @@ pub struct ImageMetadata {
 #[derive(Debug, Clone, Copy)]
 pub struct ImageColorInfo {
     pub channels: u8,
-    pub bits_per_channel: u8,
+    bits_per_channel: u8,
 }
 
 impl ImageColorInfo {
-    pub fn from_color_type(color_type: impl Into<ExtendedColorType>) -> Option<Self> {
+    fn from_color_type(color_type: impl Into<ExtendedColorType>) -> Option<Self> {
         let (channels, bits_per_channel) = match color_type.into() {
             ExtendedColorType::L8 => (1, 8),
             ExtendedColorType::L16 => (1, 16),
@@ -119,7 +119,7 @@ impl ImageColorInfo {
 }
 
 pub struct ImageItem {
-    pub id: ImageId,
+    id: ImageId,
     pub file: Arc<worktree::File>,
     pub image: Arc<gpui::Image>,
     reload_task: Option<Task<()>>,
@@ -127,7 +127,7 @@ pub struct ImageItem {
 }
 
 impl ImageItem {
-    pub fn compute_metadata_from_bytes(image_bytes: &[u8]) -> Result<ImageMetadata> {
+    fn compute_metadata_from_bytes(image_bytes: &[u8]) -> Result<ImageMetadata> {
         let Ok(image_format) = image::guess_format(image_bytes) else {
             let svg = usvg::Tree::from_data(image_bytes, &usvg::Options::default())?;
             let size = svg.size().to_int_size();
@@ -155,10 +155,10 @@ impl ImageItem {
         })
     }
 
-    pub async fn load_image_metadata(
+    pub(crate) async fn load_image_metadata(
         image: Entity<ImageItem>,
         project: Entity<Project>,
-        cx: &mut AsyncApp,
+        cx: &AsyncApp,
     ) -> Result<ImageMetadata> {
         let (fs, image_path) = cx.update(|cx| {
             let fs = Arc::clone(project.read(cx).fs());
@@ -223,7 +223,7 @@ impl ImageItem {
     }
 }
 
-pub fn is_image_file(project: &Entity<Project>, path: &ProjectPath, cx: &App) -> bool {
+fn is_image_file(project: &Entity<Project>, path: &ProjectPath, cx: &App) -> bool {
     let ext = (|| {
         let worktree_abs_path = project.read(cx).worktree_for_id(path.worktree_id, cx)?.read(cx).abs_path();
         path.path.extension().or_else(|| worktree_abs_path.extension()?.to_str()).map(str::to_lowercase)
@@ -266,7 +266,7 @@ struct LocalImageStore {
     _subscription: Subscription,
 }
 
-pub struct ImageStore {
+pub(crate) struct ImageStore {
     state: Entity<LocalImageStore>,
     opened_images: FxHashMap<ImageId, WeakEntity<ImageItem>>,
     worktree_store: Entity<WorktreeStore>,
@@ -276,12 +276,12 @@ pub struct ImageStore {
 }
 
 impl ImageStore {
-    pub fn local(worktree_store: Entity<WorktreeStore>, cx: &mut Context<Self>) -> Self {
+    pub(crate) fn local(worktree_store: Entity<WorktreeStore>, cx: &mut Context<Self>) -> Self {
         let this = cx.weak_entity();
         Self {
             state: cx.new(|cx| {
                 let subscription = cx.subscribe(&worktree_store, |this: &mut LocalImageStore, _, event, cx| {
-                    if let WorktreeStoreEvent::WorktreeAdded(worktree) = event {
+                    if let WorktreeStoreEvent::Added(worktree) = event {
                         this.subscribe_to_worktree(worktree, cx);
                     }
                 });
@@ -299,19 +299,23 @@ impl ImageStore {
         }
     }
 
-    pub fn images(&self) -> impl '_ + Iterator<Item = Entity<ImageItem>> {
+    fn images(&self) -> impl '_ + Iterator<Item = Entity<ImageItem>> {
         self.opened_images.values().filter_map(WeakEntity::upgrade)
     }
 
-    pub fn get(&self, image_id: ImageId) -> Option<Entity<ImageItem>> {
+    fn get(&self, image_id: ImageId) -> Option<Entity<ImageItem>> {
         self.opened_images.get(&image_id).and_then(WeakEntity::upgrade)
     }
 
-    pub fn get_by_path(&self, path: &ProjectPath, cx: &App) -> Option<Entity<ImageItem>> {
+    fn get_by_path(&self, path: &ProjectPath, cx: &App) -> Option<Entity<ImageItem>> {
         self.images().find(|image| &image.read(cx).project_path(cx) == path)
     }
 
-    pub fn open_image(&mut self, project_path: ProjectPath, cx: &mut Context<Self>) -> Task<Result<Entity<ImageItem>>> {
+    pub(crate) fn open_image(
+        &mut self,
+        project_path: ProjectPath,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<Entity<ImageItem>>> {
         let existing_image = self.get_by_path(&project_path, cx);
         if let Some(existing_image) = existing_image {
             return Task::ready(Ok(existing_image));
@@ -354,7 +358,7 @@ impl ImageStore {
         })
     }
 
-    pub async fn wait_for_loading_image(
+    async fn wait_for_loading_image(
         mut receiver: watch::Receiver<Option<Result<Entity<ImageItem>, Arc<anyhow::Error>>>>,
     ) -> Result<Entity<ImageItem>, Arc<anyhow::Error>> {
         loop {
@@ -370,10 +374,10 @@ impl ImageStore {
         }
     }
 
-    pub fn reload_images(
+    pub(crate) fn reload_images(
         &self,
         images: FxHashSet<Entity<ImageItem>>,
-        cx: &mut Context<ImageStore>,
+        cx: &Context<ImageStore>,
     ) -> Task<Result<()>> {
         if images.is_empty() {
             return Task::ready(Ok(()));

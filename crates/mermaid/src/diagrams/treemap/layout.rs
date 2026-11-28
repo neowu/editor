@@ -7,7 +7,7 @@ use crate::svg::builder::js_round;
 #[derive(Clone, Debug)]
 pub(crate) struct Layout<'a> {
     /// Indices of the child boxes.
-    pub(crate) children: Vec<usize>,
+    children: Vec<usize>,
     /// Height.
     pub(crate) h: f64,
     /// The height of a section's header, or 0 when it is too small for one and gives its
@@ -16,7 +16,7 @@ pub(crate) struct Layout<'a> {
     /// The node.
     pub(crate) node: &'a TreemapNode,
     /// Index of the parent box.
-    pub(crate) parent: Option<usize>,
+    parent: Option<usize>,
     /// Position among the top-level nodes of the branch this box belongs to, which picks its
     /// color.
     pub(crate) series: usize,

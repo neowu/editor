@@ -134,7 +134,7 @@ use crate::references::ReferenceFile;
 use crate::references::ReferenceResults;
 
 impl Editor {
-    pub fn move_left(&mut self, _: &MoveLeft, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_left(&mut self, _: &MoveLeft, window: &mut Window, cx: &mut Context<Self>) {
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_with(&mut |map, selection| {
                 let cursor = if selection.is_empty() { movement::left(map, selection.start) } else { selection.start };
@@ -143,13 +143,13 @@ impl Editor {
         });
     }
 
-    pub fn select_left(&mut self, _: &SelectLeft, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_left(&mut self, _: &SelectLeft, window: &mut Window, cx: &mut Context<Self>) {
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_heads_with(&mut |map, head, _| (movement::left(map, head), SelectionGoal::None));
         });
     }
 
-    pub fn move_right(&mut self, _: &MoveRight, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_right(&mut self, _: &MoveRight, window: &mut Window, cx: &mut Context<Self>) {
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_with(&mut |map, selection| {
                 let cursor = if selection.is_empty() { movement::right(map, selection.end) } else { selection.end };
@@ -158,13 +158,13 @@ impl Editor {
         });
     }
 
-    pub fn select_right(&mut self, _: &SelectRight, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_right(&mut self, _: &SelectRight, window: &mut Window, cx: &mut Context<Self>) {
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_heads_with(&mut |map, head, _| (movement::right(map, head), SelectionGoal::None));
         });
     }
 
-    pub fn move_up(&mut self, _: &MoveUp, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_up(&mut self, _: &MoveUp, window: &mut Window, cx: &mut Context<Self>) {
         if self.take_rename(true, window, cx).is_some() {
             return;
         }
@@ -193,7 +193,7 @@ impl Editor {
         }
     }
 
-    pub fn move_up_by_lines(&mut self, action: &MoveUpByLines, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_up_by_lines(&mut self, action: &MoveUpByLines, window: &mut Window, cx: &mut Context<Self>) {
         if self.take_rename(true, window, cx).is_some() {
             return;
         }
@@ -223,7 +223,7 @@ impl Editor {
         });
     }
 
-    pub fn move_down_by_lines(&mut self, action: &MoveDownByLines, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_down_by_lines(&mut self, action: &MoveDownByLines, window: &mut Window, cx: &mut Context<Self>) {
         if self.take_rename(true, window, cx).is_some() {
             return;
         }
@@ -253,7 +253,12 @@ impl Editor {
         });
     }
 
-    pub fn select_down_by_lines(&mut self, action: &SelectDownByLines, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_down_by_lines(
+        &mut self,
+        action: &SelectDownByLines,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let text_layout_details = &self.text_layout_details(window, cx);
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_heads_with(&mut |map, head, goal| {
@@ -262,7 +267,7 @@ impl Editor {
         });
     }
 
-    pub fn select_up_by_lines(&mut self, action: &SelectUpByLines, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_up_by_lines(&mut self, action: &SelectUpByLines, window: &mut Window, cx: &mut Context<Self>) {
         let text_layout_details = &self.text_layout_details(window, cx);
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_heads_with(&mut |map, head, goal| {
@@ -271,7 +276,7 @@ impl Editor {
         });
     }
 
-    pub fn select_page_up(&mut self, _: &SelectPageUp, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_page_up(&mut self, _: &SelectPageUp, window: &mut Window, cx: &mut Context<Self>) {
         let Some(row_count) = self.visible_row_count() else {
             return;
         };
@@ -285,7 +290,7 @@ impl Editor {
         });
     }
 
-    pub fn move_page_up(&mut self, action: &MovePageUp, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_page_up(&mut self, action: &MovePageUp, window: &mut Window, cx: &mut Context<Self>) {
         if self.take_rename(true, window, cx).is_some() {
             return;
         }
@@ -328,14 +333,14 @@ impl Editor {
         });
     }
 
-    pub fn select_up(&mut self, _: &SelectUp, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_up(&mut self, _: &SelectUp, window: &mut Window, cx: &mut Context<Self>) {
         let text_layout_details = &self.text_layout_details(window, cx);
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_heads_with(&mut |map, head, goal| movement::up(map, head, goal, false, text_layout_details));
         });
     }
 
-    pub fn move_down(&mut self, _: &MoveDown, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_down(&mut self, _: &MoveDown, window: &mut Window, cx: &mut Context<Self>) {
         if self.take_rename(true, window, cx).is_some() {
             return;
         }
@@ -364,7 +369,7 @@ impl Editor {
         }
     }
 
-    pub fn select_page_down(&mut self, _: &SelectPageDown, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_page_down(&mut self, _: &SelectPageDown, window: &mut Window, cx: &mut Context<Self>) {
         let Some(row_count) = self.visible_row_count() else {
             return;
         };
@@ -378,7 +383,7 @@ impl Editor {
         });
     }
 
-    pub fn move_page_down(&mut self, action: &MovePageDown, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_page_down(&mut self, action: &MovePageDown, window: &mut Window, cx: &mut Context<Self>) {
         if self.take_rename(true, window, cx).is_some() {
             return;
         }
@@ -420,14 +425,14 @@ impl Editor {
         });
     }
 
-    pub fn select_down(&mut self, _: &SelectDown, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_down(&mut self, _: &SelectDown, window: &mut Window, cx: &mut Context<Self>) {
         let text_layout_details = &self.text_layout_details(window, cx);
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_heads_with(&mut |map, head, goal| movement::down(map, head, goal, false, text_layout_details));
         });
     }
 
-    pub fn move_to_previous_word_start(
+    pub(crate) fn move_to_previous_word_start(
         &mut self,
         _: &MoveToPreviousWordStart,
         window: &mut Window,
@@ -440,7 +445,7 @@ impl Editor {
         });
     }
 
-    pub fn move_to_previous_subword_start(
+    pub(crate) fn move_to_previous_subword_start(
         &mut self,
         _: &MoveToPreviousSubwordStart,
         window: &mut Window,
@@ -451,7 +456,7 @@ impl Editor {
         });
     }
 
-    pub fn select_to_previous_word_start(
+    pub(crate) fn select_to_previous_word_start(
         &mut self,
         _: &SelectToPreviousWordStart,
         window: &mut Window,
@@ -464,7 +469,7 @@ impl Editor {
         });
     }
 
-    pub fn select_to_previous_subword_start(
+    pub(crate) fn select_to_previous_subword_start(
         &mut self,
         _: &SelectToPreviousSubwordStart,
         window: &mut Window,
@@ -475,25 +480,35 @@ impl Editor {
         });
     }
 
-    pub fn move_to_next_word_end(&mut self, _: &MoveToNextWordEnd, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_to_next_word_end(&mut self, _: &MoveToNextWordEnd, window: &mut Window, cx: &mut Context<Self>) {
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_cursors_with(&mut |map, head, _| (movement::next_word_end(map, head, false), SelectionGoal::None));
         });
     }
 
-    pub fn move_to_next_subword_end(&mut self, _: &MoveToNextSubwordEnd, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_to_next_subword_end(
+        &mut self,
+        _: &MoveToNextSubwordEnd,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_cursors_with(&mut |map, head, _| (movement::next_subword_end(map, head), SelectionGoal::None));
         });
     }
 
-    pub fn select_to_next_word_end(&mut self, _: &SelectToNextWordEnd, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_to_next_word_end(
+        &mut self,
+        _: &SelectToNextWordEnd,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_heads_with(&mut |map, head, _| (movement::next_word_end(map, head, false), SelectionGoal::None));
         });
     }
 
-    pub fn select_to_next_subword_end(
+    pub(crate) fn select_to_next_subword_end(
         &mut self,
         _: &SelectToNextSubwordEnd,
         window: &mut Window,
@@ -521,7 +536,7 @@ impl Editor {
         });
     }
 
-    pub fn select_to_beginning_of_line(
+    pub(crate) fn select_to_beginning_of_line(
         &mut self,
         action: &SelectToBeginningOfLine,
         window: &mut Window,
@@ -546,7 +561,12 @@ impl Editor {
         });
     }
 
-    pub fn select_to_end_of_line(&mut self, action: &SelectToEndOfLine, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_to_end_of_line(
+        &mut self,
+        action: &SelectToEndOfLine,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_heads_with(&mut |map, head, _| {
                 (movement::line_end(map, head, action.stop_at_soft_wraps), SelectionGoal::None)
@@ -554,7 +574,7 @@ impl Editor {
         });
     }
 
-    pub fn move_to_start_of_paragraph(
+    pub(crate) fn move_to_start_of_paragraph(
         &mut self,
         _: &MoveToStartOfParagraph,
         window: &mut Window,
@@ -571,7 +591,12 @@ impl Editor {
         });
     }
 
-    pub fn move_to_end_of_paragraph(&mut self, _: &MoveToEndOfParagraph, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_to_end_of_paragraph(
+        &mut self,
+        _: &MoveToEndOfParagraph,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if matches!(self.mode, EditorMode::SingleLine) {
             cx.propagate();
             return;
@@ -583,7 +608,7 @@ impl Editor {
         });
     }
 
-    pub fn move_to_next_comment_paragraph(
+    pub(crate) fn move_to_next_comment_paragraph(
         &mut self,
         _: &MoveToNextCommentParagraph,
         window: &mut Window,
@@ -605,7 +630,7 @@ impl Editor {
         });
     }
 
-    pub fn move_to_previous_comment_paragraph(
+    pub(crate) fn move_to_previous_comment_paragraph(
         &mut self,
         _: &MoveToPreviousCommentParagraph,
         window: &mut Window,
@@ -627,7 +652,7 @@ impl Editor {
         });
     }
 
-    pub fn select_to_start_of_paragraph(
+    pub(crate) fn select_to_start_of_paragraph(
         &mut self,
         _: &SelectToStartOfParagraph,
         window: &mut Window,
@@ -642,7 +667,7 @@ impl Editor {
         });
     }
 
-    pub fn select_to_end_of_paragraph(
+    pub(crate) fn select_to_end_of_paragraph(
         &mut self,
         _: &SelectToEndOfParagraph,
         window: &mut Window,
@@ -657,7 +682,12 @@ impl Editor {
         });
     }
 
-    pub fn move_to_start_of_excerpt(&mut self, _: &MoveToStartOfExcerpt, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_to_start_of_excerpt(
+        &mut self,
+        _: &MoveToStartOfExcerpt,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if matches!(self.mode, EditorMode::SingleLine) {
             cx.propagate();
             return;
@@ -672,7 +702,7 @@ impl Editor {
         });
     }
 
-    pub fn move_to_start_of_next_excerpt(
+    pub(crate) fn move_to_start_of_next_excerpt(
         &mut self,
         _: &MoveToStartOfNextExcerpt,
         window: &mut Window,
@@ -693,7 +723,12 @@ impl Editor {
         });
     }
 
-    pub fn move_to_end_of_excerpt(&mut self, _: &MoveToEndOfExcerpt, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_to_end_of_excerpt(
+        &mut self,
+        _: &MoveToEndOfExcerpt,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if matches!(self.mode, EditorMode::SingleLine) {
             cx.propagate();
             return;
@@ -706,7 +741,7 @@ impl Editor {
         });
     }
 
-    pub fn move_to_end_of_previous_excerpt(
+    pub(crate) fn move_to_end_of_previous_excerpt(
         &mut self,
         _: &MoveToEndOfPreviousExcerpt,
         window: &mut Window,
@@ -724,7 +759,7 @@ impl Editor {
         });
     }
 
-    pub fn select_to_start_of_excerpt(
+    pub(crate) fn select_to_start_of_excerpt(
         &mut self,
         _: &SelectToStartOfExcerpt,
         window: &mut Window,
@@ -741,7 +776,7 @@ impl Editor {
         });
     }
 
-    pub fn select_to_start_of_next_excerpt(
+    pub(crate) fn select_to_start_of_next_excerpt(
         &mut self,
         _: &SelectToStartOfNextExcerpt,
         window: &mut Window,
@@ -758,7 +793,12 @@ impl Editor {
         });
     }
 
-    pub fn select_to_end_of_excerpt(&mut self, _: &SelectToEndOfExcerpt, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_to_end_of_excerpt(
+        &mut self,
+        _: &SelectToEndOfExcerpt,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if matches!(self.mode, EditorMode::SingleLine) {
             cx.propagate();
             return;
@@ -770,7 +810,7 @@ impl Editor {
         });
     }
 
-    pub fn select_to_end_of_previous_excerpt(
+    pub(crate) fn select_to_end_of_previous_excerpt(
         &mut self,
         _: &SelectToEndOfPreviousExcerpt,
         window: &mut Window,
@@ -787,7 +827,7 @@ impl Editor {
         });
     }
 
-    pub fn move_to_beginning(&mut self, _: &MoveToBeginning, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn move_to_beginning(&mut self, _: &MoveToBeginning, window: &mut Window, cx: &mut Context<Self>) {
         if matches!(self.mode, EditorMode::SingleLine) {
             cx.propagate();
             return;
@@ -797,7 +837,7 @@ impl Editor {
         });
     }
 
-    pub fn select_to_beginning(&mut self, _: &SelectToBeginning, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_to_beginning(&mut self, _: &SelectToBeginning, window: &mut Window, cx: &mut Context<Self>) {
         let mut selection = self.selections.last::<Point>(&self.display_snapshot(cx));
         selection.set_head(Point::zero(), SelectionGoal::None);
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
@@ -818,23 +858,23 @@ impl Editor {
         self.nav_history = nav_history;
     }
 
-    pub fn save_location(&mut self, _: &SaveLocation, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn save_location(&mut self, _: &SaveLocation, _window: &mut Window, cx: &mut Context<Self>) {
         self.create_nav_history_entry(cx);
     }
 
-    pub fn create_nav_history_entry(&mut self, cx: &mut Context<Self>) {
+    fn create_nav_history_entry(&mut self, cx: &mut Context<Self>) {
         self.push_to_nav_history(self.selections.newest_anchor().head(), None, false, true, cx);
     }
 
-    pub fn expand_excerpts(&mut self, action: &ExpandExcerpts, _: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn expand_excerpts(&mut self, action: &ExpandExcerpts, _: &mut Window, cx: &mut Context<Self>) {
         self.expand_excerpts_for_direction(action.lines, ExpandExcerptDirection::UpAndDown, cx);
     }
 
-    pub fn expand_excerpts_down(&mut self, action: &ExpandExcerptsDown, _: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn expand_excerpts_down(&mut self, action: &ExpandExcerptsDown, _: &mut Window, cx: &mut Context<Self>) {
         self.expand_excerpts_for_direction(action.lines, ExpandExcerptDirection::Down, cx);
     }
 
-    pub fn expand_excerpts_up(&mut self, action: &ExpandExcerptsUp, _: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn expand_excerpts_up(&mut self, action: &ExpandExcerptsUp, _: &mut Window, cx: &mut Context<Self>) {
         self.expand_excerpts_for_direction(action.lines, ExpandExcerptDirection::Up, cx);
     }
 
@@ -849,11 +889,16 @@ impl Editor {
     /// Like `go_to_singleton_buffer_point`, but does not push a navigation
     /// history entry. Useful when the caller already recorded one (e.g. when
     /// a file was just opened and we only need to move the cursor).
-    pub fn go_to_singleton_buffer_point_silently(&mut self, point: Point, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn go_to_singleton_buffer_point_silently(
+        &mut self,
+        point: Point,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.go_to_singleton_buffer_range_impl(point..point, false, window, cx);
     }
 
-    pub fn go_to_next_document_highlight(
+    pub(crate) fn go_to_next_document_highlight(
         &mut self,
         _: &GoToNextDocumentHighlight,
         window: &mut Window,
@@ -862,7 +907,7 @@ impl Editor {
         self.go_to_document_highlight_before_or_after_position(Direction::Next, window, cx);
     }
 
-    pub fn go_to_prev_document_highlight(
+    pub(crate) fn go_to_prev_document_highlight(
         &mut self,
         _: &GoToPreviousDocumentHighlight,
         window: &mut Window,
@@ -871,10 +916,10 @@ impl Editor {
         self.go_to_document_highlight_before_or_after_position(Direction::Prev, window, cx);
     }
 
-    pub fn go_to_definition(
-        &mut self,
+    pub(crate) fn go_to_definition(
+        &self,
         _: &GoToDefinition,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<Navigated>> {
         let definition = self.go_to_definition_of_kind(GotoDefinitionKind::Symbol, window, cx);
@@ -907,25 +952,25 @@ impl Editor {
         })
     }
 
-    pub fn go_to_implementation(
-        &mut self,
+    pub(crate) fn go_to_implementation(
+        &self,
         _: &GoToImplementation,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<Navigated>> {
         self.go_to_definition_of_kind(GotoDefinitionKind::Implementation, window, cx)
     }
 
-    pub fn go_to_type_definition(
-        &mut self,
+    pub(crate) fn go_to_type_definition(
+        &self,
         _: &GoToTypeDefinition,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<Navigated>> {
         self.go_to_definition_of_kind(GotoDefinitionKind::Type, window, cx)
     }
 
-    pub fn open_url(&mut self, _: &OpenUrl, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn open_url(&mut self, _: &OpenUrl, window: &mut Window, cx: &mut Context<Self>) {
         let selection = self.selections.newest_anchor();
         let head = selection.head();
         let tail = selection.tail();
@@ -962,7 +1007,12 @@ impl Editor {
         url_finder.detach();
     }
 
-    pub fn open_selected_filename(&mut self, _: &OpenSelectedFilename, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn open_selected_filename(
+        &mut self,
+        _: &OpenSelectedFilename,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(workspace) = self.workspace() else {
             return;
         };
@@ -992,11 +1042,11 @@ impl Editor {
         .detach();
     }
 
-    pub fn go_to_reference_before_or_after_position(
-        &mut self,
+    fn go_to_reference_before_or_after_position(
+        &self,
         direction: Direction,
         count: usize,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Option<Task<Result<()>>> {
         let selection = self.selections.newest_anchor();
@@ -1128,10 +1178,10 @@ impl Editor {
         Some(cx.spawn(async move |_, _| Ok(references.await?.unwrap_or_default())))
     }
 
-    pub fn find_all_references(
+    pub(crate) fn find_all_references(
         &mut self,
         action: &FindAllReferences,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Option<Task<Result<Navigated>>> {
         let always_open_multibuffer = action.always_open_multibuffer;
@@ -1671,7 +1721,7 @@ impl Editor {
         }
     }
 
-    pub(super) fn go_to_symbol_by_offset(&self, window: &Window, cx: &Context<Self>, offset: i8) -> Task<Result<()>> {
+    fn go_to_symbol_by_offset(&self, window: &Window, cx: &Context<Self>, offset: i8) -> Task<Result<()>> {
         // We don't care about multi-buffer symbols
         if !self.buffer.read(cx).is_singleton() {
             return Task::ready(Ok(()));
@@ -1945,7 +1995,7 @@ impl Editor {
         multi_buffer.text_anchor_for_position(position, cx)
     }
 
-    pub(crate) fn go_to_definition_of_kind(
+    fn go_to_definition_of_kind(
         &self,
         kind: GotoDefinitionKind,
         window: &Window,

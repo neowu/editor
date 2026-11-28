@@ -76,7 +76,6 @@ use crate::ToggleFoldAll;
 use crate::actions::FoldAll;
 use crate::actions::ToggleTestReferences;
 use crate::actions::UnfoldAll;
-use crate::references::test_references_label;
 use crate::scroll::ScrollOffset;
 use crate::scroll::ScrollPixelOffset;
 
@@ -606,7 +605,7 @@ pub(crate) fn render_buffer_header(
     )
 }
 
-pub(super) fn file_status_label_color(file_status: Option<FileStatus>) -> Color {
+fn file_status_label_color(file_status: Option<FileStatus>) -> Color {
     file_status.map_or(Color::Default, |status| {
         if status.is_conflicted() {
             Color::Conflict
@@ -622,11 +621,22 @@ pub(super) fn file_status_label_color(file_status: Option<FileStatus>) -> Color 
     })
 }
 
+/// The header menu entry that toggles test references.
+const fn test_references_label(hidden: bool) -> &'static str {
+    if hidden { "Show Test References" } else { "Hide Test References" }
+}
+
 #[cfg(test)]
 mod tests {
     use gpui::px;
 
     use super::*;
+
+    #[test]
+    fn references_label_names_the_next_state() {
+        assert_eq!(test_references_label(false), "Hide Test References");
+        assert_eq!(test_references_label(true), "Show Test References");
+    }
 
     #[test]
     fn card_height_is_fixed_and_clamped() {

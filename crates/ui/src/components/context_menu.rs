@@ -287,7 +287,7 @@ impl FluentBuilder for ContextMenu {}
 
 impl ContextMenu {
     #[inline(always)]
-    pub fn new(
+    fn new(
         window: &mut Window,
         cx: &mut Context<Self>,
         build_menu: impl FnOnce(Self, &mut Window, &mut Context<Self>) -> Self,
@@ -376,7 +376,7 @@ impl ContextMenu {
     ///
     /// This only works if the [`ContextMenu`] was constructed using [`ContextMenu::build_persistent`]. Otherwise it is
     /// a no-op.
-    pub fn rebuild(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn rebuild(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(builder) = self.builder.clone() else {
             return;
         };
@@ -568,11 +568,11 @@ impl ContextMenu {
         self.action_checked(label, action, false)
     }
 
-    pub fn action_checked(self, label: impl Into<SharedString>, action: Box<dyn Action>, checked: bool) -> Self {
+    fn action_checked(self, label: impl Into<SharedString>, action: Box<dyn Action>, checked: bool) -> Self {
         self.action_checked_with_disabled(label, action, checked, false)
     }
 
-    pub fn action_checked_with_disabled(
+    fn action_checked_with_disabled(
         mut self,
         label: impl Into<SharedString>,
         action: Box<dyn Action>,
@@ -635,7 +635,7 @@ impl ContextMenu {
         self.link_with_handler(label, action, |_, _| {})
     }
 
-    pub fn link_with_handler(
+    fn link_with_handler(
         mut self,
         label: impl Into<SharedString>,
         action: Box<dyn Action>,
@@ -716,7 +716,7 @@ impl ContextMenu {
         self.selected_index
     }
 
-    pub fn confirm(&mut self, _: &menu::Confirm, window: &mut Window, cx: &mut Context<Self>) {
+    fn confirm(&mut self, _: &menu::Confirm, window: &mut Window, cx: &mut Context<Self>) {
         let Some(ix) = self.selected_index else {
             return cx.emit(DismissEvent);
         };
@@ -757,7 +757,7 @@ impl ContextMenu {
         }
     }
 
-    pub fn secondary_confirm(&mut self, _: &menu::SecondaryConfirm, window: &mut Window, cx: &mut Context<Self>) {
+    fn secondary_confirm(&mut self, _: &menu::SecondaryConfirm, window: &mut Window, cx: &mut Context<Self>) {
         let Some(ix) = self.selected_index else {
             return;
         };
@@ -802,7 +802,7 @@ impl ContextMenu {
         }
     }
 
-    pub fn cancel(&mut self, _: &menu::Cancel, window: &mut Window, cx: &mut Context<Self>) {
+    fn cancel(&mut self, _: &menu::Cancel, window: &mut Window, cx: &mut Context<Self>) {
         if self.main_menu.is_some() {
             cx.emit(DismissEvent);
 
@@ -823,11 +823,11 @@ impl ContextMenu {
         cx.emit(DismissEvent);
     }
 
-    pub const fn clear_selected(&mut self) {
+    const fn clear_selected(&mut self) {
         self.selected_index = None;
     }
 
-    pub fn select_first(&mut self, _: &SelectFirst, window: &mut Window, cx: &mut Context<Self>) {
+    fn select_first(&mut self, _: &SelectFirst, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(ix) = self.items.iter().position(|item| item.is_selectable()) {
             self.select_index(ix, window, cx);
         }
@@ -849,7 +849,7 @@ impl ContextMenu {
         }
     }
 
-    pub fn select_next(&mut self, _: &SelectNext, window: &mut Window, cx: &mut Context<Self>) {
+    fn select_next(&mut self, _: &SelectNext, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(ix) = self.selected_index {
             let next_index = ix + 1;
             if self.items.len() <= next_index {
@@ -867,7 +867,7 @@ impl ContextMenu {
         self.select_first(&SelectFirst, window, cx);
     }
 
-    pub fn select_previous(&mut self, _: &SelectPrevious, window: &mut Window, cx: &mut Context<Self>) {
+    fn select_previous(&mut self, _: &SelectPrevious, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(ix) = self.selected_index {
             for (ix, item) in self.items.iter().enumerate().take(ix).rev() {
                 if item.is_selectable() {
@@ -880,7 +880,7 @@ impl ContextMenu {
         self.handle_select_last(&SelectLast, window, cx);
     }
 
-    pub fn select_submenu_child(&mut self, _: &SelectChild, window: &mut Window, cx: &mut Context<Self>) {
+    fn select_submenu_child(&mut self, _: &SelectChild, window: &mut Window, cx: &mut Context<Self>) {
         let Some(ix) = self.selected_index else {
             return;
         };
@@ -902,7 +902,7 @@ impl ContextMenu {
         cx.notify();
     }
 
-    pub fn select_submenu_parent(&mut self, _: &SelectParent, window: &mut Window, cx: &mut Context<Self>) {
+    fn select_submenu_parent(&mut self, _: &SelectParent, window: &mut Window, cx: &mut Context<Self>) {
         if self.main_menu.is_none() {
             return;
         }
@@ -942,6 +942,7 @@ impl ContextMenu {
                     }
                 }
                 ContextMenuItem::Submenu { .. } => {}
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => (),
             }
         }
@@ -1150,6 +1151,7 @@ impl ContextMenu {
                 .get(&ix)
                 .copied()
                 .map(|bounds| (open_submenu.entity.clone(), bounds)),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         };
 
@@ -1614,6 +1616,7 @@ impl Render for ContextMenu {
             {
                 Some(open_submenu.entity.read(cx).focus_handle.clone())
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         };
 

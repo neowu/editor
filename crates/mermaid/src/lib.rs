@@ -45,7 +45,7 @@ mod util {
 
 mod diagrams;
 
-pub use error::Code;
+pub(crate) use error::Code;
 pub use error::Error;
 pub use svg::theme::Color;
 pub use svg::theme::Theme;
@@ -55,17 +55,17 @@ pub use svg::theme::Theme;
 #[derive(Clone, Debug)]
 pub struct Options {
     /// Font size in pixels.
-    pub font_size: f64,
+    font_size: f64,
     /// The most UTF-16 units of source to accept. Mermaid's default `maxTextSize`.
-    pub limit: usize,
+    limit: usize,
     /// The most edges a flowchart may have. `A & B --> C & D` multiplies edges, so a few
     /// kilobytes of source can ask for millions.
-    pub max_edges: usize,
+    max_edges: usize,
     /// The most UTF-16 units of SVG to produce. A source within the limit can still describe
     /// megabytes of drawing, which would stall rasterizing.
-    pub output_limit: usize,
+    output_limit: usize,
     /// Space around a diagram. A treemap's `diagramPadding` config takes precedence.
-    pub padding: f64,
+    padding: f64,
 }
 
 impl Default for Options {
@@ -78,13 +78,13 @@ impl Default for Options {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Rendered {
     /// Height in pixels.
-    pub height: f64,
+    height: f64,
     /// The SVG document, sized `width` by `height`.
     pub svg: String,
     /// The detected diagram type, using Pele's names.
-    pub r#type: &'static str,
+    r#type: &'static str,
     /// Width in pixels.
-    pub width: f64,
+    width: f64,
 }
 
 /// Renders Mermaid `source` to SVG drawn with `theme`.

@@ -1,10 +1,10 @@
 // language_core: tree-sitter grammar infrastructure, LSP adapter traits,
 // language configuration, and highlight mapping.
 
-pub mod grammar;
+mod grammar;
 pub mod highlight_cache;
 pub mod highlight_map;
-pub mod language_config;
+mod language_config;
 
 pub use grammar::BracketsConfig;
 pub use grammar::BracketsPatternConfig;
@@ -42,11 +42,11 @@ pub use language_config::deserialize_regex;
 pub use language_config::deserialize_regex_vec;
 pub use language_config::serialize_regex;
 
-pub mod code_label;
-pub mod language_name;
-pub mod lsp_adapter;
-pub mod manifest;
-pub mod queries;
+mod code_label;
+mod language_name;
+mod lsp_adapter;
+mod manifest;
+mod queries;
 
 pub use code_label::CodeLabel;
 pub use code_label::CodeLabelBuilder;

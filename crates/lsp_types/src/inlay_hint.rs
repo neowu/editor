@@ -45,7 +45,7 @@ pub struct InlayHintClientCapabilities {
 #[serde(rename_all = "camelCase")]
 pub struct InlayHintOptions {
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 
     /// The server provides support to resolve additional
     /// information for an inlay hint item.
@@ -63,10 +63,10 @@ pub struct InlayHintRegistrationOptions {
     pub inlay_hint_options: InlayHintOptions,
 
     #[serde(flatten)]
-    pub text_document_registration_options: TextDocumentRegistrationOptions,
+    text_document_registration_options: TextDocumentRegistrationOptions,
 
     #[serde(flatten)]
-    pub static_registration_options: StaticRegistrationOptions,
+    static_registration_options: StaticRegistrationOptions,
 }
 
 /// A parameter literal used in inlay hint requests.

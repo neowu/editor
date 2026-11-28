@@ -60,19 +60,19 @@ use workspace::Workspace;
 use crate::commit_view::CommitView;
 
 #[derive(Clone, Debug)]
-pub struct CommitDetails {
-    pub sha: SharedString,
-    pub author_name: SharedString,
-    pub author_email: SharedString,
-    pub commit_time: OffsetDateTime,
-    pub message: Option<ParsedCommitMessage>,
-    pub tag_names: Vec<SharedString>,
-    pub boundary: bool,
+pub(crate) struct CommitDetails {
+    pub(crate) sha: SharedString,
+    pub(crate) author_name: SharedString,
+    pub(crate) author_email: SharedString,
+    pub(crate) commit_time: OffsetDateTime,
+    pub(crate) message: Option<ParsedCommitMessage>,
+    pub(crate) tag_names: Vec<SharedString>,
+    pub(crate) boundary: bool,
 }
 
 const MAX_COMMIT_TOOLTIP_TAG_CHIPS: usize = 2;
 
-pub(crate) fn commit_tag_chips(tag_names: &[SharedString]) -> Option<impl IntoElement> {
+fn commit_tag_chips(tag_names: &[SharedString]) -> Option<impl IntoElement> {
     if tag_names.is_empty() {
         return None;
     }
@@ -109,7 +109,7 @@ pub(crate) fn commit_tag_chips(tag_names: &[SharedString]) -> Option<impl IntoEl
     )
 }
 
-pub struct CommitTooltip {
+pub(crate) struct CommitTooltip {
     commit: CommitDetails,
     scroll_handle: ScrollHandle,
     markdown: Entity<Markdown>,
@@ -125,7 +125,7 @@ pub(crate) fn blamed_repo_path(blame: &BlameEntry) -> Option<RepoPath> {
 }
 
 impl CommitTooltip {
-    pub fn blame_entry(
+    pub(crate) fn blame_entry(
         blame: &BlameEntry,
         details: Option<ParsedCommitMessage>,
         tag_names: Vec<SharedString>,
@@ -156,7 +156,7 @@ impl CommitTooltip {
         tooltip
     }
 
-    pub fn new(
+    pub(crate) fn new(
         commit: CommitDetails,
         repository: Entity<Repository>,
         workspace: WeakEntity<Workspace>,
@@ -296,7 +296,7 @@ impl Render for CommitTooltip {
     }
 }
 
-pub(crate) fn shallow_boundary_notice(
+fn shallow_boundary_notice(
     repository: Entity<Repository>,
     workspace: WeakEntity<Workspace>,
     window: &Window,

@@ -26,12 +26,12 @@ pub enum FileStatus {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct UnmergedStatus {
-    pub first_head: UnmergedStatusCode,
-    pub second_head: UnmergedStatusCode,
+    first_head: UnmergedStatusCode,
+    second_head: UnmergedStatusCode,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum UnmergedStatusCode {
+enum UnmergedStatusCode {
     Added,
     Deleted,
     Updated,
@@ -104,7 +104,7 @@ impl FileStatus {
         FileStatus::Tracked(TrackedStatus { index_status: StatusCode::Unmodified, worktree_status })
     }
 
-    pub const fn index(index_status: StatusCode) -> Self {
+    const fn index(index_status: StatusCode) -> Self {
         FileStatus::Tracked(TrackedStatus { worktree_status: StatusCode::Unmodified, index_status })
     }
 
@@ -170,6 +170,7 @@ impl FileStatus {
                 (tracked.index_status, tracked.worktree_status),
                 (StatusCode::Modified, _) | (_, StatusCode::Modified)
             ),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => false,
         }
     }
@@ -181,6 +182,7 @@ impl FileStatus {
                 (StatusCode::Added, _) | (_, StatusCode::Added)
             ),
             FileStatus::Untracked => true,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => false,
         }
     }
@@ -476,6 +478,7 @@ impl FromStr for TreeDiff {
                 StatusCode::Modified => TreeDiffStatus::Modified { old: old_sha },
                 StatusCode::Added => TreeDiffStatus::Added,
                 StatusCode::Deleted => TreeDiffStatus::Deleted { old: old_sha },
+                // lint: expect(wildcard_match) only some variants matter here
                 _status => continue,
             };
 
@@ -495,39 +498,6 @@ pub struct DiffStat {
 #[derive(Clone, Debug, Default)]
 pub struct GitDiffStat {
     pub entries: Arc<[(RepoPath, DiffStat)]>,
-}
-
-/// Parses the output of `git diff --numstat` where output looks like:
-///
-/// ```text
-/// 24   12   dir/file.txt
-/// ```
-pub fn parse_numstat(output: &str) -> GitDiffStat {
-    let mut entries = Vec::new();
-    for line in output.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let mut parts = line.splitn(3, '\t');
-        let (Some(added_str), Some(deleted_str), Some(path_str)) = (parts.next(), parts.next(), parts.next()) else {
-            continue;
-        };
-        let Ok(added) = added_str.parse::<u32>() else {
-            continue;
-        };
-        let Ok(deleted) = deleted_str.parse::<u32>() else {
-            continue;
-        };
-        let Ok(path) = RepoPath::new(path_str) else {
-            continue;
-        };
-        entries.push((path, DiffStat { added, deleted }));
-    }
-    entries.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
-    entries.dedup_by(|(a, _), (b, _)| a == b);
-
-    GitDiffStat { entries: entries.into() }
 }
 
 #[cfg(test)]

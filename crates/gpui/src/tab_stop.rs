@@ -31,7 +31,7 @@ impl TabStopOperation {
     const fn focus_handle(&self) -> Option<&FocusHandle> {
         match self {
             TabStopOperation::Insert(focus_handle) => Some(focus_handle),
-            _ => None,
+            &TabStopOperation::Group(_) | &TabStopOperation::GroupEnd => None,
         }
     }
 }

@@ -53,13 +53,13 @@ impl GutterDimensions {
     /// The width of the space reserved for the fold indicators,
     /// use alongside 'justify_end' and `gutter_width` to
     /// right align content with the line numbers.
-    pub fn fold_area_width(&self) -> Pixels {
+    pub(crate) fn fold_area_width(&self) -> Pixels {
         self.margin + self.right_padding
     }
 }
 
 impl EditorSnapshot {
-    pub fn render_crease_toggle(
+    pub(crate) fn render_crease_toggle(
         &self,
         buffer_row: MultiBufferRow,
         row_contains_cursor: bool,
@@ -70,11 +70,7 @@ impl EditorSnapshot {
         let folded = self.is_line_folded(buffer_row);
         let crease = self.crease_snapshot.query_row(buffer_row, self.buffer_snapshot());
 
-        if let Some(
-            Crease::Inline { render_toggle: Some(render_toggle), .. }
-            | Crease::Block { render_toggle: Some(render_toggle), .. },
-        ) = crease
-        {
+        if let Some(Crease { render_toggle: Some(render_toggle), .. }) = crease {
             let toggle_callback = Arc::new(move |folded, window: &mut Window, cx: &mut App| {
                 if folded {
                     editor.update(cx, |editor, cx| editor.fold_at(buffer_row, window, cx));
@@ -106,20 +102,15 @@ impl EditorSnapshot {
         )
     }
 
-    pub fn render_crease_trailer(
+    pub(crate) fn render_crease_trailer(
         &self,
         buffer_row: MultiBufferRow,
         window: &mut Window,
         cx: &mut App,
     ) -> Option<AnyElement> {
-        if let Crease::Inline { render_trailer, .. } =
-            self.crease_snapshot.query_row(buffer_row, self.buffer_snapshot())?
-        {
-            let render_trailer = render_trailer.as_ref()?;
-            Some(render_trailer(buffer_row, self.is_line_folded(buffer_row), window, cx))
-        } else {
-            None
-        }
+        let render_trailer =
+            self.crease_snapshot.query_row(buffer_row, self.buffer_snapshot())?.render_trailer.as_ref()?;
+        Some(render_trailer(buffer_row, self.is_line_folded(buffer_row), window, cx))
     }
 }
 
@@ -131,7 +122,7 @@ fn shows_default_crease_toggle(folded: bool, active_or_hovered: bool, is_foldabl
 }
 
 impl Editor {
-    pub fn toggle_fold(&mut self, _: &actions::ToggleFold, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_fold(&mut self, _: &actions::ToggleFold, window: &mut Window, cx: &mut Context<Self>) {
         if self.buffer_kind(cx) == ItemBufferKind::Singleton {
             let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
             let selection = self.selections.newest::<Point>(&display_map);
@@ -169,7 +160,7 @@ impl Editor {
         }
     }
 
-    pub fn toggle_fold_recursive(
+    pub(crate) fn toggle_fold_recursive(
         &mut self,
         _: &actions::ToggleFoldRecursive,
         window: &mut Window,
@@ -193,7 +184,7 @@ impl Editor {
         }
     }
 
-    pub fn fold(&mut self, _: &actions::Fold, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn fold(&mut self, _: &actions::Fold, window: &mut Window, cx: &mut Context<Self>) {
         if self.buffer_kind(cx) == ItemBufferKind::Singleton {
             let mut to_fold = Vec::new();
             let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
@@ -246,7 +237,7 @@ impl Editor {
         }
     }
 
-    pub fn toggle_fold_all(&mut self, _: &actions::ToggleFoldAll, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_fold_all(&mut self, _: &actions::ToggleFoldAll, window: &mut Window, cx: &mut Context<Self>) {
         let has_folds = if self.buffer.read(cx).is_singleton() {
             let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
 
@@ -262,39 +253,39 @@ impl Editor {
         }
     }
 
-    pub fn fold_at_level_1(&mut self, _: &actions::FoldAtLevel1, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn fold_at_level_1(&mut self, _: &actions::FoldAtLevel1, window: &mut Window, cx: &mut Context<Self>) {
         self.fold_at_level(&FoldAtLevel(1), window, cx);
     }
 
-    pub fn fold_at_level_2(&mut self, _: &actions::FoldAtLevel2, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn fold_at_level_2(&mut self, _: &actions::FoldAtLevel2, window: &mut Window, cx: &mut Context<Self>) {
         self.fold_at_level(&FoldAtLevel(2), window, cx);
     }
 
-    pub fn fold_at_level_3(&mut self, _: &actions::FoldAtLevel3, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn fold_at_level_3(&mut self, _: &actions::FoldAtLevel3, window: &mut Window, cx: &mut Context<Self>) {
         self.fold_at_level(&FoldAtLevel(3), window, cx);
     }
 
-    pub fn fold_at_level_4(&mut self, _: &actions::FoldAtLevel4, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn fold_at_level_4(&mut self, _: &actions::FoldAtLevel4, window: &mut Window, cx: &mut Context<Self>) {
         self.fold_at_level(&FoldAtLevel(4), window, cx);
     }
 
-    pub fn fold_at_level_5(&mut self, _: &actions::FoldAtLevel5, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn fold_at_level_5(&mut self, _: &actions::FoldAtLevel5, window: &mut Window, cx: &mut Context<Self>) {
         self.fold_at_level(&FoldAtLevel(5), window, cx);
     }
 
-    pub fn fold_at_level_6(&mut self, _: &actions::FoldAtLevel6, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn fold_at_level_6(&mut self, _: &actions::FoldAtLevel6, window: &mut Window, cx: &mut Context<Self>) {
         self.fold_at_level(&FoldAtLevel(6), window, cx);
     }
 
-    pub fn fold_at_level_7(&mut self, _: &actions::FoldAtLevel7, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn fold_at_level_7(&mut self, _: &actions::FoldAtLevel7, window: &mut Window, cx: &mut Context<Self>) {
         self.fold_at_level(&FoldAtLevel(7), window, cx);
     }
 
-    pub fn fold_at_level_8(&mut self, _: &actions::FoldAtLevel8, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn fold_at_level_8(&mut self, _: &actions::FoldAtLevel8, window: &mut Window, cx: &mut Context<Self>) {
         self.fold_at_level(&FoldAtLevel(8), window, cx);
     }
 
-    pub fn fold_at_level_9(&mut self, _: &actions::FoldAtLevel9, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn fold_at_level_9(&mut self, _: &actions::FoldAtLevel9, window: &mut Window, cx: &mut Context<Self>) {
         self.fold_at_level(&FoldAtLevel(9), window, cx);
     }
 
@@ -324,7 +315,7 @@ impl Editor {
         }
     }
 
-    pub fn fold_function_bodies(
+    pub(crate) fn fold_function_bodies(
         &mut self,
         _: &actions::FoldFunctionBodies,
         window: &mut Window,
@@ -341,7 +332,7 @@ impl Editor {
         self.fold_creases(creases, true, window, cx);
     }
 
-    pub fn fold_recursive(&mut self, _: &FoldRecursive, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn fold_recursive(&mut self, _: &FoldRecursive, window: &mut Window, cx: &mut Context<Self>) {
         let mut to_fold = Vec::new();
         let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
         let selections = self.selections.all_adjusted(&display_map);
@@ -377,7 +368,7 @@ impl Editor {
         self.fold_creases(to_fold, true, window, cx);
     }
 
-    pub fn fold_at(&mut self, buffer_row: MultiBufferRow, window: &mut Window, cx: &mut Context<Self>) {
+    fn fold_at(&mut self, buffer_row: MultiBufferRow, window: &Window, cx: &mut Context<Self>) {
         let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
 
         if let Some(crease) = display_map.crease_for_buffer_row(buffer_row) {
@@ -391,7 +382,7 @@ impl Editor {
         }
     }
 
-    pub fn unfold_lines(&mut self, _: &UnfoldLines, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn unfold_lines(&mut self, _: &UnfoldLines, _window: &mut Window, cx: &mut Context<Self>) {
         if self.buffer_kind(cx) == ItemBufferKind::Singleton {
             let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
             let buffer = display_map.buffer_snapshot();
@@ -422,7 +413,7 @@ impl Editor {
         }
     }
 
-    pub fn unfold_recursive(&mut self, _: &UnfoldRecursive, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn unfold_recursive(&mut self, _: &UnfoldRecursive, _window: &mut Window, cx: &mut Context<Self>) {
         let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
         let selections = self.selections.all::<Point>(&display_map);
         let ranges = selections
@@ -440,7 +431,7 @@ impl Editor {
         self.unfold_ranges(&ranges, true, true, cx);
     }
 
-    pub fn unfold_at(&mut self, buffer_row: MultiBufferRow, _window: &mut Window, cx: &mut Context<Self>) {
+    fn unfold_at(&mut self, buffer_row: MultiBufferRow, _window: &mut Window, cx: &mut Context<Self>) {
         let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
 
         let intersection_range =
@@ -473,7 +464,7 @@ impl Editor {
         }
     }
 
-    pub fn fold_selected_ranges(&mut self, _: &FoldSelectedRanges, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn fold_selected_ranges(&mut self, _: &FoldSelectedRanges, window: &mut Window, cx: &mut Context<Self>) {
         let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
         let selections = self.selections.all_adjusted(&display_map);
         let ranges = selections
@@ -496,11 +487,11 @@ impl Editor {
         self.fold_creases(ranges, auto_scroll, window, cx);
     }
 
-    pub fn fold_creases<T: ToOffset + Clone>(
+    pub(crate) fn fold_creases<T: ToOffset + Clone>(
         &mut self,
         creases: Vec<Crease<T>>,
         auto_scroll: bool,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) {
         if creases.is_empty() {
@@ -595,12 +586,12 @@ impl Editor {
         all_buffers_folded(buffer.snapshot(cx).all_buffer_ids(), self.folded_buffers(cx))
     }
 
-    pub fn folded_buffers<'a>(&self, cx: &'a App) -> &'a FxHashSet<BufferId> {
+    pub(crate) fn folded_buffers<'a>(&self, cx: &'a App) -> &'a FxHashSet<BufferId> {
         self.display_map.read(cx).folded_buffers()
     }
 
-    pub fn update_renderer_widths(
-        &mut self,
+    pub(crate) fn update_renderer_widths(
+        &self,
         widths: impl IntoIterator<Item = (ChunkRendererId, Pixels)>,
         cx: &mut Context<Self>,
     ) -> bool {

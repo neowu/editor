@@ -5,13 +5,13 @@ use util::rel_path::RelPath;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct WorktreeSettings {
-    pub file_scan_exclusions: PathMatcher,
-    pub file_scan_inclusions: PathMatcher,
+    pub(crate) file_scan_exclusions: PathMatcher,
+    file_scan_inclusions: PathMatcher,
     /// This field contains all ancestors of the `file_scan_inclusions`. It's used to
     /// determine whether to terminate worktree scanning for a given dir.
-    pub parent_dir_scan_inclusions: PathMatcher,
+    parent_dir_scan_inclusions: PathMatcher,
     pub file_scan_depth: Option<u32>,
-    pub hidden_files: PathMatcher,
+    pub(crate) hidden_files: PathMatcher,
 }
 
 impl WorktreeSettings {
@@ -24,11 +24,11 @@ impl WorktreeSettings {
         path.ancestors().any(|ancestor| self.file_scan_exclusions.is_match(ancestor))
     }
 
-    pub fn is_path_always_included(&self, path: &RelPath, is_dir: bool) -> bool {
+    pub(crate) fn is_path_always_included(&self, path: &RelPath, is_dir: bool) -> bool {
         if is_dir { self.parent_dir_scan_inclusions.is_match(path) } else { self.file_scan_inclusions.is_match(path) }
     }
 
-    pub fn is_path_hidden(&self, path: &RelPath) -> bool {
+    pub(crate) fn is_path_hidden(&self, path: &RelPath) -> bool {
         path.ancestors().any(|ancestor| self.hidden_files.is_match(ancestor))
     }
 

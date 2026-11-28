@@ -43,7 +43,7 @@ pub enum Priority {
 #[derive(Clone, Debug)]
 pub struct RunnableMeta {
     /// The source location where the task was spawned.
-    pub location: &'static Location<'static>,
+    location: &'static Location<'static>,
 }
 
 /// Task is a primitive that allows work to happen in the background.
@@ -156,11 +156,7 @@ impl BackgroundExecutor {
 
     /// Enqueues the given future to be run to completion on a background thread with the given priority.
     #[track_caller]
-    pub fn spawn_with_priority<R>(
-        &self,
-        priority: Priority,
-        future: impl Future<Output = R> + Send + 'static,
-    ) -> Task<R>
+    fn spawn_with_priority<R>(&self, priority: Priority, future: impl Future<Output = R> + Send + 'static) -> Task<R>
     where
         R: Send + 'static,
     {
@@ -239,7 +235,7 @@ impl BackgroundExecutor {
     }
 
     /// Whether we're on the main thread.
-    pub fn is_main_thread(&self) -> bool {
+    pub(crate) fn is_main_thread(&self) -> bool {
         self.dispatcher.is_main_thread()
     }
 }

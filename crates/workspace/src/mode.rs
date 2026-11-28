@@ -37,14 +37,14 @@ actions!(
     mode,
     [
         /// Switches the window to Editor mode.
-        Editor,
+        pub Editor,
         /// Switches the window to Git History mode for the active repository:
         /// keeps the active history tab if it belongs to that repository,
         /// otherwise shows the repository's graph.
-        GitHistory,
+        pub GitHistory,
         /// Switches the window to Terminal mode, starting a shell (or the
         /// saved layout) when it has no terminals yet.
-        Terminal
+        pub Terminal
     ]
 );
 

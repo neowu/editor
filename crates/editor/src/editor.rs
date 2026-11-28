@@ -10,7 +10,7 @@ use ui::font;
 use crate::mouse_context_menu::MenuPosition;
 pub mod actions;
 pub mod blink_manager;
-pub mod code_context_menus;
+mod code_context_menus;
 mod code_lens;
 pub mod display_map;
 mod document_colors;
@@ -30,15 +30,15 @@ mod jsx_tag_auto_close;
 mod linked_editing_ranges;
 mod lsp_ext;
 mod mouse_context_menu;
-pub mod movement;
+mod movement;
 mod persistence;
 mod runnables;
 mod rust_analyzer_ext;
 pub mod scroll;
 mod selections_collection;
-pub mod semantic_tokens;
+mod semantic_tokens;
 mod split;
-pub mod split_editor_view;
+mod split_editor_view;
 
 mod spell_check;
 
@@ -276,7 +276,7 @@ use aho_corasick::BuildError;
 use anyhow::Result;
 use anyhow::bail;
 use blink_manager::BlinkManager;
-pub use code_actions::CodeActionProvider;
+pub(crate) use code_actions::CodeActionProvider;
 use code_context_menus::AvailableCodeAction;
 use code_context_menus::CodeActionContents;
 use code_context_menus::CodeActionsItem;
@@ -284,7 +284,7 @@ use code_context_menus::CodeActionsMenu;
 use code_context_menus::CodeContextMenu;
 use code_context_menus::CompletionsMenu;
 use code_context_menus::ContextMenuOrigin;
-pub use completions::CompletionProvider;
+pub(crate) use completions::CompletionProvider;
 pub(crate) use completions::split_words;
 use cursor_motion::CursorMotionStates;
 use diagnostics::ActiveDiagnostic;
@@ -294,9 +294,8 @@ use diagnostics::InlineDiagnostic;
 pub use diagnostics::set_diagnostic_renderer;
 use display_map::BlockId;
 use display_map::BlockProperties;
-use display_map::BlockStyle;
-pub use display_map::ChunkRenderer;
-pub use display_map::ChunkRendererContext;
+pub(crate) use display_map::ChunkRenderer;
+pub(crate) use display_map::ChunkRendererContext;
 use display_map::ChunkRendererId;
 use display_map::ChunkReplacement;
 use display_map::Crease;
@@ -305,7 +304,7 @@ use display_map::DisplayMap;
 pub use display_map::DisplayPoint;
 use display_map::DisplayRow;
 use display_map::DisplaySnapshot;
-pub use display_map::FoldPlaceholder;
+pub(crate) use display_map::FoldPlaceholder;
 pub use display_map::HighlightKey;
 use display_map::HighlightStyles;
 pub use display_map::NavigationOverlayKey;
@@ -322,7 +321,7 @@ pub use element::HighlightedRangeLine;
 use element::LineWithInvisibles;
 use element::MinimapInputs;
 use element::MinimapRowCache;
-pub use element::PointForPosition;
+pub(crate) use element::PointForPosition;
 use element::PositionMap;
 pub use element::install_actions;
 use futures::FutureExt;
@@ -446,10 +445,10 @@ use language::language_settings::RewrapBehavior;
 use language::language_settings::WordsCompletionMode;
 use language::point_to_lsp;
 use language::text_diff_with_options;
-pub use linked_editing_ranges::LinkedEdits;
+pub(crate) use linked_editing_ranges::LinkedEdits;
 use linked_editing_ranges::refresh_linked_ranges;
 use lsp::LanguageServerId;
-pub use lsp_ext::lsp_tasks;
+pub(crate) use lsp_ext::lsp_tasks;
 pub use lsp_types::CompletionContext;
 use lsp_types::CompletionItemKind;
 use lsp_types::CompletionTriggerKind;
@@ -566,9 +565,9 @@ use crate::scroll::ScrollOffset;
 use crate::selections_collection::resolve_selections_wrapping_blocks;
 use crate::semantic_tokens::SemanticTokenState;
 
-pub const FILE_HEADER_HEIGHT: u32 = 2;
-pub const BUFFER_HEADER_PADDING: Rems = rems(0.25);
-pub const MULTI_BUFFER_EXCERPT_HEADER_HEIGHT: u32 = 1;
+const FILE_HEADER_HEIGHT: u32 = 2;
+const BUFFER_HEADER_PADDING: Rems = rems(0.25);
+const MULTI_BUFFER_EXCERPT_HEADER_HEIGHT: u32 = 1;
 const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(500);
 const LSP_HIGHLIGHT_DEBOUNCE: Duration = Duration::from_millis(75);
 const INLINE_DIAGNOSTICS_DEBOUNCE: Duration = Duration::from_millis(150);
@@ -583,13 +582,13 @@ pub(crate) const MIN_LINE_NUMBER_DIGITS: usize = 4;
 const MIN_NAVIGATION_HISTORY_ROW_DELTA: i64 = 10;
 const MAX_SELECTION_HISTORY_LEN: usize = 1024;
 
-pub const CODE_ACTIONS_DEBOUNCE_TIMEOUT: Duration = Duration::from_millis(250);
-pub const SELECTION_HIGHLIGHT_DEBOUNCE_TIMEOUT: Duration = Duration::from_millis(100);
+const CODE_ACTIONS_DEBOUNCE_TIMEOUT: Duration = Duration::from_millis(250);
+const SELECTION_HIGHLIGHT_DEBOUNCE_TIMEOUT: Duration = Duration::from_millis(100);
 
 pub(crate) const CODE_ACTION_TIMEOUT: Duration = Duration::from_secs(5);
 pub(crate) const FORMAT_TIMEOUT: Duration = Duration::from_secs(5);
 pub(crate) const SCROLL_CENTER_TOP_BOTTOM_DEBOUNCE_TIMEOUT: Duration = Duration::from_secs(1);
-pub const LSP_REQUEST_DEBOUNCE_TIMEOUT: Duration = Duration::from_millis(50);
+const LSP_REQUEST_DEBOUNCE_TIMEOUT: Duration = Duration::from_millis(50);
 
 pub(crate) const MINIMAP_FONT_SIZE: AbsoluteLength = AbsoluteLength::Pixels(px(2.));
 
@@ -606,7 +605,7 @@ pub enum Navigated {
 }
 
 impl Navigated {
-    pub const fn from_bool(yes: bool) -> Navigated {
+    const fn from_bool(yes: bool) -> Navigated {
         if yes { Navigated::Yes } else { Navigated::No }
     }
 }
@@ -658,7 +657,7 @@ trait InvalidationRegion {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum SelectPhase {
+pub(crate) enum SelectPhase {
     Begin { position: DisplayPoint, add: bool, click_count: usize },
     BeginColumnar { position: DisplayPoint, reset: bool, mode: ColumnarMode, goal_column: u32 },
     Extend { position: DisplayPoint, click_count: usize },
@@ -667,13 +666,13 @@ pub enum SelectPhase {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ColumnarMode {
+pub(crate) enum ColumnarMode {
     FromMouse,
     FromSelection,
 }
 
 #[derive(Clone, Debug)]
-pub enum SelectMode {
+pub(crate) enum SelectMode {
     Character,
     Word(Range<Anchor>),
     Line(Range<Anchor>),
@@ -715,7 +714,7 @@ pub enum EditorMode {
 }
 
 impl EditorMode {
-    pub const fn full() -> Self {
+    const fn full() -> Self {
         Self::Full {
             scale_ui_elements_with_buffer_font_size: true,
             show_active_line_background: true,
@@ -729,7 +728,7 @@ impl EditorMode {
     }
 
     #[inline]
-    pub const fn is_single_line(&self) -> bool {
+    const fn is_single_line(&self) -> bool {
         matches!(self, Self::SingleLine { .. })
     }
 
@@ -740,12 +739,7 @@ impl EditorMode {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum SoftWrap {
-    /// Prefer not to wrap at all.
-    ///
-    /// Note: this is currently internal, as actually limited by [`crate::MAX_LINE_LEN`] until it wraps.
-    /// The mode is used inside git diff hunks, where it's seems currently more useful to not wrap as much as possible.
-    GitDiff,
+pub(crate) enum SoftWrap {
     /// Prefer a single line generally, unless an overly long line is encountered.
     None,
     /// Soft wrap lines that exceed the editor width.
@@ -783,7 +777,7 @@ impl Default for EditorStyle {
     }
 }
 
-pub fn make_inlay_hints_style() -> HighlightStyle {
+fn make_inlay_hints_style() -> HighlightStyle {
     let show_background = INLAY_HINTS.show_background;
 
     let mut style = theme::theme().syntax().style_for_name("hint").unwrap_or_default();
@@ -805,18 +799,6 @@ pub fn make_inlay_hints_style() -> HighlightStyle {
 }
 
 type CompletionId = usize;
-
-pub struct ContextMenuOptions {
-    pub min_entries_visible: usize,
-    pub max_entries_visible: usize,
-    pub placement: Option<ContextMenuPlacement>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ContextMenuPlacement {
-    Above,
-    Below,
-}
 
 type BackgroundHighlight = (Arc<dyn Fn(&usize, &Theme) -> Hsla + Send + Sync>, Arc<[Range<Anchor>]>);
 type GutterHighlight = (fn(&App) -> Hsla, Vec<Range<Anchor>>);
@@ -847,7 +829,7 @@ impl ScrollbarMarkerState {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum MinimapVisibility {
+pub(crate) enum MinimapVisibility {
     Disabled,
     Enabled { visible: bool },
 }
@@ -937,20 +919,20 @@ impl ChangeLocation {
 }
 
 /// A set of caret positions, registered when the editor was edited.
-pub struct ChangeList {
+struct ChangeList {
     changes: Vec<ChangeLocation>,
     /// Currently "selected" change.
     position: Option<usize>,
 }
 
 impl ChangeList {
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         Self { changes: Vec::new(), position: None }
     }
 
     /// Moves to the next change in the list (based on the direction given) and returns the caret positions for the next change.
     /// If reaches the end of the list in the direction, returns the corresponding change until called for a different direction.
-    pub fn next_change(&mut self, count: usize, direction: Direction) -> Option<&[Anchor]> {
+    fn next_change(&mut self, count: usize, direction: Direction) -> Option<&[Anchor]> {
         if self.changes.is_empty() {
             return None;
         }
@@ -966,7 +948,7 @@ impl ChangeList {
     }
 
     /// Adds a new change to the list, resetting the change list position.
-    pub fn push_to_change_list(&mut self, group: bool, new_positions: Vec<Anchor>) {
+    fn push_to_change_list(&mut self, group: bool, new_positions: Vec<Anchor>) {
         self.position.take();
         if let Some(last) = self.changes.last_mut()
             && group
@@ -977,7 +959,7 @@ impl ChangeList {
         }
     }
 
-    pub fn last(&self) -> Option<&[Anchor]> {
+    fn last(&self) -> Option<&[Anchor]> {
         self.changes.last().map(|change| change.locations())
     }
 }
@@ -1030,9 +1012,9 @@ pub struct SearchResultsStatus {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct SearchResultsHold {
-    pub status: SearchResultsStatus,
-    pub min_line_number_digits: usize,
+struct SearchResultsHold {
+    status: SearchResultsStatus,
+    min_line_number_digits: usize,
     settled_scroll_range: Option<SettledScrollRange>,
 }
 
@@ -1061,7 +1043,7 @@ pub struct Editor {
     /// Whenever you want to modify the scroll position of the editor, you should
     /// usually use the existing available APIs as opposed to directly interacting
     /// with the scroll manager.
-    pub scroll_manager: ScrollManager,
+    scroll_manager: ScrollManager,
     columnar_selection_state: Option<ColumnarSelectionState>,
     add_selections_state: Option<AddSelectionsState>,
     select_next_state: Option<SelectNextState>,
@@ -1073,7 +1055,7 @@ pub struct Editor {
     snippet_stack: InvalidationStack<SnippetState>,
     select_syntax_node_history: SelectSyntaxNodeHistory,
     ime_transaction: Option<TransactionId>,
-    pub diagnostics_max_severity: DiagnosticSeverity,
+    diagnostics_max_severity: DiagnosticSeverity,
     active_diagnostics: ActiveDiagnostic,
     inline_diagnostics_update: Task<()>,
     inline_diagnostics_enabled: bool,
@@ -1089,7 +1071,7 @@ pub struct Editor {
     blink_manager: Entity<BlinkManager>,
     cursor_motions: CursorMotionStates,
 
-    pub show_local_selections: bool,
+    show_local_selections: bool,
     mode: EditorMode,
     show_gutter: bool,
     show_horizontal_scrollbar: bool,
@@ -1119,7 +1101,6 @@ pub struct Editor {
     active_indent_guides_state: ActiveIndentGuidesState,
     nav_history: Option<ItemNavHistory>,
     context_menu: RefCell<Option<CodeContextMenu>>,
-    context_menu_options: Option<ContextMenuOptions>,
     mouse_context_menu: Option<MouseContextMenu>,
     completion_tasks: Vec<(CompletionId, Task<()>)>,
     find_all_references_task_sources: Vec<Anchor>,
@@ -1149,7 +1130,7 @@ pub struct Editor {
     use_modal_editing: bool,
     read_only: bool,
 
-    pub hover_state: HoverState,
+    hover_state: HoverState,
     pending_mouse_down: Option<Rc<RefCell<Option<MouseDownEvent>>>>,
     prev_pressure_stage: Option<PressureStage>,
     gutter_hovered: bool,
@@ -1219,7 +1200,7 @@ pub struct Editor {
     minimap_rows: MinimapRowCache,
     /// What this editor's minimap drew from it when the minimap last rendered.
     minimap_inputs: Option<MinimapInputs>,
-    pub change_list: ChangeList,
+    change_list: ChangeList,
     number_deleted_lines: bool,
 
     colors: Option<LspColorData>,
@@ -1228,7 +1209,7 @@ pub struct Editor {
     inlay_hints: Option<LspInlayHintData>,
     folding_newlines: Task<()>,
     select_next_options: Option<SelectSearchOptions>,
-    pub lookup_key: Option<Box<dyn Any + Send + Sync>>,
+    lookup_key: Option<Box<dyn Any + Send + Sync>>,
     reference_results: Option<references::ReferenceResults>,
     #[allow(clippy::type_complexity)]
     on_local_selections_changed: Option<Box<dyn Fn(Point, &mut Window, &mut Context<Self>) + 'static>>,
@@ -1267,7 +1248,7 @@ impl NextScrollCursorCenterTopBottom {
 
 #[derive(Clone)]
 pub struct EditorSnapshot {
-    pub mode: EditorMode,
+    mode: EditorMode,
     show_gutter: bool,
     offset_content: bool,
     sticky_line_number_digits: usize,
@@ -1277,35 +1258,35 @@ pub struct EditorSnapshot {
     show_code_actions: Option<bool>,
     show_runnables: Option<bool>,
     git_blame_gutter_max_author_length: Option<usize>,
-    pub display_snapshot: DisplaySnapshot,
-    pub placeholder_display_snapshot: Option<DisplaySnapshot>,
+    display_snapshot: DisplaySnapshot,
+    placeholder_display_snapshot: Option<DisplaySnapshot>,
     is_focused: bool,
     scroll_anchor: SharedScrollAnchor,
     gutter_hovered: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct NavigationTargetOverlay {
-    pub target_range: Range<Anchor>,
-    pub label: NavigationOverlayLabel,
-    pub covered_text_range: Option<Range<Anchor>>,
+pub(crate) struct NavigationTargetOverlay {
+    target_range: Range<Anchor>,
+    label: NavigationOverlayLabel,
+    covered_text_range: Option<Range<Anchor>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct NavigationOverlayLabel {
-    pub text: SharedString,
-    pub text_color: Hsla,
-    pub x_offset: Pixels,
-    pub scale_factor: f32,
+struct NavigationOverlayLabel {
+    text: SharedString,
+    text_color: Hsla,
+    x_offset: Pixels,
+    scale_factor: f32,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct GutterDimensions {
-    pub left_padding: Pixels,
-    pub right_padding: Pixels,
+    left_padding: Pixels,
+    right_padding: Pixels,
     pub width: Pixels,
-    pub margin: Pixels,
-    pub git_blame_entries_width: Option<Pixels>,
+    margin: Pixels,
+    git_blame_entries_width: Option<Pixels>,
 }
 
 impl GutterDimensions {
@@ -1317,7 +1298,7 @@ impl GutterDimensions {
         -cx.text_system().descent(font_id, font_size)
     }
     /// The full width of the space taken up by the gutter.
-    pub fn full_width(&self) -> Pixels {
+    fn full_width(&self) -> Pixels {
         self.margin + self.width
     }
 }
@@ -1387,7 +1368,7 @@ impl SelectionEffects {
         Self { scroll: None, ..Default::default() }
     }
 
-    pub const fn completions(self, completions: bool) -> Self {
+    const fn completions(self, completions: bool) -> Self {
         Self { completions, ..self }
     }
 
@@ -1404,9 +1385,9 @@ struct DeferredSelectionEffectsState {
 }
 
 #[derive(Clone, Debug)]
-pub struct TransactionSelections {
-    pub undo: Arc<[Selection<Anchor>]>,
-    pub redo: Option<Arc<[Selection<Anchor>]>>,
+struct TransactionSelections {
+    undo: Arc<[Selection<Anchor>]>,
+    redo: Option<Arc<[Selection<Anchor>]>>,
     undo_add_selections_state: Option<AddSelectionsState>,
     redo_add_selections_state: Option<AddSelectionsState>,
 }
@@ -1552,9 +1533,9 @@ pub struct RenameTarget {
 }
 
 pub struct RenameState {
-    pub range: Range<Anchor>,
-    pub old_name: Arc<str>,
-    pub editor: Entity<Editor>,
+    range: Range<Anchor>,
+    old_name: Arc<str>,
+    editor: Entity<Editor>,
     language_server_id: Option<LanguageServerId>,
     block_id: CustomBlockId,
 }
@@ -1568,7 +1549,7 @@ type SelectSyntaxNodeHistoryState = (Box<[Selection<Anchor>]>, SelectSyntaxNodeS
 struct SelectSyntaxNodeHistory {
     stack: Vec<SelectSyntaxNodeHistoryState>,
     // disable temporarily to allow changing selections without losing the stack
-    pub disable_clearing: bool,
+    disable_clearing: bool,
 }
 
 impl SelectSyntaxNodeHistory {
@@ -1609,7 +1590,7 @@ pub enum GotoDefinitionKind {
     Implementation,
 }
 
-pub enum FormatTarget {
+pub(crate) enum FormatTarget {
     Buffers(FxHashSet<Entity<Buffer>>),
     Ranges(Vec<Range<MultiBufferPoint>>),
 }
@@ -1620,12 +1601,12 @@ pub(crate) struct FocusedBlock {
 }
 
 #[derive(Clone, Debug)]
-pub enum JumpData {
+pub(crate) enum JumpData {
     MultiBufferRow { row: MultiBufferRow, line_offset_from_top: u32 },
     MultiBufferPoint { anchor: language::Anchor, position: Point, line_offset_from_top: u32 },
 }
 
-pub enum MultibufferSelectionMode {
+pub(crate) enum MultibufferSelectionMode {
     First,
     All,
 }
@@ -1888,6 +1869,7 @@ impl Editor {
                     }
                 }
 
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             }));
 
@@ -1989,7 +1971,6 @@ impl Editor {
             active_indent_guides_state: ActiveIndentGuidesState::default(),
             nav_history: None,
             context_menu: RefCell::new(None),
-            context_menu_options: None,
             mouse_context_menu: None,
             completion_tasks: Vec::new(),
             find_all_references_task_sources: Vec::new(),
@@ -2147,6 +2128,7 @@ impl Editor {
                         .collect();
                     editor.change_list.push_to_change_list(pop_state, new_positions);
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => (),
             }
         }));
@@ -2191,7 +2173,7 @@ impl Editor {
             Some(MouseContextMenu::new(self, MenuPosition::PinnedToScreen(position), context_menu, window, cx));
     }
 
-    pub fn key_context(&self, window: &mut Window, cx: &mut App) -> KeyContext {
+    fn key_context(&self, window: &Window, cx: &mut App) -> KeyContext {
         self.key_context_internal(window, cx)
     }
 
@@ -2312,7 +2294,7 @@ impl Editor {
 
     /// Detaches a task and shows an error notification in the workspace if available,
     /// otherwise just logs the error.
-    pub fn detach_and_notify_err<R, E>(&self, task: Task<Result<R, E>>, window: &mut Window, cx: &mut App)
+    fn detach_and_notify_err<R, E>(&self, task: Task<Result<R, E>>, window: &mut Window, cx: &mut App)
     where
         E: Debug + fmt::Display + 'static,
         R: 'static,
@@ -2417,7 +2399,7 @@ impl Editor {
         self.custom_context_menu = Some(Box::new(f));
     }
 
-    pub fn semantics_provider(&self) -> Option<Rc<dyn SemanticsProvider>> {
+    fn semantics_provider(&self) -> Option<Rc<dyn SemanticsProvider>> {
         self.semantics_provider.clone()
     }
 
@@ -2484,7 +2466,7 @@ impl Editor {
         self.display_map.read(cx).clip_at_line_ends
     }
 
-    pub fn capability(&self, cx: &App) -> Capability {
+    fn capability(&self, cx: &App) -> Capability {
         if self.read_only { Capability::ReadOnly } else { self.buffer.read(cx).capability() }
     }
 
@@ -2527,7 +2509,7 @@ impl Editor {
         self.buffer.update(cx, |buffer, cx| buffer.edit(edits, None, cx));
     }
 
-    pub fn edit_with_autoindent<I, S, T>(&mut self, edits: I, cx: &mut Context<Self>)
+    fn edit_with_autoindent<I, S, T>(&self, edits: I, cx: &mut Context<Self>)
     where
         I: IntoIterator<Item = (Range<S>, T)>,
         S: ToOffset,
@@ -2540,7 +2522,7 @@ impl Editor {
         self.buffer.update(cx, |buffer, cx| buffer.edit(edits, self.autoindent_mode.clone(), cx));
     }
 
-    pub fn cancel(&mut self, _: &Cancel, window: &mut Window, cx: &mut Context<Self>) {
+    fn cancel(&mut self, _: &Cancel, window: &mut Window, cx: &mut Context<Self>) {
         self.selection_mark_mode = false;
 
         if self.dismiss_menus_and_popups(true, window, cx) {
@@ -2570,7 +2552,7 @@ impl Editor {
         cx.propagate();
     }
 
-    pub fn dismiss_menus_and_popups(
+    fn dismiss_menus_and_popups(
         &mut self,
         _is_user_requested: bool,
         window: &mut Window,
@@ -2596,7 +2578,7 @@ impl Editor {
         self.mouse_context_menu.is_some()
     }
 
-    pub fn multi_buffer_visible_range(&self, display_snapshot: &DisplaySnapshot, cx: &App) -> Range<Point> {
+    fn multi_buffer_visible_range(&self, display_snapshot: &DisplaySnapshot, cx: &App) -> Range<Point> {
         let visible_start = self
             .scroll_manager
             .native_anchor(display_snapshot, cx)
@@ -2759,11 +2741,11 @@ impl Editor {
         })
     }
 
-    pub fn context_menu_visible(&self) -> bool {
+    fn context_menu_visible(&self) -> bool {
         self.context_menu.borrow().as_ref().is_some_and(|menu| menu.visible())
     }
 
-    pub fn context_menu_origin(&self) -> Option<ContextMenuOrigin> {
+    fn context_menu_origin(&self) -> Option<ContextMenuOrigin> {
         self.context_menu.borrow().as_ref().map(|menu| menu.origin())
     }
 
@@ -2775,11 +2757,11 @@ impl Editor {
         }
     }
 
-    pub fn render_context_menu(
-        &mut self,
+    fn render_context_menu(
+        &self,
         max_height_in_lines: u32,
-        window: &mut Window,
-        cx: &mut Context<Editor>,
+        window: &Window,
+        cx: &Context<Editor>,
     ) -> Option<AnyElement> {
         let menu = self.context_menu.borrow();
         let menu = menu.as_ref()?;
@@ -2792,7 +2774,7 @@ impl Editor {
     fn render_context_menu_aside(
         &self,
         max_size: Size<Pixels>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Editor>,
     ) -> Option<AnyElement> {
         self.context_menu
@@ -2852,7 +2834,7 @@ impl Editor {
         }
     }
 
-    pub fn undo(&mut self, _: &Undo, window: &mut Window, cx: &mut Context<Self>) {
+    fn undo(&mut self, _: &Undo, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -2873,7 +2855,7 @@ impl Editor {
         }
     }
 
-    pub fn redo(&mut self, _: &Redo, window: &mut Window, cx: &mut Context<Self>) {
+    fn redo(&mut self, _: &Redo, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -2890,7 +2872,7 @@ impl Editor {
         }
     }
 
-    pub fn finalize_last_transaction(&mut self, cx: &mut Context<Self>) {
+    fn finalize_last_transaction(&self, cx: &mut Context<Self>) {
         self.buffer.update(cx, |buffer, cx| buffer.finalize_last_transaction(cx));
     }
 
@@ -2898,25 +2880,25 @@ impl Editor {
         self.buffer.update(cx, |buffer, cx| buffer.group_until_transaction(tx_id, cx));
     }
 
-    pub fn context_menu_first(&mut self, _: &ContextMenuFirst, _: &mut Window, cx: &mut Context<Self>) {
+    fn context_menu_first(&mut self, _: &ContextMenuFirst, _: &mut Window, cx: &mut Context<Self>) {
         if let Some(context_menu) = self.context_menu.borrow_mut().as_mut() {
             context_menu.select_first(self.completion_provider.as_deref(), cx);
         }
     }
 
-    pub fn context_menu_prev(&mut self, _: &ContextMenuPrevious, _: &mut Window, cx: &mut Context<Self>) {
+    fn context_menu_prev(&mut self, _: &ContextMenuPrevious, _: &mut Window, cx: &mut Context<Self>) {
         if let Some(context_menu) = self.context_menu.borrow_mut().as_mut() {
             context_menu.select_prev(self.completion_provider.as_deref(), cx);
         }
     }
 
-    pub fn context_menu_next(&mut self, _: &ContextMenuNext, _: &mut Window, cx: &mut Context<Self>) {
+    fn context_menu_next(&mut self, _: &ContextMenuNext, _: &mut Window, cx: &mut Context<Self>) {
         if let Some(context_menu) = self.context_menu.borrow_mut().as_mut() {
             context_menu.select_next(self.completion_provider.as_deref(), cx);
         }
     }
 
-    pub fn context_menu_last(&mut self, _: &ContextMenuLast, _: &mut Window, cx: &mut Context<Self>) {
+    fn context_menu_last(&mut self, _: &ContextMenuLast, _: &mut Window, cx: &mut Context<Self>) {
         if let Some(context_menu) = self.context_menu.borrow_mut().as_mut() {
             context_menu.select_last(self.completion_provider.as_deref(), cx);
         }
@@ -2926,17 +2908,17 @@ impl Editor {
         window.show_character_palette();
     }
 
-    pub fn supports_minimap(&self, cx: &App) -> bool {
+    fn supports_minimap(&self, cx: &App) -> bool {
         !self.minimap_visibility.disabled() && self.buffer_kind(cx) == ItemBufferKind::Singleton
     }
 
-    pub fn toggle_minimap(&mut self, _: &ToggleMinimap, window: &mut Window, cx: &mut Context<Editor>) {
+    fn toggle_minimap(&mut self, _: &ToggleMinimap, window: &mut Window, cx: &mut Context<Editor>) {
         if self.supports_minimap(cx) {
             self.set_minimap_visibility(self.minimap_visibility.toggle_visibility(), window, cx);
         }
     }
 
-    pub fn transact(
+    fn transact(
         &mut self,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -2949,7 +2931,7 @@ impl Editor {
         })
     }
 
-    pub fn start_transaction_at(
+    fn start_transaction_at(
         &mut self,
         now: Instant,
         window: &mut Window,
@@ -2969,7 +2951,7 @@ impl Editor {
         }
     }
 
-    pub fn end_transaction_at(&mut self, now: Instant, cx: &mut Context<Self>) -> Option<TransactionId> {
+    fn end_transaction_at(&mut self, now: Instant, cx: &mut Context<Self>) -> Option<TransactionId> {
         if let Some(transaction_id) = self.buffer.update(cx, |buffer, cx| buffer.end_transaction_at(now, cx)) {
             if let Some(transaction) = self.selection_history.transaction_mut(transaction_id) {
                 transaction.redo = Some(self.selections.disjoint_anchors_arc());
@@ -2985,7 +2967,7 @@ impl Editor {
         }
     }
 
-    pub fn toggle_focus(
+    fn toggle_focus(
         workspace: &mut Workspace,
         _: &actions::ToggleFocus,
         window: &mut Window,
@@ -2997,7 +2979,7 @@ impl Editor {
         workspace.activate_item(&item, true, true, window, cx);
     }
 
-    pub fn set_gutter_hovered(&mut self, hovered: bool, cx: &mut Context<Self>) {
+    fn set_gutter_hovered(&mut self, hovered: bool, cx: &mut Context<Self>) {
         if hovered != self.gutter_hovered {
             self.gutter_hovered = hovered;
             cx.notify();
@@ -3019,7 +3001,7 @@ impl Editor {
         blocks
     }
 
-    pub fn resize_blocks(
+    fn resize_blocks(
         &mut self,
         heights: FxHashMap<CustomBlockId, u32>,
         autoscroll: Option<Autoscroll>,
@@ -3127,15 +3109,15 @@ impl Editor {
         cx.new(|_| minimap)
     }
 
-    pub fn minimap(&self) -> Option<&Entity<Self>> {
+    fn minimap(&self) -> Option<&Entity<Self>> {
         self.minimap.as_ref().filter(|_| self.minimap_visibility.visible())
     }
 
-    pub fn insert_uuid_v4(&mut self, _: &InsertUuidV4, window: &mut Window, cx: &mut Context<Self>) {
+    fn insert_uuid_v4(&mut self, _: &InsertUuidV4, window: &mut Window, cx: &mut Context<Self>) {
         self.insert_uuid(UuidVersion::V4, window, cx);
     }
 
-    pub fn insert_uuid_v7(&mut self, _: &InsertUuidV7, window: &mut Window, cx: &mut Context<Self>) {
+    fn insert_uuid_v7(&mut self, _: &InsertUuidV7, window: &mut Window, cx: &mut Context<Self>) {
         self.insert_uuid(UuidVersion::V7, window, cx);
     }
 
@@ -3156,7 +3138,7 @@ impl Editor {
         });
     }
 
-    pub fn show_cursors(&self, window: &mut Window, cx: &mut App) -> bool {
+    fn show_cursors(&self, window: &Window, cx: &App) -> bool {
         (self.read_only(cx) || self.blink_manager.read(cx).visible()) && self.focus_handle.is_focused(window)
     }
 
@@ -3278,7 +3260,7 @@ impl Editor {
         cx.write_to_clipboard(ClipboardItem::new_string(lines));
     }
 
-    pub fn open_context_menu(&mut self, _: &OpenContextMenu, window: &mut Window, cx: &mut Context<Self>) {
+    fn open_context_menu(&mut self, _: &OpenContextMenu, window: &mut Window, cx: &mut Context<Self>) {
         self.request_autoscroll(Autoscroll::newest(), cx);
         let position = self.selections.newest_display(&self.display_snapshot(cx)).start;
         mouse_context_menu::deploy_context_menu(self, None, position, window, cx);
@@ -3309,23 +3291,23 @@ impl Editor {
         });
     }
 
-    pub fn to_pixel_point(
+    fn pixel_point(
         &mut self,
         source: Anchor,
         editor_snapshot: &EditorSnapshot,
-        window: &mut Window,
-        cx: &mut App,
+        window: &Window,
+        cx: &App,
     ) -> Option<gpui::Point<Pixels>> {
         let source_point = source.to_display_point(editor_snapshot);
         self.display_to_pixel_point(source_point, editor_snapshot, window, cx)
     }
 
-    pub fn display_to_pixel_point(
+    fn display_to_pixel_point(
         &mut self,
         source: DisplayPoint,
         editor_snapshot: &EditorSnapshot,
-        window: &mut Window,
-        cx: &mut App,
+        window: &Window,
+        cx: &App,
     ) -> Option<gpui::Point<Pixels>> {
         let line_height = self.style(cx).text.line_height_in_pixels(window.rem_size());
         let text_layout_details = self.text_layout_details(window, cx);
@@ -3361,7 +3343,7 @@ impl Editor {
         item.to_any_mut()?.downcast_mut::<T>()
     }
 
-    fn character_dimensions(&self, window: &mut Window, cx: &mut App) -> CharacterDimensions {
+    fn character_dimensions(&self, window: &Window, cx: &App) -> CharacterDimensions {
         let text_layout_details = self.text_layout_details(window, cx);
         let style = &text_layout_details.editor_style;
         let font_id = window.text_system().resolve_font(&style.text.font());
@@ -3420,7 +3402,7 @@ impl Editor {
     }
 }
 
-pub fn column_pixels(style: &EditorStyle, column: usize, window: &Window) -> Pixels {
+fn column_pixels(style: &EditorStyle, column: usize, window: &Window) -> Pixels {
     let font_size = style.text.font_size.to_pixels(window.rem_size());
     let layout = window.text_system().shape_line(
         SharedString::from(" ".repeat(column)),
@@ -3663,7 +3645,7 @@ impl<T: ToOffset> RangeToAnchorExt for Range<T> {
     }
 }
 
-pub trait RowExt {
+trait RowExt {
     fn as_f64(&self) -> f64;
 
     fn next_row(&self) -> Self;
@@ -3750,11 +3732,11 @@ const fn collapse_multiline_range(range: Range<Point>) -> Range<Point> {
 const UPDATE_DEBOUNCE: Duration = Duration::from_millis(50);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LineHighlight {
-    pub background: Background,
-    pub border: Option<Hsla>,
-    pub include_gutter: bool,
-    pub type_id: Option<TypeId>,
+pub(crate) struct LineHighlight {
+    background: Background,
+    border: Option<Hsla>,
+    include_gutter: bool,
+    type_id: Option<TypeId>,
 }
 
 #[cfg(test)]

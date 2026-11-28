@@ -226,7 +226,7 @@ impl IntoElement for Anchored {
 
 /// Which algorithm to use when fitting the anchored element to be inside the window.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub(super) enum AnchoredFitMode {
+enum AnchoredFitMode {
     /// Snap to window edge and leave some margins.
     SnapToWindowWithMargin(Edges<Pixels>),
     /// Switch which corner anchor this anchored element is attached to.

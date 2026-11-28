@@ -51,7 +51,7 @@ impl ResolvedHighlights {
         })
     }
 
-    pub fn cost_bytes(&self) -> usize {
+    fn cost_bytes(&self) -> usize {
         self.runs.len() * size_of::<(Range<usize>, HighlightId)>()
     }
 }

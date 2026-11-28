@@ -67,11 +67,8 @@ pub mod parts;
 mod render;
 mod shape;
 
-pub use language::HighlightedText;
-pub use language::HighlightedTextBuilder;
-
 pub const DEFAULT_MODAL_WIDTH: Rems = Rems(34.0);
-pub const DEFAULT_MODAL_MAX_HEIGHT: Rems = Rems(24.0);
+const DEFAULT_MODAL_MAX_HEIGHT: Rems = Rems(24.0);
 
 enum ElementContainer {
     List(ListState),
@@ -93,14 +90,14 @@ actions!(
     picker,
     [
         /// Confirms the selected completion in the picker.
-        ConfirmCompletion,
+        pub ConfirmCompletion,
         /// Toggles multi-select mode, in which clicking items adds them to
         /// the selection instead of opening them
-        ToggleMultiSelect,
+        pub ToggleMultiSelect,
         /// Toggles the current item in the multi-selection and advances to
         /// the next item, starting multi-select mode if it isn't already
         /// active
-        MultiSelectNext,
+        pub MultiSelectNext,
     ]
 );
 
@@ -519,7 +516,7 @@ impl<D: PickerDelegate> Picker<D> {
         self.focus_handle(cx).focus(window, cx);
     }
 
-    pub fn set_hovered_index(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
+    fn set_hovered_index(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
         let match_count = self.delegate.match_count();
         if match_count == 0 {
             return;
@@ -607,7 +604,7 @@ impl<D: PickerDelegate> Picker<D> {
         }
     }
 
-    pub fn select_next(&mut self, _: &menu::SelectNext, window: &mut Window, cx: &mut Context<Self>) {
+    fn select_next(&mut self, _: &menu::SelectNext, window: &mut Window, cx: &mut Context<Self>) {
         let query = self.query(cx);
         if let Some(query) = self.delegate.select_history(Direction::Down, &query, window, cx) {
             self.set_query(&query, window, cx);
@@ -622,7 +619,7 @@ impl<D: PickerDelegate> Picker<D> {
         }
     }
 
-    pub fn editor_move_up(&mut self, _: &MoveUp, window: &mut Window, cx: &mut Context<Self>) {
+    fn editor_move_up(&mut self, _: &MoveUp, window: &mut Window, cx: &mut Context<Self>) {
         self.select_previous(&menu::SelectPrevious, window, cx);
     }
 
@@ -641,11 +638,11 @@ impl<D: PickerDelegate> Picker<D> {
         }
     }
 
-    pub fn editor_move_down(&mut self, _: &MoveDown, window: &mut Window, cx: &mut Context<Self>) {
+    fn editor_move_down(&mut self, _: &MoveDown, window: &mut Window, cx: &mut Context<Self>) {
         self.select_next(&menu::SelectNext, window, cx);
     }
 
-    pub fn select_first(&mut self, _: &menu::SelectFirst, window: &mut Window, cx: &mut Context<Self>) {
+    fn select_first(&mut self, _: &menu::SelectFirst, window: &mut Window, cx: &mut Context<Self>) {
         let count = self.delegate.match_count();
         if count > 0 {
             self.set_selected_index(0, Some(Direction::Down), true, window, cx);
@@ -800,6 +797,7 @@ impl<D: PickerDelegate> Picker<D> {
                     self.cancel(&menu::Cancel, window, cx);
                 }
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }

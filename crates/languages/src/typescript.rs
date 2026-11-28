@@ -28,7 +28,7 @@ use crate::PackageJson;
 use crate::PackageJsonData;
 use crate::tsgo::TsgoLspAdapter;
 
-pub(crate) struct TypeScriptContextProvider {
+struct TypeScriptContextProvider {
     fs: Arc<Fs>,
     last_package_json: PackageJsonContents,
 }
@@ -82,7 +82,7 @@ pub fn js_test_tasks(cx: &RunContext, data: &PackageJsonData, runner: &str) -> V
 }
 
 impl TypeScriptContextProvider {
-    pub(crate) fn new(fs: Arc<Fs>) -> Self {
+    fn new(fs: Arc<Fs>) -> Self {
         Self { fs, last_package_json: PackageJsonContents::default() }
     }
 

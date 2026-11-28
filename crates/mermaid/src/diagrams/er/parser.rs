@@ -20,6 +20,7 @@ const fn cardinality(t: T) -> Option<Cardinality> {
         T::OneOrMore => Some(Cardinality::OneOrMore),
         T::OnlyOne => Some(Cardinality::OnlyOne),
         T::MdParent => Some(Cardinality::MdParent),
+        // lint: expect(wildcard_match) only a few variants of `T` matter here
         _ => None,
     }
 }
@@ -374,6 +375,7 @@ pub(crate) fn parse_er(src: &str, db: &mut ErDb) -> Result<(), Error> {
                         p.i += 1;
                         trim(p.expect(T::AccDescrValue)?)
                     }
+                    // lint: expect(wildcard_match) only a few variants of `T` matter here
                     _ => trim(p.take()),
                 };
                 if t == T::AccTitle {
@@ -391,6 +393,7 @@ pub(crate) fn parse_er(src: &str, db: &mut ErDb) -> Result<(), Error> {
                     T::DirectionTb => "TB",
                     T::DirectionBt => "BT",
                     T::DirectionRl => "RL",
+                    // lint: expect(wildcard_match) only a few variants of `T` matter here
                     _ => "LR",
                 };
                 if nested {
@@ -424,6 +427,7 @@ pub(crate) fn parse_er(src: &str, db: &mut ErDb) -> Result<(), Error> {
                     frame.list.push(DocItem::Name(keyword.to_owned()));
                 }
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => {
                 if !is_name(t) {
                     if nested {

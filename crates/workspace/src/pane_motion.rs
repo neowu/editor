@@ -138,28 +138,28 @@ fn subtract(rect: Bounds<Pixels>, hole: Bounds<Pixels>) -> SmallVec<[Bounds<Pixe
 
 /// What to paint over the panes this frame.
 #[derive(Debug, Default, PartialEq)]
-pub(crate) struct PaneOverlay {
+struct PaneOverlay {
     /// Background over final bounds the card hasn't reached yet.
-    pub covers: Vec<Bounds<Pixels>>,
+    covers: Vec<Bounds<Pixels>>,
     /// Cards presented outside their final bounds, bottom to top.
-    pub ghosts: Vec<Ghost>,
+    ghosts: Vec<Ghost>,
 }
 
 /// A card's silhouette (tab strip in backdrop, rounded body in card colour) and
 /// its shadow, each painted only inside its visible pieces.
 #[derive(Debug, PartialEq)]
-pub(crate) struct Ghost {
-    pub presented: Bounds<Pixels>,
-    pub body: Bounds<Pixels>,
+struct Ghost {
+    presented: Bounds<Pixels>,
+    body: Bounds<Pixels>,
     /// Where the silhouette shows: outside the card's final bounds, not occluded.
-    pub pieces: SmallVec<[Bounds<Pixels>; 4]>,
+    pieces: SmallVec<[Bounds<Pixels>; 4]>,
     /// Where the shadow shows: outside the card, not occluded. Empty unless raised.
-    pub shadow: SmallVec<[Bounds<Pixels>; 4]>,
-    pub lift: f32,
+    shadow: SmallVec<[Bounds<Pixels>; 4]>,
+    lift: f32,
 }
 
 #[derive(Default)]
-pub struct PaneMotion {
+pub(crate) struct PaneMotion {
     recorded: Vec<(EntityId, Bounds<Pixels>, Pixels)>,
     tracks: Vec<Track>,
     region: Option<Bounds<Pixels>>,
@@ -167,12 +167,12 @@ pub struct PaneMotion {
     zoomed: bool,
     last_frame: Option<Instant>,
     /// The pointer is down: divider drags and other direct manipulation never animate.
-    pub(crate) pointer_pressed: bool,
+    pointer_pressed: bool,
 }
 
 impl PaneMotion {
     /// Records a pane's final bounds for this frame, in paint order.
-    pub(crate) fn record(&mut self, id: EntityId, bounds: Bounds<Pixels>, strip: Pixels) {
+    fn record(&mut self, id: EntityId, bounds: Bounds<Pixels>, strip: Pixels) {
         self.recorded.push((id, bounds, strip));
     }
 
@@ -186,7 +186,7 @@ impl PaneMotion {
     /// anything is still moving. A region change (window resize, dock toggle) or a
     /// pressed pointer snaps everything; so does the first frame. Zooming in or out
     /// (`zoomed` flips) animates even though the region changes with it.
-    pub(crate) fn update(&mut self, region: Bounds<Pixels>, zoomed: bool, now: Instant) -> bool {
+    fn update(&mut self, region: Bounds<Pixels>, zoomed: bool, now: Instant) -> bool {
         let zoom_changed = self.zoomed != zoomed;
         self.zoomed = zoomed;
         let snap = self.region.is_none() || (self.region != Some(region) && !zoom_changed) || self.pointer_pressed;
@@ -269,7 +269,7 @@ impl PaneMotion {
             .collect();
     }
 
-    pub(crate) fn overlay(&self) -> PaneOverlay {
+    fn overlay(&self) -> PaneOverlay {
         let mut overlay = PaneOverlay::default();
         for track in &self.tracks {
             overlay.covers.extend(subtract(track.target, track.presented()));

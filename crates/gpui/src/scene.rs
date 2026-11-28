@@ -34,7 +34,7 @@ pub(crate) type DrawOrder = u32;
 /// `0` or `1` by construction; shaders read it as a `u32`/`uint`.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 #[repr(transparent)]
-pub struct PaddedBool32(u32);
+pub(crate) struct PaddedBool32(u32);
 
 impl From<bool> for PaddedBool32 {
     fn from(value: bool) -> Self {
@@ -44,7 +44,7 @@ impl From<bool> for PaddedBool32 {
 
 #[derive(Default)]
 pub struct Scene {
-    pub(crate) paint_operations: Vec<PaintOperation>,
+    paint_operations: Vec<PaintOperation>,
     primitive_bounds: BoundsTree<ScaledPixels>,
     layer_stack: Vec<DrawOrder>,
     pub shadows: Vec<Shadow>,
@@ -57,7 +57,7 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.paint_operations.clear();
         self.primitive_bounds.clear();
         self.layer_stack.clear();
@@ -98,7 +98,7 @@ impl Scene {
         }
     }
 
-    pub const fn len(&self) -> usize {
+    pub(crate) const fn len(&self) -> usize {
         self.paint_operations.len()
     }
 
@@ -106,18 +106,18 @@ impl Scene {
         self.paint_operations.is_empty()
     }
 
-    pub fn push_layer(&mut self, bounds: Bounds<ScaledPixels>) {
+    pub(crate) fn push_layer(&mut self, bounds: Bounds<ScaledPixels>) {
         let order = self.primitive_bounds.insert(bounds);
         self.layer_stack.push(order);
         self.paint_operations.push(PaintOperation::StartLayer(bounds));
     }
 
-    pub fn pop_layer(&mut self) {
+    pub(crate) fn pop_layer(&mut self) {
         self.layer_stack.pop();
         self.paint_operations.push(PaintOperation::EndLayer);
     }
 
-    pub fn insert_primitive(&mut self, primitive: impl Into<Primitive>) {
+    pub(crate) fn insert_primitive(&mut self, primitive: impl Into<Primitive>) {
         let mut primitive = primitive.into();
         let clipped_bounds = primitive.bounds().intersect(&primitive.content_mask().bounds);
 
@@ -156,7 +156,7 @@ impl Scene {
         self.paint_operations.push(PaintOperation::Primitive(primitive));
     }
 
-    pub fn replay(&mut self, range: Range<usize>, prev_scene: &Scene) {
+    pub(crate) fn replay(&mut self, range: Range<usize>, prev_scene: &Scene) {
         for operation in &prev_scene.paint_operations[range] {
             match operation {
                 PaintOperation::Primitive(primitive) => {
@@ -175,7 +175,7 @@ impl Scene {
         }
     }
 
-    pub fn finish(&mut self) {
+    pub(crate) fn finish(&mut self) {
         let keys = &mut Vec::new();
         sort_in_place(&mut self.shadows, keys, |shadow| (shadow.order, 0));
         sort_in_place(&mut self.quads, keys, |quad| (quad.order, 0));
@@ -215,7 +215,7 @@ impl Scene {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Default)]
 
-pub(crate) enum PrimitiveKind {
+enum PrimitiveKind {
     Shadow,
     #[default]
     Quad,
@@ -225,14 +225,14 @@ pub(crate) enum PrimitiveKind {
     PolychromeSprite,
 }
 
-pub(crate) enum PaintOperation {
+enum PaintOperation {
     Primitive(Primitive),
     StartLayer(Bounds<ScaledPixels>),
     EndLayer,
 }
 
 #[derive(Clone)]
-pub enum Primitive {
+pub(crate) enum Primitive {
     Shadow(Shadow),
     Quad(Quad),
     Path(Path<ScaledPixels>),
@@ -242,7 +242,7 @@ pub enum Primitive {
 }
 
 impl Primitive {
-    pub const fn bounds(&self) -> &Bounds<ScaledPixels> {
+    const fn bounds(&self) -> &Bounds<ScaledPixels> {
         match self {
             Primitive::Shadow(shadow) => &shadow.bounds,
             Primitive::Quad(quad) => &quad.bounds,
@@ -253,7 +253,7 @@ impl Primitive {
         }
     }
 
-    pub const fn content_mask(&self) -> &ContentMask<ScaledPixels> {
+    const fn content_mask(&self) -> &ContentMask<ScaledPixels> {
         match self {
             Primitive::Shadow(shadow) => &shadow.content_mask,
             Primitive::Quad(quad) => &quad.content_mask,
@@ -417,14 +417,14 @@ impl PrimitiveBatch {
 #[derive(Default, Debug, Copy, Clone)]
 #[repr(C)]
 pub struct Quad {
-    pub order: DrawOrder,
-    pub border_style: BorderStyle,
-    pub bounds: Bounds<ScaledPixels>,
-    pub content_mask: ContentMask<ScaledPixels>,
-    pub background: Background,
-    pub border_color: Hsla,
-    pub corner_radii: Corners<ScaledPixels>,
-    pub border_widths: Edges<ScaledPixels>,
+    pub(crate) order: DrawOrder,
+    pub(crate) border_style: BorderStyle,
+    pub(crate) bounds: Bounds<ScaledPixels>,
+    pub(crate) content_mask: ContentMask<ScaledPixels>,
+    pub(crate) background: Background,
+    pub(crate) border_color: Hsla,
+    pub(crate) corner_radii: Corners<ScaledPixels>,
+    pub(crate) border_widths: Edges<ScaledPixels>,
 }
 
 impl From<Quad> for Primitive {
@@ -436,13 +436,13 @@ impl From<Quad> for Primitive {
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct Underline {
-    pub order: DrawOrder,
-    pub pad: u32, // align to 8 bytes
-    pub bounds: Bounds<ScaledPixels>,
-    pub content_mask: ContentMask<ScaledPixels>,
-    pub color: Hsla,
-    pub thickness: ScaledPixels,
-    pub wavy: PaddedBool32,
+    pub(crate) order: DrawOrder,
+    pub(crate) pad: u32, // align to 8 bytes
+    pub(crate) bounds: Bounds<ScaledPixels>,
+    pub(crate) content_mask: ContentMask<ScaledPixels>,
+    pub(crate) color: Hsla,
+    pub(crate) thickness: ScaledPixels,
+    pub(crate) wavy: PaddedBool32,
 }
 
 impl From<Underline> for Primitive {
@@ -454,17 +454,17 @@ impl From<Underline> for Primitive {
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct Shadow {
-    pub order: DrawOrder,
-    pub blur_radius: ScaledPixels,
-    pub bounds: Bounds<ScaledPixels>,
-    pub corner_radii: Corners<ScaledPixels>,
-    pub content_mask: ContentMask<ScaledPixels>,
-    pub color: Hsla,
-    pub element_bounds: Bounds<ScaledPixels>,
-    pub element_corner_radii: Corners<ScaledPixels>,
+    pub(crate) order: DrawOrder,
+    pub(crate) blur_radius: ScaledPixels,
+    pub(crate) bounds: Bounds<ScaledPixels>,
+    pub(crate) corner_radii: Corners<ScaledPixels>,
+    pub(crate) content_mask: ContentMask<ScaledPixels>,
+    pub(crate) color: Hsla,
+    pub(crate) element_bounds: Bounds<ScaledPixels>,
+    pub(crate) element_corner_radii: Corners<ScaledPixels>,
     /// 0 = drop shadow (rendered outside the element), 1 = inset shadow (rendered inside).
-    pub inset: u32,
-    pub pad: u32, // align to 8 bytes
+    pub(crate) inset: u32,
+    pub(crate) pad: u32, // align to 8 bytes
 }
 
 impl From<Shadow> for Primitive {
@@ -487,29 +487,29 @@ pub enum BorderStyle {
 /// A data type representing a 2 dimensional transformation that can be applied to an element.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
-pub struct TransformationMatrix {
+pub(crate) struct TransformationMatrix {
     /// 2x2 matrix containing rotation and scale,
     /// stored row-major.
-    pub rotation_scale: [[f32; 2]; 2],
+    rotation_scale: [[f32; 2]; 2],
     /// translation vector.
-    pub translation: [f32; 2],
+    translation: [f32; 2],
 }
 
 impl Eq for TransformationMatrix {}
 
 impl TransformationMatrix {
     /// The unit matrix, has no effect.
-    pub const fn unit() -> Self {
+    pub(crate) const fn unit() -> Self {
         Self { rotation_scale: [[1.0, 0.0], [0.0, 1.0]], translation: [0.0, 0.0] }
     }
 
     /// Move the origin by a given point.
-    pub fn translate(self, point: Point<ScaledPixels>) -> Self {
+    pub(crate) fn translate(self, point: Point<ScaledPixels>) -> Self {
         self.compose(Self { rotation_scale: [[1.0, 0.0], [0.0, 1.0]], translation: [point.x.0, point.y.0] })
     }
 
     /// Clockwise rotation in radians around the origin.
-    pub fn rotate(self, angle: Radians) -> Self {
+    pub(crate) fn rotate(self, angle: Radians) -> Self {
         self.compose(Self {
             rotation_scale: [[angle.0.cos(), -angle.0.sin()], [angle.0.sin(), angle.0.cos()]],
             translation: [0.0, 0.0],
@@ -517,7 +517,7 @@ impl TransformationMatrix {
     }
 
     /// Scale around the origin.
-    pub fn scale(self, size: Size<f32>) -> Self {
+    pub(crate) fn scale(self, size: Size<f32>) -> Self {
         self.compose(Self { rotation_scale: [[size.width, 0.0], [0.0, size.height]], translation: [0.0, 0.0] })
     }
 
@@ -525,7 +525,7 @@ impl TransformationMatrix {
     /// to produce a new transformation that is the result of
     /// applying both transformations: first, `other`, then `self`.
     #[inline]
-    pub fn compose(self, other: TransformationMatrix) -> TransformationMatrix {
+    fn compose(self, other: TransformationMatrix) -> TransformationMatrix {
         if other == Self::unit() {
             return self;
         }
@@ -555,18 +555,6 @@ impl TransformationMatrix {
             ],
         }
     }
-
-    /// Apply transformation to a point, mainly useful for debugging.
-    pub fn apply(&self, point: Point<Pixels>) -> Point<Pixels> {
-        let input = [point.x.0, point.y.0];
-        let mut output = self.translation;
-        for (i, output_cell) in output.iter_mut().enumerate() {
-            for (k, input_cell) in input.iter().enumerate() {
-                *output_cell += self.rotation_scale[i][k] * *input_cell;
-            }
-        }
-        Point::new(output[0].into(), output[1].into())
-    }
 }
 
 impl Default for TransformationMatrix {
@@ -578,15 +566,15 @@ impl Default for TransformationMatrix {
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub struct MonochromeSprite {
-    pub order: DrawOrder,
+    pub(crate) order: DrawOrder,
     /// One more than the index of the sprite's [`SpriteAnimation`] in its scene, or 0 for none.
     /// It sits in the instance's alignment padding; renderers ignore it.
-    pub animation: u32,
-    pub tile: AtlasTile,
-    pub bounds: Bounds<ScaledPixels>,
-    pub content_mask: ContentMask<ScaledPixels>,
-    pub color: Hsla,
-    pub transformation: TransformationMatrix,
+    pub(crate) animation: u32,
+    pub(crate) tile: AtlasTile,
+    pub(crate) bounds: Bounds<ScaledPixels>,
+    pub(crate) content_mask: ContentMask<ScaledPixels>,
+    pub(crate) color: Hsla,
+    pub(crate) transformation: TransformationMatrix,
 }
 
 /// A continuous rotation the window applies to a sprite right before every
@@ -616,14 +604,14 @@ impl From<MonochromeSprite> for Primitive {
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub struct PolychromeSprite {
-    pub order: DrawOrder,
-    pub pad: u32,
-    pub tile: AtlasTile,
-    pub grayscale: PaddedBool32,
-    pub opacity: f32,
-    pub bounds: Bounds<ScaledPixels>,
-    pub content_mask: ContentMask<ScaledPixels>,
-    pub corner_radii: Corners<ScaledPixels>,
+    pub(crate) order: DrawOrder,
+    pub(crate) pad: u32,
+    pub(crate) tile: AtlasTile,
+    pub(crate) grayscale: PaddedBool32,
+    pub(crate) opacity: f32,
+    pub(crate) bounds: Bounds<ScaledPixels>,
+    pub(crate) content_mask: ContentMask<ScaledPixels>,
+    pub(crate) corner_radii: Corners<ScaledPixels>,
 }
 
 impl From<PolychromeSprite> for Primitive {
@@ -633,12 +621,12 @@ impl From<PolychromeSprite> for Primitive {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct PathId(pub usize);
+struct PathId(usize);
 
 /// A line made up of a series of vertices and control points.
 #[derive(Clone, Debug)]
 pub struct Path<P: Clone + Debug + Default + PartialEq> {
-    pub id: PathId,
+    id: PathId,
     pub order: DrawOrder,
     pub bounds: Bounds<P>,
     pub content_mask: ContentMask<P>,
@@ -651,7 +639,7 @@ pub struct Path<P: Clone + Debug + Default + PartialEq> {
 
 impl Path<Pixels> {
     /// Create a new path with the given starting point.
-    pub fn new(start: Point<Pixels>) -> Self {
+    pub(crate) fn new(start: Point<Pixels>) -> Self {
         Self {
             id: PathId(0),
             order: DrawOrder::default(),
@@ -666,7 +654,7 @@ impl Path<Pixels> {
     }
 
     /// Scale this path by the given factor.
-    pub fn scale(&self, factor: f32) -> Path<ScaledPixels> {
+    pub(crate) fn scale(&self, factor: f32) -> Path<ScaledPixels> {
         Path {
             id: self.id,
             order: self.order,
@@ -708,7 +696,7 @@ impl Path<Pixels> {
     }
 
     /// Push a triangle to the Path.
-    pub fn push_triangle(
+    pub(crate) fn push_triangle(
         &mut self,
         xy: (Point<Pixels>, Point<Pixels>, Point<Pixels>),
         st: (Point<f32>, Point<f32>, Point<f32>),
@@ -745,11 +733,11 @@ impl From<Path<ScaledPixels>> for Primitive {
 pub struct PathVertex<P: Clone + Debug + Default + PartialEq> {
     pub xy_position: Point<P>,
     pub st_position: Point<f32>,
-    pub content_mask: ContentMask<P>,
+    content_mask: ContentMask<P>,
 }
 
 impl PathVertex<Pixels> {
-    pub fn scale(&self, factor: f32) -> PathVertex<ScaledPixels> {
+    fn scale(&self, factor: f32) -> PathVertex<ScaledPixels> {
         PathVertex {
             xy_position: self.xy_position.scale(factor),
             st_position: self.st_position,

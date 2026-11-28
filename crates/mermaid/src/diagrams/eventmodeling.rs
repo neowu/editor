@@ -1,9 +1,9 @@
 //! Event models: frames in swimlanes along a timeline, with notes and given/when/then
 //! specifications. Port of Pele's `src/diagrams/eventmodeling/index.ts`.
 
-pub(crate) mod model;
-pub(crate) mod parser;
-pub(crate) mod render;
+mod model;
+mod parser;
+mod render;
 
 use super::Diagram;
 use super::Input;
@@ -29,6 +29,6 @@ pub(crate) use model::EventModelingModel as Model;
 /// # Errors
 ///
 /// Returns a syntax error for input Mermaid rejects, and a semantic error for a repeated frame ID.
-pub(crate) fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
+fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
     model::build_event_model(&parser::parse_event_model(source)?, source, title)
 }

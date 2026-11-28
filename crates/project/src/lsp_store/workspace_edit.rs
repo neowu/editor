@@ -35,7 +35,7 @@ use crate::ProjectItem as _;
 use crate::ProjectTransaction;
 
 impl LocalLspStore {
-    pub async fn deserialize_text_edits(
+    pub(crate) async fn deserialize_text_edits(
         this: Entity<LspStore>,
         buffer_to_edit: Entity<Buffer>,
         edits: Vec<TextEdit>,
@@ -70,13 +70,13 @@ impl LocalLspStore {
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn edits_from_lsp(
+    pub(crate) fn edits_from_lsp(
         &mut self,
         buffer: &Entity<Buffer>,
         lsp_edits: impl 'static + Send + IntoIterator<Item = TextEdit>,
         server_id: LanguageServerId,
         version: Option<i32>,
-        cx: &mut Context<LspStore>,
+        cx: &Context<LspStore>,
     ) -> Task<Result<Vec<(Range<Anchor>, Arc<str>)>>> {
         let snapshot = self.buffer_snapshot_for_lsp_version(buffer, server_id, version, cx);
         cx.background_spawn(async move {

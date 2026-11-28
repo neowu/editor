@@ -380,103 +380,103 @@ pub struct Delete {
 #[derive(PartialEq, Clone, Default, Debug, Action)]
 #[action(namespace = project_panel)]
 struct SelectNextDiagnostic {
-    pub severity: GoToDiagnosticSeverityFilter,
+    severity: GoToDiagnosticSeverityFilter,
 }
 
 /// Selects the previous entry with diagnostics.
 #[derive(PartialEq, Clone, Default, Debug, Action)]
 #[action(namespace = project_panel)]
 struct SelectPrevDiagnostic {
-    pub severity: GoToDiagnosticSeverityFilter,
+    severity: GoToDiagnosticSeverityFilter,
 }
 
 actions!(
     project_panel,
     [
         /// Toggles the project panel.
-        Toggle,
+        pub(crate) Toggle,
         /// Toggles focus on the project panel.
-        ToggleFocus,
+        pub ToggleFocus,
         /// Expands the selected entry in the project tree.
-        ExpandSelectedEntry,
+        pub ExpandSelectedEntry,
         /// Collapses the selected entry in the project tree.
-        CollapseSelectedEntry,
+        pub CollapseSelectedEntry,
         /// Collapses the selected entry and its children in the project tree.
-        CollapseSelectedEntryAndChildren,
+        pub(crate) CollapseSelectedEntryAndChildren,
         /// Expands the selected entry and its children in the project tree.
-        ExpandSelectedEntryAndChildren,
+        pub(crate) ExpandSelectedEntryAndChildren,
         /// Collapses all entries in the project tree.
-        CollapseAllEntries,
+        pub CollapseAllEntries,
         /// Expands all entries in the project tree.
-        ExpandAllEntries,
+        pub ExpandAllEntries,
         /// Creates a new directory.
-        NewDirectory,
+        pub NewDirectory,
         /// Creates a new file.
-        NewFile,
+        pub(crate) NewFile,
         /// Copies the selected file or directory.
-        Copy,
+        pub Copy,
         /// Duplicates the selected file or directory.
-        Duplicate,
+        pub Duplicate,
         /// Reveals the selected item in the system file manager.
-        RevealInFileManager,
+        pub RevealInFileManager,
         /// Removes the selected folder from the project.
-        RemoveFromProject,
+        pub(crate) RemoveFromProject,
         /// Cuts the selected file or directory.
-        Cut,
+        pub Cut,
         /// Pastes the previously cut or copied item.
-        Paste,
+        pub Paste,
         /// Renames the selected file or directory.
-        Rename,
+        pub Rename,
         /// Opens the selected file in the editor.
-        Open,
+        pub Open,
         /// Opens the selected file in a permanent tab.
-        OpenPermanent,
+        pub(crate) OpenPermanent,
         /// Opens the selected file in a vertical split.
-        OpenSplitVertical,
+        pub(crate) OpenSplitVertical,
         /// Opens the selected file in a horizontal split.
-        OpenSplitHorizontal,
+        pub(crate) OpenSplitHorizontal,
         /// Toggles visibility of git-ignored files.
-        ToggleHideGitIgnore,
+        pub(crate) ToggleHideGitIgnore,
         /// Toggles visibility of hidden files.
-        ToggleHideHidden,
+        pub(crate) ToggleHideHidden,
         /// Starts a new search in the selected directory.
-        NewSearchInDirectory,
+        pub NewSearchInDirectory,
         /// Unfolds the selected directory.
-        UnfoldDirectory,
+        pub(crate) UnfoldDirectory,
         /// Folds the selected directory.
-        FoldDirectory,
+        pub(crate) FoldDirectory,
         /// Scroll half a page upwards
-        ScrollUp,
+        pub(crate) ScrollUp,
         /// Scroll half a page downwards
-        ScrollDown,
+        pub(crate) ScrollDown,
         /// Scroll until the cursor displays at the center
-        ScrollCursorCenter,
+        pub(crate) ScrollCursorCenter,
         /// Scroll until the cursor displays at the top
-        ScrollCursorTop,
+        pub(crate) ScrollCursorTop,
         /// Scroll until the cursor displays at the bottom
-        ScrollCursorBottom,
+        pub(crate) ScrollCursorBottom,
         /// Selects the parent directory.
-        SelectParent,
+        pub(crate) SelectParent,
         /// Selects the next entry with git changes.
-        SelectNextGitEntry,
+        pub(crate) SelectNextGitEntry,
         /// Selects the previous entry with git changes.
-        SelectPrevGitEntry,
+        pub(crate) SelectPrevGitEntry,
         /// Selects the next directory.
-        SelectNextDirectory,
+        pub(crate) SelectNextDirectory,
         /// Selects the previous directory.
-        SelectPrevDirectory,
+        pub(crate) SelectPrevDirectory,
         /// Opens a diff view to compare two marked files.
-        CompareMarkedFiles,
+        pub CompareMarkedFiles,
         /// Undoes the last file operation.
-        Undo,
+        pub Undo,
         /// Redoes the last undone file operation.
-        Redo,
+        pub Redo,
         /// Opens a markdown preview for the selected file.
-        OpenMarkdownPreview,
+        pub(crate) OpenMarkdownPreview,
         /// Opens the context menu for the selected entry.
-        OpenContextMenu,
+        pub OpenContextMenu,
         /// Opens an SVG preview for the selected file.
-        OpenSvgPreview,
+        pub(crate) OpenSvgPreview,
     ]
 );
 
@@ -598,7 +598,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions) {
 }
 
 #[derive(Debug)]
-pub enum Event {
+enum Event {
     OpenedEntry { entry_id: ProjectEntryId, focus_opened_item: bool, allow_preview: bool },
     SplitEntry { entry_id: ProjectEntryId, allow_preview: bool, split_direction: Option<SplitDirection> },
 }
@@ -639,155 +639,157 @@ impl ProjectPanel {
     fn new(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> Entity<Self> {
         let project = workspace.project().clone();
         let git_store = project.read(cx).git_store().clone();
-        let project_panel =
-            cx.new(|cx: &mut Context<Self>| {
-                let focus_handle = cx.focus_handle();
-                cx.subscribe_in(&git_store, window, |this, _, event, window, cx| match event {
-                    GitStoreEvent::RepositoryUpdated(_, RepositoryEvent::StatusesChanged, _)
-                    | GitStoreEvent::RepositoryAdded
-                    | GitStoreEvent::RepositoryRemoved(_) => {
-                        this.update_visible_entries(None, false, false, window, cx);
-                        cx.notify();
-                    }
-                    _ => {}
-                })
-                .detach();
+        let project_panel = cx.new(|cx: &mut Context<Self>| {
+            let focus_handle = cx.focus_handle();
+            cx.subscribe_in(&git_store, window, |this, _, event, window, cx| match event {
+                GitStoreEvent::RepositoryUpdated(_, RepositoryEvent::StatusesChanged, _)
+                | GitStoreEvent::RepositoryAdded
+                | GitStoreEvent::RepositoryRemoved(_) => {
+                    this.update_visible_entries(None, false, false, window, cx);
+                    cx.notify();
+                }
+                // lint: expect(wildcard_match) only some variants matter here
+                _ => {}
+            })
+            .detach();
 
-                cx.subscribe_in(&project, window, |this, project, event, window, cx| match event {
-                    project::Event::ActiveEntryChanged(Some(entry_id)) => {
-                        this.reveal_entry(project.clone(), *entry_id, true, window, cx).ok();
+            cx.subscribe_in(&project, window, |this, project, event, window, cx| match event {
+                project::Event::ActiveEntryChanged(Some(entry_id)) => {
+                    this.reveal_entry(project.clone(), *entry_id, true, window, cx).ok();
+                }
+                project::Event::ActiveEntryChanged(None) => {
+                    let is_active_item_file_diff_view = this
+                        .workspace
+                        .upgrade()
+                        .and_then(|ws| ws.read(cx).active_item(cx))
+                        .is_some_and(|item| item.act_as_type(TypeId::of::<FileDiffView>(), cx).is_some());
+                    if !is_active_item_file_diff_view {
+                        this.marked_entries.clear();
                     }
-                    project::Event::ActiveEntryChanged(None) => {
-                        let is_active_item_file_diff_view = this
-                            .workspace
-                            .upgrade()
-                            .and_then(|ws| ws.read(cx).active_item(cx))
-                            .is_some_and(|item| item.act_as_type(TypeId::of::<FileDiffView>(), cx).is_some());
-                        if !is_active_item_file_diff_view {
-                            this.marked_entries.clear();
-                        }
-                    }
-                    project::Event::RevealInProjectPanel(entry_id) => {
-                        if this.reveal_entry(project.clone(), *entry_id, false, window, cx).log_err() == Some(()) {
-                            cx.emit(PanelEvent::Activate);
-                        }
-                    }
-                    project::Event::ActivateProjectPanel => {
+                }
+                project::Event::RevealInProjectPanel(entry_id) => {
+                    if this.reveal_entry(project.clone(), *entry_id, false, window, cx).log_err() == Some(()) {
                         cx.emit(PanelEvent::Activate);
                     }
-                    project::Event::DiskBasedDiagnosticsFinished { .. } | project::Event::DiagnosticsUpdated { .. } => {
-                        this.diagnostic_summary_update = cx.spawn(async move |this, cx| {
-                            cx.background_executor().timer(Duration::from_millis(30)).await;
-                            this.update(cx, |this, cx| {
-                                if this.update_diagnostics(cx) {
-                                    cx.notify();
-                                }
-                            })
-                            .log_err();
-                        });
-                    }
-                    project::Event::WorktreeRemoved(id) => {
-                        this.state.expanded_dir_ids.remove(id);
-                        this.update_visible_entries(None, false, false, window, cx);
-                        cx.notify();
-                    }
-                    project::Event::WorktreeUpdatedEntries(_, _)
-                    | project::Event::WorktreeAdded(_)
-                    | project::Event::WorktreeOrderChanged => {
-                        this.update_visible_entries(None, false, false, window, cx);
-                        cx.notify();
-                    }
-                    project::Event::ExpandedAllForEntry(worktree_id, entry_id) => {
-                        this.synchronously_expand_all_directories(*worktree_id, *entry_id, window, cx);
-                    }
-                    _ => {}
-                })
-                .detach();
+                }
+                project::Event::ActivateProjectPanel => {
+                    cx.emit(PanelEvent::Activate);
+                }
+                project::Event::DiskBasedDiagnosticsFinished { .. } | project::Event::DiagnosticsUpdated { .. } => {
+                    this.diagnostic_summary_update = cx.spawn(async move |this, cx| {
+                        cx.background_executor().timer(Duration::from_millis(30)).await;
+                        this.update(cx, |this, cx| {
+                            if this.update_diagnostics(cx) {
+                                cx.notify();
+                            }
+                        })
+                        .log_err();
+                    });
+                }
+                project::Event::WorktreeRemoved(id) => {
+                    this.state.expanded_dir_ids.remove(id);
+                    this.update_visible_entries(None, false, false, window, cx);
+                    cx.notify();
+                }
+                project::Event::WorktreeUpdatedEntries(_, _)
+                | project::Event::WorktreeAdded(_)
+                | project::Event::WorktreeOrderChanged => {
+                    this.update_visible_entries(None, false, false, window, cx);
+                    cx.notify();
+                }
+                project::Event::ExpandedAllForEntry(worktree_id, entry_id) => {
+                    this.synchronously_expand_all_directories(*worktree_id, *entry_id, window, cx);
+                }
+                // lint: expect(wildcard_match) only some variants matter here
+                _ => {}
+            })
+            .detach();
 
-                let filename_editor = cx.new(|cx| Editor::single_line(window, cx));
+            let filename_editor = cx.new(|cx| Editor::single_line(window, cx));
 
-                cx.subscribe_in(&filename_editor, window, |project_panel, _, editor_event, window, cx| {
-                    match editor_event {
-                        EditorEvent::BufferEdited => {
-                            project_panel.populate_validation_error(cx);
-                            project_panel.autoscroll(cx);
-                        }
-                        EditorEvent::SelectionsChanged { .. } => {
-                            project_panel.autoscroll(cx);
-                        }
-                        EditorEvent::Blurred
-                            if window.is_window_active()
-                                && project_panel
-                                    .state
-                                    .edit_state
-                                    .as_ref()
-                                    .is_some_and(|state| state.processing_filename.is_none()) =>
-                        {
-                            match project_panel.confirm_edit(false, window, cx) {
-                                Some(task) => {
-                                    task.detach_and_notify_err(project_panel.workspace.clone(), window, cx);
-                                }
-                                None => {
-                                    project_panel.discard_edit_state(window, cx);
-                                }
+            cx.subscribe_in(&filename_editor, window, |project_panel, _, editor_event, window, cx| {
+                match editor_event {
+                    EditorEvent::BufferEdited => {
+                        project_panel.populate_validation_error(cx);
+                        project_panel.autoscroll(cx);
+                    }
+                    EditorEvent::SelectionsChanged { .. } => {
+                        project_panel.autoscroll(cx);
+                    }
+                    EditorEvent::Blurred
+                        if window.is_window_active()
+                            && project_panel
+                                .state
+                                .edit_state
+                                .as_ref()
+                                .is_some_and(|state| state.processing_filename.is_none()) =>
+                    {
+                        match project_panel.confirm_edit(false, window, cx) {
+                            Some(task) => {
+                                task.detach_and_notify_err(project_panel.workspace.clone(), window, cx);
+                            }
+                            None => {
+                                project_panel.discard_edit_state(window, cx);
                             }
                         }
-                        _ => {}
                     }
-                })
-                .detach();
+                    // lint: expect(wildcard_match) only some variants matter here
+                    _ => {}
+                }
+            })
+            .detach();
 
-                cx.observe_global::<FileIcons>(|_, cx| {
-                    cx.notify();
-                })
-                .detach();
+            cx.observe_global::<FileIcons>(|_, cx| {
+                cx.notify();
+            })
+            .detach();
 
-                let scroll_handle = UniformListScrollHandle::new();
-                let weak_project_panel = cx.weak_entity();
-                let mut this = Self {
-                    project: project.clone(),
-                    hover_scroll_task: None,
-                    focus_handle,
-                    rendered_entries_len: 0,
-                    folded_directory_drag_target: None,
-                    drag_target_entry: None,
-                    drag_highlight_last_entry_id: None,
-                    marked_entries: Vec::default(),
-                    selection: None,
-                    context_menu: None,
-                    filename_editor,
-                    clipboard: None,
-                    _dragged_entry_destination: None,
-                    workspace: workspace.weak_handle(),
-                    diagnostics: FxHashMap::default(),
-                    diagnostic_counts: FxHashMap::default(),
-                    diagnostic_summary_update: Task::ready(()),
-                    libraries_expanded: true,
-                    scroll_handle,
-                    mouse_down: false,
-                    hover_expand_task: None,
-                    previous_drag_position: None,
-                    sticky_items_count: 0,
-                    hide_gitignore: false,
-                    hide_hidden: false,
+            let scroll_handle = UniformListScrollHandle::new();
+            let weak_project_panel = cx.weak_entity();
+            let mut this = Self {
+                project: project.clone(),
+                hover_scroll_task: None,
+                focus_handle,
+                rendered_entries_len: 0,
+                folded_directory_drag_target: None,
+                drag_target_entry: None,
+                drag_highlight_last_entry_id: None,
+                marked_entries: Vec::default(),
+                selection: None,
+                context_menu: None,
+                filename_editor,
+                clipboard: None,
+                _dragged_entry_destination: None,
+                workspace: workspace.weak_handle(),
+                diagnostics: FxHashMap::default(),
+                diagnostic_counts: FxHashMap::default(),
+                diagnostic_summary_update: Task::ready(()),
+                libraries_expanded: true,
+                scroll_handle,
+                mouse_down: false,
+                hover_expand_task: None,
+                previous_drag_position: None,
+                sticky_items_count: 0,
+                hide_gitignore: false,
+                hide_hidden: false,
 
-                    state: State {
-                        max_width_item_index: None,
-                        edit_state: None,
-                        temporarily_unfolded_pending_state: None,
-                        last_worktree_root_id: Option::default(),
-                        visible_entries: Vec::default(),
-                        ancestors: FxHashMap::default(),
-                        expanded_dir_ids: FxHashMap::default(),
-                        unfolded_dir_ids: HashSet::default(),
-                    },
-                    update_visible_entries_task: UpdateVisibleEntriesTask::default(),
-                    undo_manager: UndoManager::new(workspace.weak_handle(), weak_project_panel, cx),
-                };
-                this.update_visible_entries(None, false, false, window, cx);
+                state: State {
+                    max_width_item_index: None,
+                    edit_state: None,
+                    temporarily_unfolded_pending_state: None,
+                    last_worktree_root_id: Option::default(),
+                    visible_entries: Vec::default(),
+                    ancestors: FxHashMap::default(),
+                    expanded_dir_ids: FxHashMap::default(),
+                    unfolded_dir_ids: HashSet::default(),
+                },
+                update_visible_entries_task: UpdateVisibleEntriesTask::default(),
+                undo_manager: UndoManager::new(workspace.weak_handle(), weak_project_panel, cx),
+            };
+            this.update_visible_entries(None, false, false, window, cx);
 
-                this
-            });
+            this
+        });
 
         cx.subscribe_in(&project_panel, window, {
             let project_panel = project_panel.downgrade();
@@ -1714,11 +1716,11 @@ impl ProjectPanel {
         }
     }
 
-    pub fn undo(&mut self, _: &Undo, _window: &mut Window, _cx: &mut Context<Self>) {
+    fn undo(&mut self, _: &Undo, _window: &mut Window, _cx: &mut Context<Self>) {
         self.undo_manager.undo().log_err();
     }
 
-    pub fn redo(&mut self, _: &Redo, _window: &mut Window, _cx: &mut Context<Self>) {
+    fn redo(&mut self, _: &Redo, _window: &mut Window, _cx: &mut Context<Self>) {
         self.undo_manager.redo().log_err();
     }
 
@@ -2297,7 +2299,7 @@ impl ProjectPanel {
         }
     }
 
-    pub fn new_search_in_directory(&mut self, _: &NewSearchInDirectory, window: &mut Window, cx: &mut Context<Self>) {
+    fn new_search_in_directory(&mut self, _: &NewSearchInDirectory, window: &mut Window, cx: &mut Context<Self>) {
         if let Some((worktree, entry)) = self.selected_sub_entry(cx) {
             let dir_path = if entry.is_dir() {
                 Arc::clone(&entry.path)
@@ -2402,7 +2404,7 @@ impl ProjectPanel {
         self.state.ancestors.get(&id).and_then(FoldedAncestors::active_ancestor).unwrap_or(id)
     }
 
-    pub fn selected_entry<'a>(&self, cx: &'a App) -> Option<(&'a Worktree, &'a Entry)> {
+    fn selected_entry<'a>(&self, cx: &'a App) -> Option<(&'a Worktree, &'a Entry)> {
         let (worktree, entry) = self.selected_entry_handle(cx)?;
         Some((worktree.read(cx), entry))
     }
@@ -2423,7 +2425,7 @@ impl ProjectPanel {
         });
     }
 
-    pub fn selected_entry_project_path(&self, cx: &App) -> Option<ProjectPath> {
+    fn selected_entry_project_path(&self, cx: &App) -> Option<ProjectPath> {
         let (worktree, entry) = self.selected_sub_entry(cx)?;
         Some(ProjectPath { worktree_id: worktree.read(cx).id(), path: Arc::clone(&entry.path) })
     }

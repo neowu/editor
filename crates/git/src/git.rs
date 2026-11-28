@@ -47,122 +47,122 @@ actions!(
     git,
     [
         /// Checks out a different git branch.
-        CheckoutBranch,
+        pub CheckoutBranch,
         /// Switches to a different git branch.
-        Switch,
+        pub Switch,
         /// Selects a different repository.
-        SelectRepo,
+        pub SelectRepo,
         /// Opens the git branch selector.
-        Branch,
+        pub Branch,
         /// Shows uncommitted changes across the project.
-        ViewUncommittedChanges,
+        pub ViewUncommittedChanges,
         /// Shows unstaged changes across the project.
-        ViewUnstagedChanges,
+        pub ViewUnstagedChanges,
         /// Shows staged changes across the project.
-        ViewStagedChanges,
+        pub ViewStagedChanges,
         /// Opens the git stash selector.
-        ViewStash,
+        pub ViewStash,
         /// Opens the git worktree selector.
-        Worktree,
+        pub Worktree,
         // per-hunk
         /// Toggles the staged state of the hunk or status entry at cursor.
-        ToggleStaged,
+        pub ToggleStaged,
         /// Stage status entries between an anchor entry and the cursor.
-        StageRange,
+        pub StageRange,
         /// Stages the current hunk and moves to the next one.
-        StageAndNext,
+        pub StageAndNext,
         /// Unstages the current hunk and moves to the next one.
-        UnstageAndNext,
+        pub UnstageAndNext,
         /// Restores the selected hunks to their original state.
-        Restore,
+        pub Restore,
         /// Restores the selected hunks to their original state and moves to the
         /// next one.
-        RestoreAndNext,
+        pub RestoreAndNext,
         // per-file
         /// Shows git blame information for the current file.
-        Blame,
+        pub Blame,
         /// Shows the git history for the selected file, folder, or project.
-        FileHistory,
+        pub FileHistory,
         /// Opens the selected file in the editor without a diff view.
-        ViewFile,
+        pub ViewFile,
         /// Stages the current file.
-        StageFile,
+        pub StageFile,
         /// Unstages the current file.
-        UnstageFile,
+        pub UnstageFile,
         // per-section
         /// Stages every entry in the section containing the selected entry.
-        StageSection,
+        pub StageSection,
         /// Unstages every entry in the section containing the selected entry.
-        UnstageSection,
+        pub UnstageSection,
         // repo-wide
         /// Stages all changes in the repository.
-        StageAll,
+        pub StageAll,
         /// Unstages all changes in the repository.
-        UnstageAll,
+        pub UnstageAll,
         /// Stashes all changes in the repository, including untracked files.
-        StashAll,
+        pub StashAll,
         /// Stashes tracked changes in the repository, leaving untracked files in place.
-        StashTracked,
+        pub StashTracked,
         /// Stashes staged changes in the repository, leaving unstaged changes in place.
-        StashStaged,
+        pub StashStaged,
         /// Pops the most recent stash.
-        StashPop,
+        pub StashPop,
         /// Apply the most recent stash.
-        StashApply,
+        pub StashApply,
         /// Restores all tracked files to their last committed state.
-        RestoreTrackedFiles,
+        pub RestoreTrackedFiles,
         /// Deletes all untracked files (moves them to the system trash).
-        DeleteUntrackedFiles,
+        pub DeleteUntrackedFiles,
         /// Undoes the last commit, keeping changes in the working directory.
-        Uncommit,
+        pub Uncommit,
         /// Pushes commits to the remote repository.
-        Push,
+        pub Push,
         /// Pushes commits to a specific remote branch.
-        PushTo,
+        pub PushTo,
         /// Force pushes commits to the remote repository.
-        ForcePush,
+        pub ForcePush,
         /// Pulls with rebase, carrying uncommitted changes across via autostash.
-        Pull,
+        pub Pull,
         /// Continues a rebase that stopped on conflicts.
-        RebaseContinue,
+        pub RebaseContinue,
         /// Aborts a rebase that stopped on conflicts, restoring the state before it.
-        RebaseAbort,
+        pub RebaseAbort,
         /// Fetches changes from the remote repository.
-        Fetch,
+        pub Fetch,
         /// Fetches changes from a specific remote.
-        FetchFrom,
+        pub FetchFrom,
         /// Creates a new commit with staged changes.
-        Commit,
+        pub Commit,
         /// Runs the next commit with `git commit --no-verify`.
-        SkipHooks,
+        pub SkipHooks,
         /// Amends the last commit with staged changes.
-        Amend,
+        pub Amend,
         /// Enable the --signoff option.
-        Signoff,
+        pub Signoff,
         /// Cancels the current git operation.
-        Cancel,
+        pub Cancel,
         /// Toggles whether the commit message editor fills all the available
         /// vertical space within the git panel.
-        ToggleFillCommitEditor,
+        pub ToggleFillCommitEditor,
         /// Toggles whether the commit message editor is shown in the git panel.
-        ToggleCommitEditor,
+        pub ToggleCommitEditor,
         /// Initializes a new git repository.
-        Init,
+        pub Init,
         /// Opens all modified files in the editor.
-        OpenModifiedFiles,
+        pub OpenModifiedFiles,
         /// Opens the current file in a solo diff view.
-        OpenFileDiff,
+        pub OpenFileDiff,
         /// Clones a repository.
-        Clone,
-        ViewCommit,
+        pub Clone,
+        pub ViewCommit,
         /// Adds a file to .gitignore.
-        AddToGitignore,
+        pub AddToGitignore,
         /// Adds a file to the repository's .git/info/exclude.
-        AddToGitInfoExclude,
+        pub AddToGitInfoExclude,
         /// Copies the current branch name to the clipboard.
-        CopyBranchName,
+        pub CopyBranchName,
         /// Creates a tag at HEAD.
-        CreateTagAtHead,
+        pub CreateTagAtHead,
     ]
 );
 
@@ -214,7 +214,7 @@ pub struct RenameBranch {
     /// The branch to rename.
     ///
     /// Default: the current branch.
-    pub branch: Option<String>,
+    branch: Option<String>,
 }
 
 /// Restores a file to its last committed state, discarding local changes.
@@ -278,11 +278,11 @@ impl Oid {
         Ok(Self { bytes: oid_bytes, format })
     }
 
-    pub fn as_bytes(&self) -> &[u8] {
+    fn as_bytes(&self) -> &[u8] {
         &self.bytes[..self.format.byte_len()]
     }
 
-    pub fn is_zero(&self) -> bool {
+    fn is_zero(&self) -> bool {
         self.as_bytes().iter().all(|byte| *byte == 0)
     }
 

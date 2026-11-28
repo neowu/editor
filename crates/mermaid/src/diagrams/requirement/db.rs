@@ -13,9 +13,6 @@ use crate::error::Error;
 use crate::text::label::trim_start;
 use crate::util::chars::is_space;
 
-/// What `contains` relationships are called.
-pub(crate) const CONTAINS: &str = "contains";
-
 /// Applying a class copies its declarations onto each node, so a short text can ask for hundreds
 /// of millions of copies. Past this many the diagram is refused.
 const MAX_STYLE_COPIES: usize = 1_000_000;
@@ -37,7 +34,7 @@ impl<V> Default for Ordered<V> {
 
 impl<V> Ordered<V> {
     /// The record for `key`.
-    pub(crate) fn get(&self, key: &str) -> Option<&V> {
+    fn get(&self, key: &str) -> Option<&V> {
         let &at = self.index.get(key)?;
         self.values.get(at)
     }
@@ -70,11 +67,11 @@ enum NodeRef {
 #[derive(Debug)]
 pub(crate) struct RequirementDb {
     /// The accessible description.
-    pub(crate) acc_descr: Option<String>,
+    acc_descr: Option<String>,
     /// The accessible title.
-    pub(crate) acc_title: Option<String>,
+    acc_title: Option<String>,
     /// Classes by name.
-    pub(crate) classes: Ordered<RequirementClass>,
+    classes: Ordered<RequirementClass>,
     /// The flow direction: `TB`, `BT`, `LR`, or `RL`.
     pub(crate) direction: &'static str,
     /// Elements by name.

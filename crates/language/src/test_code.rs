@@ -23,7 +23,7 @@ pub fn is_test_path(path: &str) -> bool {
 
 /// Whether a Rust attribute marks its item as test-only: `#[test]`, `#[cfg(test)]`,
 /// `#[gpui::test]`, `#[bench]`, a `test-support` feature gate, ... Purely textual.
-pub fn is_test_attribute(attribute: &str) -> bool {
+fn is_test_attribute(attribute: &str) -> bool {
     !attribute.contains("not(test")
         && attribute
             .split(|c: char| !c.is_alphanumeric() && c != '_')

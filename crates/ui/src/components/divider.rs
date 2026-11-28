@@ -27,7 +27,7 @@ pub enum DividerColor {
 }
 
 impl DividerColor {
-    pub fn hsla(self) -> Hsla {
+    fn hsla(self) -> Hsla {
         match self {
             DividerColor::Border => theme::theme().colors().border,
             DividerColor::BorderFaded => theme::theme().colors().border.opacity(0.6),
@@ -73,7 +73,7 @@ impl Divider {
         self
     }
 
-    pub fn render_solid(self, base: Div) -> impl IntoElement {
+    fn render_solid(self, base: Div) -> impl IntoElement {
         base.bg(self.color.hsla())
     }
 }

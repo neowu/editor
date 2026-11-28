@@ -18,6 +18,6 @@ impl LibraryProviders {
     }
 }
 
-pub fn library_root(abs_path: &Path, cx: &App) -> Option<LibraryRoot> {
+pub(crate) fn library_root(abs_path: &Path, cx: &App) -> Option<LibraryRoot> {
     cx.try_global::<LibraryProviders>()?.0.iter().find_map(|provider| provider.library_root(abs_path))
 }

@@ -33,7 +33,7 @@ use crate::display_map::ToDisplayPoint as _;
 use crate::movement::TextLayoutDetails;
 
 #[derive(Debug, Clone)]
-pub(crate) struct PendingSelection {
+struct PendingSelection {
     selection: Selection<Anchor>,
     mode: SelectMode,
 }
@@ -52,7 +52,7 @@ pub struct SelectionsCollection {
 }
 
 impl SelectionsCollection {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             next_selection_id: 1,
             line_mode: false,
@@ -72,7 +72,7 @@ impl SelectionsCollection {
         }
     }
 
-    pub fn clone_state(&mut self, other: &SelectionsCollection) {
+    pub(crate) fn clone_state(&mut self, other: &SelectionsCollection) {
         self.next_selection_id = other.next_selection_id;
         self.line_mode = other.line_mode;
         self.disjoint = Arc::clone(&other.disjoint);
@@ -90,7 +90,7 @@ impl SelectionsCollection {
     /// The non-pending, non-overlapping selections. There could be a pending selection that
     /// overlaps these if the mouse is being dragged, etc. This could also be empty if there is a
     /// pending selection. Returned as selections over Anchors.
-    pub fn disjoint_anchors_arc(&self) -> Arc<[Selection<Anchor>]> {
+    pub(crate) fn disjoint_anchors_arc(&self) -> Arc<[Selection<Anchor>]> {
         Arc::clone(&self.disjoint)
     }
 
@@ -120,11 +120,11 @@ impl SelectionsCollection {
         }
     }
 
-    pub fn pending_anchor(&self) -> Option<&Selection<Anchor>> {
+    pub(crate) fn pending_anchor(&self) -> Option<&Selection<Anchor>> {
         self.pending.as_ref().map(|pending| &pending.selection)
     }
 
-    pub fn pending<D>(&self, snapshot: &DisplaySnapshot) -> Option<Selection<D>>
+    pub(crate) fn pending<D>(&self, snapshot: &DisplaySnapshot) -> Option<Selection<D>>
     where
         D: MultiBufferDimension + Sub + AddAssign<<D as Sub>::Output> + Ord,
     {
@@ -198,7 +198,7 @@ impl SelectionsCollection {
     }
 
     /// Returns the newest selection, adjusted to take into account the selection line_mode.
-    pub fn newest_adjusted(&self, snapshot: &DisplaySnapshot) -> Selection<Point> {
+    pub(crate) fn newest_adjusted(&self, snapshot: &DisplaySnapshot) -> Selection<Point> {
         let mut selection = self.newest::<Point>(snapshot);
         if self.line_mode {
             let new_range = snapshot.expand_to_line(selection.range());
@@ -208,7 +208,7 @@ impl SelectionsCollection {
         selection
     }
 
-    pub fn all_adjusted_display(&self, display_map: &DisplaySnapshot) -> Vec<Selection<DisplayPoint>> {
+    pub(crate) fn all_adjusted_display(&self, display_map: &DisplaySnapshot) -> Vec<Selection<DisplayPoint>> {
         if self.line_mode {
             let selections = self.all::<Point>(display_map);
 
@@ -226,7 +226,7 @@ impl SelectionsCollection {
         }
     }
 
-    pub fn disjoint_in_row_range<D>(&self, range: Range<Anchor>, snapshot: &DisplaySnapshot) -> Vec<Selection<D>>
+    pub(crate) fn disjoint_in_row_range<D>(&self, range: Range<Anchor>, snapshot: &DisplaySnapshot) -> Vec<Selection<D>>
     where
         D: MultiBufferDimension + Sub + AddAssign<<D as Sub>::Output> + Ord + fmt::Debug,
     {
@@ -238,7 +238,7 @@ impl SelectionsCollection {
         resolve_selections_wrapping_blocks(&self.disjoint[start_ix..end_ix], snapshot).collect()
     }
 
-    pub fn disjoint_in_range<D>(&self, range: Range<Anchor>, snapshot: &DisplaySnapshot) -> Vec<Selection<D>>
+    pub(crate) fn disjoint_in_range<D>(&self, range: Range<Anchor>, snapshot: &DisplaySnapshot) -> Vec<Selection<D>>
     where
         D: MultiBufferDimension + Sub + AddAssign<<D as Sub>::Output> + Ord + fmt::Debug,
     {
@@ -248,7 +248,7 @@ impl SelectionsCollection {
         resolve_selections_wrapping_blocks(&self.disjoint[start_ix..end_ix], snapshot).collect()
     }
 
-    pub fn all_display(&self, snapshot: &DisplaySnapshot) -> Vec<Selection<DisplayPoint>> {
+    fn all_display(&self, snapshot: &DisplaySnapshot) -> Vec<Selection<DisplayPoint>> {
         let disjoint_anchors = &self.disjoint;
         let mut disjoint = resolve_selections_display(disjoint_anchors.iter(), snapshot).peekable();
         let mut pending_opt = resolve_selections_display(self.pending_anchor(), snapshot).next();
@@ -293,11 +293,11 @@ impl SelectionsCollection {
         resolve_selections_wrapping_blocks([self.newest_anchor()], snapshot).next().expect("one selection in, one out")
     }
 
-    pub fn newest_display(&self, snapshot: &DisplaySnapshot) -> Selection<DisplayPoint> {
+    pub(crate) fn newest_display(&self, snapshot: &DisplaySnapshot) -> Selection<DisplayPoint> {
         resolve_selections_display([self.newest_anchor()], snapshot).next().expect("one selection in, one out")
     }
 
-    pub fn oldest_anchor(&self) -> &Selection<Anchor> {
+    fn oldest_anchor(&self) -> &Selection<Anchor> {
         self.disjoint
             .iter()
             .min_by_key(|s| s.id)
@@ -305,21 +305,21 @@ impl SelectionsCollection {
             .expect("selections are never empty")
     }
 
-    pub fn oldest<D>(&self, snapshot: &DisplaySnapshot) -> Selection<D>
+    pub(crate) fn oldest<D>(&self, snapshot: &DisplaySnapshot) -> Selection<D>
     where
         D: MultiBufferDimension + Sub + AddAssign<<D as Sub>::Output> + Ord,
     {
         resolve_selections_wrapping_blocks([self.oldest_anchor()], snapshot).next().expect("one selection in, one out")
     }
 
-    pub fn first_anchor(&self) -> Selection<Anchor> {
+    pub(crate) fn first_anchor(&self) -> Selection<Anchor> {
         self.pending.as_ref().map_or_else(
             || self.disjoint.first().copied().expect("selections are never empty"),
             |pending| pending.selection,
         )
     }
 
-    pub fn first<D>(&self, snapshot: &DisplaySnapshot) -> Selection<D>
+    pub(crate) fn first<D>(&self, snapshot: &DisplaySnapshot) -> Selection<D>
     where
         D: MultiBufferDimension + Sub + AddAssign<<D as Sub>::Output> + Ord,
     {
@@ -494,7 +494,7 @@ impl SelectionsCollection {
             .collect()
     }
 
-    pub fn change_with<R>(
+    pub(crate) fn change_with<R>(
         &mut self,
         snapshot: &DisplaySnapshot,
         change: impl FnOnce(&mut MutableSelectionsCollection<'_, '_>) -> R,
@@ -514,23 +514,23 @@ impl SelectionsCollection {
         (mutable_collection.selections_changed, result)
     }
 
-    pub const fn line_mode(&self) -> bool {
+    pub(crate) const fn line_mode(&self) -> bool {
         self.line_mode
     }
 
-    pub const fn select_mode(&self) -> &SelectMode {
+    pub(crate) const fn select_mode(&self) -> &SelectMode {
         &self.select_mode
     }
 
-    pub const fn set_select_mode(&mut self, select_mode: SelectMode) {
+    pub(crate) const fn set_select_mode(&mut self, select_mode: SelectMode) {
         self.select_mode = select_mode;
     }
 
-    pub const fn is_extending(&self) -> bool {
+    pub(crate) const fn is_extending(&self) -> bool {
         self.is_extending
     }
 
-    pub const fn set_is_extending(&mut self, is_extending: bool) {
+    pub(crate) const fn set_is_extending(&mut self, is_extending: bool) {
         self.is_extending = is_extending;
     }
 
@@ -562,15 +562,15 @@ impl MutableSelectionsCollection<'_, '_> {
         self.preserve_buffer_positions = true;
     }
 
-    pub fn display_snapshot(&self) -> DisplaySnapshot {
+    pub(crate) fn display_snapshot(&self) -> DisplaySnapshot {
         self.snapshot.clone()
     }
 
-    pub fn clear_disjoint(&mut self) {
+    pub(crate) fn clear_disjoint(&mut self) {
         self.collection.disjoint = Arc::default();
     }
 
-    pub fn delete(&mut self, selection_id: usize) {
+    pub(crate) fn delete(&mut self, selection_id: usize) {
         let mut changed = false;
         self.collection.disjoint = self
             .disjoint
@@ -586,7 +586,7 @@ impl MutableSelectionsCollection<'_, '_> {
         self.selections_changed |= changed;
     }
 
-    pub fn remove_selections_from_buffer(&mut self, buffer_id: language::BufferId) {
+    pub(crate) fn remove_selections_from_buffer(&mut self, buffer_id: language::BufferId) {
         let mut changed = false;
 
         let filtered_selections: Arc<[Selection<Anchor>]> = {
@@ -626,7 +626,7 @@ impl MutableSelectionsCollection<'_, '_> {
         self.selections_changed |= changed;
     }
 
-    pub const fn clear_pending(&mut self) {
+    pub(crate) const fn clear_pending(&mut self) {
         if self.collection.pending.is_some() {
             self.collection.pending = None;
             self.selections_changed = true;
@@ -662,7 +662,7 @@ impl MutableSelectionsCollection<'_, '_> {
         self.selections_changed = true;
     }
 
-    pub fn try_cancel(&mut self) -> bool {
+    pub(crate) fn try_cancel(&mut self) -> bool {
         if let Some(pending) = self.collection.pending.take() {
             if self.disjoint.is_empty() {
                 self.collection.disjoint = Arc::from([pending.selection]);
@@ -690,7 +690,7 @@ impl MutableSelectionsCollection<'_, '_> {
         false
     }
 
-    pub fn insert_range<T>(&mut self, range: Range<T>)
+    pub(crate) fn insert_range<T>(&mut self, range: Range<T>)
     where
         T: ToOffset,
     {
@@ -714,7 +714,7 @@ impl MutableSelectionsCollection<'_, '_> {
         self.select(selections);
     }
 
-    pub fn select<T>(&mut self, selections: Vec<Selection<T>>)
+    pub(crate) fn select<T>(&mut self, selections: Vec<Selection<T>>)
     where
         T: ToOffset + Copy + fmt::Debug,
     {
@@ -757,7 +757,7 @@ impl MutableSelectionsCollection<'_, '_> {
         self.selections_changed = true;
     }
 
-    pub fn select_anchors(&mut self, selections: Vec<Selection<Anchor>>) {
+    pub(crate) fn select_anchors(&mut self, selections: Vec<Selection<Anchor>>) {
         let map = self.display_snapshot();
         let resolved_selections =
             resolve_selections::<MultiBufferOffset, _>(&selections, &map, !self.preserve_buffer_positions)
@@ -830,7 +830,7 @@ impl MutableSelectionsCollection<'_, '_> {
         self.select_anchors(selections);
     }
 
-    pub fn select_display_ranges<T>(&mut self, ranges: T)
+    pub(crate) fn select_display_ranges<T>(&mut self, ranges: T)
     where
         T: IntoIterator<Item = Range<DisplayPoint>>,
     {
@@ -857,7 +857,7 @@ impl MutableSelectionsCollection<'_, '_> {
         self.select(selections);
     }
 
-    pub fn move_with(&mut self, move_selection: &mut dyn FnMut(&DisplaySnapshot, &mut Selection<DisplayPoint>)) {
+    pub(crate) fn move_with(&mut self, move_selection: &mut dyn FnMut(&DisplaySnapshot, &mut Selection<DisplayPoint>)) {
         let mut changed = false;
         let display_map = self.display_snapshot();
         let selections = self.collection.all_display(&display_map);
@@ -878,7 +878,7 @@ impl MutableSelectionsCollection<'_, '_> {
         }
     }
 
-    pub fn move_offsets_with(
+    pub(crate) fn move_offsets_with(
         &mut self,
         move_selection: &mut dyn FnMut(&MultiBufferSnapshot, &mut Selection<MultiBufferOffset>),
     ) {
@@ -903,7 +903,7 @@ impl MutableSelectionsCollection<'_, '_> {
         }
     }
 
-    pub fn move_heads_with(
+    pub(crate) fn move_heads_with(
         &mut self,
         update_head: &mut dyn FnMut(&DisplaySnapshot, DisplayPoint, SelectionGoal) -> (DisplayPoint, SelectionGoal),
     ) {
@@ -913,7 +913,7 @@ impl MutableSelectionsCollection<'_, '_> {
         });
     }
 
-    pub fn move_cursors_with(
+    pub(crate) fn move_cursors_with(
         &mut self,
         update_cursor_position: &mut dyn FnMut(
             &DisplaySnapshot,
@@ -928,7 +928,7 @@ impl MutableSelectionsCollection<'_, '_> {
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn maybe_move_cursors_with(
+    pub(crate) fn maybe_move_cursors_with(
         &mut self,
         update_cursor_position: &mut dyn FnMut(
             &DisplaySnapshot,

@@ -93,7 +93,7 @@ async fn get_messages_impl(git: &GitBinary, shas: &[Oid]) -> Result<Vec<String>>
         .collect::<Vec<_>>())
 }
 
-pub(crate) const GITLINK_MODE: &str = "160000";
+const GITLINK_MODE: &str = "160000";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CommitDiffObjectKind {
@@ -103,16 +103,16 @@ pub(crate) enum CommitDiffObjectKind {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct CommitDiffObject<'a> {
-    pub oid: &'a str,
-    pub kind: CommitDiffObjectKind,
+    pub(crate) oid: &'a str,
+    pub(crate) kind: CommitDiffObjectKind,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct CommitDiffEntry<'a> {
-    pub path: &'a str,
-    pub status: StatusCode,
-    pub old_object: Option<CommitDiffObject<'a>>,
-    pub new_object: Option<CommitDiffObject<'a>>,
+    pub(crate) path: &'a str,
+    status: StatusCode,
+    pub(crate) old_object: Option<CommitDiffObject<'a>>,
+    pub(crate) new_object: Option<CommitDiffObject<'a>>,
 }
 
 /// Parses the output of `git diff --raw --no-abbrev -z`.

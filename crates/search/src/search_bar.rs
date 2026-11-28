@@ -23,13 +23,9 @@ use ui::prelude::Color;
 use ui::prelude::Disableable as _;
 use ui::prelude::Div;
 use ui::prelude::FluentBuilder as _;
-use ui::prelude::Label;
-use ui::prelude::LabelCommon as _;
-use ui::prelude::ParentElement as _;
 use ui::prelude::SharedString;
 use ui::prelude::Styled as _;
 use ui::prelude::Toggleable as _;
-use ui::prelude::div;
 use ui::prelude::h_flex;
 use ui::prelude::relative;
 use ui::prelude::rems;
@@ -98,18 +94,6 @@ pub(super) fn render_local_action_button<T: 'static, A: Action>(
 pub(crate) fn input_base_styles(border_color: Hsla, map: impl FnOnce(Div) -> Div) -> Div {
     h_flex().map(map).min_w_32().min_h_8().pl_2().pr_1().border_1().border_color(border_color).rounded_md()
 }
-pub(crate) fn filter_search_results_input(border_color: Hsla, map: impl FnOnce(Div) -> Div) -> Div {
-    input_base_styles(border_color, map).pl_0().child(
-        h_flex()
-            .mr_2()
-            .px_2()
-            .h_full()
-            .border_r_1()
-            .border_color(theme::theme().colors().border)
-            .bg(theme::theme().colors().text_accent.opacity(0.05))
-            .child(Label::new("Find in Results").color(Color::Muted)),
-    )
-}
 
 pub(crate) fn render_text_input(editor: &Entity<Editor>, color_override: Option<Color>, app: &App) -> impl IntoElement {
     let (color, use_syntax) = if editor.read(app).read_only(app) {
@@ -142,9 +126,4 @@ pub(crate) fn render_text_input(editor: &Entity<Editor>, color_override: Option<
     }
 
     EditorElement::new(editor, editor_style)
-}
-
-/// This element makes all search inputs align as if they were in the same column.
-pub(crate) fn alignment_element() -> Div {
-    div().size_5().flex_none().ml_0p5()
 }

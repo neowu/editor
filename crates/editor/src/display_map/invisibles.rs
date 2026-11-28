@@ -32,7 +32,7 @@
 // https://github.com/bits/UTF-8-Unicode-Test-Documents/blob/master/UTF-8_sequence_separated/utf8_sequence_0-0x10ffff_assigned_including-unprintable-asis.txt
 use unicode_segmentation::GraphemeCursor;
 
-pub const fn is_invisible(c: char) -> bool {
+pub(crate) const fn is_invisible(c: char) -> bool {
     if c <= '\u{1f}' {
         c != '\t' && c != '\n' && c != '\r'
     } else if c >= '\u{7f}' {
@@ -45,7 +45,7 @@ pub const fn is_invisible(c: char) -> bool {
 // ASCII control characters have fancy unicode glyphs, everything else
 // is replaced by a space - unless it is used in combining characters in
 // which case we need to leave it in the string.
-pub fn replacement(c: char) -> Option<char> {
+pub(crate) fn replacement(c: char) -> Option<char> {
     if c <= '\x1f' {
         C0_SYMBOLS.get(c as usize).copied()
     } else if c == '\x7f' {

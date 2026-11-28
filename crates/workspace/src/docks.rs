@@ -21,9 +21,15 @@ use crate::dock::DockPosition;
 use crate::dock::Panel;
 use crate::dock::PanelHandle;
 use crate::dock::RESIZE_HANDLE_SIZE;
-use crate::dock::next_dock_cycle_panel;
 use crate::persistence::model::DockData;
 use crate::persistence::model::DockStructure;
+
+/// The panel a dock-cycle press shows next, given which panels are enabled and
+/// which one is visible (`None` when the dock is hidden). `None` means close.
+fn next_dock_cycle_panel(enabled: &[bool], visible_index: Option<usize>) -> Option<usize> {
+    let start = visible_index.map_or(0, |index| index + 1);
+    enabled.iter().enumerate().skip(start).find_map(|(index, enabled)| enabled.then_some(index))
+}
 
 impl Workspace {
     pub const fn left_dock(&self) -> &Entity<Dock> {
@@ -42,7 +48,7 @@ impl Workspace {
         [&self.left_dock, &self.bottom_dock, &self.right_dock]
     }
 
-    pub fn capture_dock_state(&self, _window: &Window, cx: &App) -> DockStructure {
+    pub(crate) fn capture_dock_state(&self, _window: &Window, cx: &App) -> DockStructure {
         let left_dock = self.left_dock.read(cx);
         let left_visible = left_dock.is_open();
         let left_active_panel = left_dock.active_panel().map(|panel| panel.persistent_name().to_owned());
@@ -180,7 +186,7 @@ impl Workspace {
 
     /// Shows the dock's next enabled panel, starting from the first when the
     /// dock is hidden, and closes the dock after the last one.
-    pub fn cycle_dock(&mut self, dock_side: DockPosition, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn cycle_dock(&mut self, dock_side: DockPosition, window: &mut Window, cx: &mut Context<Self>) {
         if !self.mode.has_docks() {
             return;
         }
@@ -222,7 +228,7 @@ impl Workspace {
         false
     }
 
-    pub fn close_all_docks(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn close_all_docks(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.mode.has_docks() {
             return;
         }
@@ -492,5 +498,23 @@ pub(crate) struct DraggedDock(pub(crate) DockPosition);
 impl Render for DraggedDock {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         gpui::Empty
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::next_dock_cycle_panel;
+
+    #[test]
+    fn next_dock_cycle_panel_works() {
+        assert_eq!(next_dock_cycle_panel(&[true, true], None), Some(0));
+        assert_eq!(next_dock_cycle_panel(&[true, true], Some(0)), Some(1));
+        assert_eq!(next_dock_cycle_panel(&[true, true], Some(1)), None);
+        assert_eq!(next_dock_cycle_panel(&[true], Some(0)), None);
+        assert_eq!(next_dock_cycle_panel(&[false, true, false, true], None), Some(1));
+        assert_eq!(next_dock_cycle_panel(&[true, false, true], Some(0)), Some(2));
+        assert_eq!(next_dock_cycle_panel(&[true, true, false], Some(1)), None);
+        assert_eq!(next_dock_cycle_panel(&[false], None), None);
+        assert_eq!(next_dock_cycle_panel(&[], None), None);
     }
 }

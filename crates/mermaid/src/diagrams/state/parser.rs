@@ -275,6 +275,7 @@ pub(crate) fn parse_state(src: &str, db: &mut StateDb) -> Result<(), Error> {
                     T::DirectionBt => "BT",
                     T::DirectionRl => "RL",
                     T::DirectionLr => "LR",
+                    // lint: expect(wildcard_match) only a few variants of `T` matter here
                     _ => "TB",
                 };
                 p.i += 1;
@@ -342,6 +343,7 @@ pub(crate) fn parse_state(src: &str, db: &mut StateDb) -> Result<(), Error> {
                 let doc = docs.pop().unwrap_or_default();
                 return db.set_root_doc(doc);
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => {
                 let first = if docs.len() > 1 { "'STRUCT_STOP'" } else { "'$end'" };
                 return Err(p.fail(&expected(first)));

@@ -55,6 +55,7 @@ pub(crate) fn tick_value(step: f64, index: f64) -> f64 {
 }
 
 /// The multiples of a step from `lo` to `hi`, both included, at most 100 of them.
+// lint: expect(misplaced_item) one of the tick helpers; moving it strands tick_index and tick_value
 pub(crate) fn ticks_between(lo: f64, hi: f64, step: f64) -> Vec<f64> {
     let mut first = js_round(tick_index(step, lo));
     if tick_value(step, first) < lo {

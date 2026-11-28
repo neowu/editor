@@ -19,7 +19,7 @@ use util::ResultExt as _;
 use crate::Editor;
 use crate::SelectionEffects;
 
-pub(crate) struct JsxTagCompletionState {
+struct JsxTagCompletionState {
     edit_index: usize,
     open_tag_range: Range<usize>,
 }
@@ -36,7 +36,7 @@ const TS_NODE_TAG_NAME_CHILD_INDEX: u32 = 0;
 /// See the comment in `generate_auto_close_edits` for more details.
 const ALREADY_CLOSED_PARENT_ELEMENT_WALK_BACK_LIMIT: usize = 2;
 
-pub(crate) fn should_auto_close(
+fn should_auto_close(
     buffer: &BufferSnapshot,
     edited_ranges: &[Range<Anchor>],
     config: &JsxTagAutoCloseConfig,
@@ -85,7 +85,7 @@ pub(crate) fn should_auto_close(
     if to_auto_edit.is_empty() { None } else { Some(to_auto_edit) }
 }
 
-pub(crate) fn generate_auto_close_edits(
+fn generate_auto_close_edits(
     buffer: &BufferSnapshot,
     ranges: &[Range<Anchor>],
     config: &JsxTagAutoCloseConfig,
@@ -309,6 +309,7 @@ pub(crate) fn refresh_enabled_in_any_buffer(
 
 pub(crate) type InitialBufferVersionsMap = FxHashMap<language::BufferId, clock::Global>;
 
+// lint: expect(misplaced_item) first half of the protocol `handle_from` finishes
 pub(crate) fn construct_initial_buffer_versions_map<D: ToOffset + Copy, _S: Into<Arc<str>>>(
     editor: &Editor,
     edits: &[(Range<D>, _S)],

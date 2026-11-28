@@ -237,7 +237,7 @@ impl BlameEntry {
         })
     }
 
-    pub fn previous_sha_and_filename(&self) -> Option<(Oid, &str)> {
+    fn previous_sha_and_filename(&self) -> Option<(Oid, &str)> {
         let (sha, filename) = self.previous.as_deref()?.split_once(' ')?;
         Some((sha.parse().ok()?, filename))
     }

@@ -24,11 +24,11 @@ actions!(
     git_graph,
     [
         /// Copies the SHA of the selected commit to the clipboard.
-        CopyCommitSha,
+        pub(crate) CopyCommitSha,
         /// Copies a tag from the selected commit to the clipboard.
-        CopyCommitTag,
+        pub(crate) CopyCommitTag,
         /// Opens the commit view for the selected commit.
-        OpenCommitView,
+        pub(crate) OpenCommitView,
     ]
 );
 

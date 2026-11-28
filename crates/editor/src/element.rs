@@ -170,7 +170,7 @@ pub struct EditorElement {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SplitSide {
+pub(crate) enum SplitSide {
     Left,
     Right,
 }
@@ -182,7 +182,7 @@ impl EditorElement {
         Self { editor: editor.clone(), style, split_side: None }
     }
 
-    pub const fn set_split_side(&mut self, side: SplitSide) {
+    pub(crate) const fn set_split_side(&mut self, side: SplitSide) {
         self.split_side = Some(side);
     }
 
@@ -286,7 +286,7 @@ impl EditorElement {
         scroll_pixel_position: gpui::Point<ScrollPixelOffset>,
         line_height: Pixels,
         snapshot: &DisplaySnapshot,
-        window: &mut Window,
+        window: &Window,
         cx: &mut App,
     ) -> Option<Vec<IndentGuideLayout>> {
         let indent_guides =
@@ -520,7 +520,6 @@ impl EditorElement {
         rows: Range<DisplayRow>,
         snapshot: &EditorSnapshot,
         style: &EditorStyle,
-        editor_width: Pixels,
         is_row_soft_wrapped: impl Copy + Fn(usize) -> bool,
         bg_segments_per_row: &[Vec<(Range<usize>, Hsla)>],
         window: &mut Window,
@@ -578,7 +577,6 @@ impl EditorElement {
                 MAX_LINE_LEN,
                 rows.len(),
                 &snapshot.mode,
-                editor_width,
                 is_row_soft_wrapped,
                 bg_segments_per_row,
                 window,
@@ -646,6 +644,7 @@ impl EditorElement {
             .iter()
             .filter_map(|(hunk, _)| match hunk {
                 DisplayDiffHunk::Unfolded { word_diffs, status, .. } if status.is_modified() => Some(word_diffs),
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => None,
             })
             .flatten()
@@ -796,6 +795,7 @@ impl EditorElement {
                 // too would have to be redrawn on every cursor move.
                 let show_active_line_background = match layout.mode {
                     EditorMode::Full { show_active_line_background, .. } => show_active_line_background,
+                    // lint: expect(wildcard_match) only some variants matter here
                     _ => false,
                 };
                 let mut active_rows = layout.active_rows.iter().peekable();
@@ -1154,6 +1154,7 @@ impl EditorElement {
             // We currently use single-line and auto-height editors in UI contexts,
             // so we don't want to scale everything with the buffer font size, as it
             // ends up looking off.
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         }
     }
@@ -1355,7 +1356,7 @@ impl Element for EditorElement {
                             snapshot
                         } else {
                             let wrap_width =
-                                calculate_wrap_width(editor.soft_wrap_mode(cx), editor_width, em_layout_width);
+                                Some(calculate_wrap_width(editor.soft_wrap_mode(cx), editor_width, em_layout_width));
 
                             if editor.set_wrap_width(wrap_width, cx) { editor.snapshot(window, cx) } else { snapshot }
                         }
@@ -1690,20 +1691,12 @@ impl Element for EditorElement {
                     );
 
                     let mut line_layouts = if is_minimap {
-                        self.layout_minimap_lines(
-                            start_row..end_row,
-                            &snapshot,
-                            editor_width,
-                            is_row_soft_wrapped,
-                            window,
-                            cx,
-                        )
+                        self.layout_minimap_lines(start_row..end_row, &snapshot, is_row_soft_wrapped, window, cx)
                     } else {
                         Self::layout_lines(
                             start_row..end_row,
                             &snapshot,
                             &self.style,
-                            editor_width,
                             is_row_soft_wrapped,
                             &bg_segments_per_row,
                             window,
@@ -1734,7 +1727,7 @@ impl Element for EditorElement {
                     } else if let Some(line) = visible_line(&line_layouts, start_row, longest_row) {
                         line.width
                     } else {
-                        layout_line(longest_row, &snapshot, style, editor_width, is_row_soft_wrapped, window, cx).width
+                        layout_line(longest_row, &snapshot, style, is_row_soft_wrapped, window, cx).width
                     };
 
                     let scrollbar_layout_information = ScrollbarLayoutInformation::new(
@@ -1782,7 +1775,6 @@ impl Element for EditorElement {
                                     start_row..end_row,
                                     &snapshot,
                                     &hitbox,
-                                    &text_hitbox,
                                     editor_width,
                                     &mut scroll_width,
                                     &editor_margins,
@@ -1790,7 +1782,6 @@ impl Element for EditorElement {
                                     gutter_dimensions.full_width(),
                                     line_height,
                                     &line_layouts,
-                                    &local_selections,
                                     &selected_buffer_ids,
                                     &latest_selection_anchors,
                                     is_row_soft_wrapped,
@@ -2415,10 +2406,7 @@ impl Element for EditorElement {
     }
 }
 
-pub(super) const fn gutter_bounds(
-    editor_bounds: Bounds<Pixels>,
-    gutter_dimensions: GutterDimensions,
-) -> Bounds<Pixels> {
+const fn gutter_bounds(editor_bounds: Bounds<Pixels>, gutter_dimensions: GutterDimensions) -> Bounds<Pixels> {
     Bounds { origin: editor_bounds.origin, size: size(gutter_dimensions.width, editor_bounds.size.height) }
 }
 
@@ -2496,35 +2484,35 @@ struct CreaseTrailerLayout {
 }
 
 pub(crate) struct PositionMap {
-    pub size: Size<Pixels>,
-    pub line_height: Pixels,
-    pub scroll_position: gpui::Point<ScrollOffset>,
-    pub scroll_pixel_position: gpui::Point<ScrollPixelOffset>,
-    pub scroll_max: gpui::Point<ScrollOffset>,
-    pub em_advance: Pixels,
-    pub em_layout_width: Pixels,
-    pub visible_row_range: Range<DisplayRow>,
-    pub line_layouts: Vec<LineWithInvisibles>,
-    pub snapshot: EditorSnapshot,
-    pub text_align: TextAlign,
-    pub content_width: Pixels,
-    pub content_origin: gpui::Point<Pixels>,
-    pub text_hitbox: Hitbox,
-    pub gutter_hitbox: Hitbox,
-    pub display_hunks: Vec<(DisplayDiffHunk, Option<Hitbox>)>,
-    pub diff_hunk_control_bounds: Vec<(DisplayRow, Bounds<Pixels>)>,
+    size: Size<Pixels>,
+    line_height: Pixels,
+    scroll_position: gpui::Point<ScrollOffset>,
+    scroll_pixel_position: gpui::Point<ScrollPixelOffset>,
+    scroll_max: gpui::Point<ScrollOffset>,
+    pub(crate) em_advance: Pixels,
+    em_layout_width: Pixels,
+    visible_row_range: Range<DisplayRow>,
+    line_layouts: Vec<LineWithInvisibles>,
+    pub(crate) snapshot: EditorSnapshot,
+    text_align: TextAlign,
+    content_width: Pixels,
+    content_origin: gpui::Point<Pixels>,
+    pub(crate) text_hitbox: Hitbox,
+    gutter_hitbox: Hitbox,
+    display_hunks: Vec<(DisplayDiffHunk, Option<Hitbox>)>,
+    diff_hunk_control_bounds: Vec<(DisplayRow, Bounds<Pixels>)>,
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct PointForPosition {
-    pub previous_valid: DisplayPoint,
-    pub next_valid: DisplayPoint,
-    pub nearest_valid: DisplayPoint,
-    pub exact_unclipped: DisplayPoint,
+pub(crate) struct PointForPosition {
+    pub(crate) previous_valid: DisplayPoint,
+    pub(crate) next_valid: DisplayPoint,
+    nearest_valid: DisplayPoint,
+    pub(crate) exact_unclipped: DisplayPoint,
 }
 
 impl PointForPosition {
-    pub fn as_valid(&self) -> Option<DisplayPoint> {
+    pub(crate) fn as_valid(&self) -> Option<DisplayPoint> {
         (self.previous_valid == self.exact_unclipped && self.next_valid == self.exact_unclipped)
             .then_some(self.previous_valid)
     }
@@ -2608,11 +2596,10 @@ fn visible_line<L>(lines: &[L], start_row: DisplayRow, row: DisplayRow) -> Optio
     lines.get(row.0.checked_sub(start_row.0)? as usize)
 }
 
-pub(crate) fn layout_line(
+fn layout_line(
     row: DisplayRow,
     snapshot: &EditorSnapshot,
     style: &EditorStyle,
-    text_width: Pixels,
     is_row_soft_wrapped: impl Copy + Fn(usize) -> bool,
     window: &mut Window,
     cx: &mut App,
@@ -2626,7 +2613,6 @@ pub(crate) fn layout_line(
         MAX_LINE_LEN,
         1,
         &snapshot.mode,
-        text_width,
         is_row_soft_wrapped,
         &[],
         window,
@@ -2779,13 +2765,12 @@ impl HighlightedRange {
 
 /// Shared between `prepaint` and `compute_auto_height_layout` to ensure
 /// both full and auto-height editors compute wrap widths consistently.
-fn calculate_wrap_width(soft_wrap: SoftWrap, editor_width: Pixels, em_width: Pixels) -> Option<Pixels> {
+fn calculate_wrap_width(soft_wrap: SoftWrap, editor_width: Pixels, em_width: Pixels) -> Pixels {
     let wrap_width_for = |column: u32| (column as f32 * em_width).ceil();
 
     match soft_wrap {
-        SoftWrap::GitDiff => None,
-        SoftWrap::None => Some(wrap_width_for(MAX_LINE_LEN as u32 / 2)),
-        SoftWrap::EditorWidth => Some(editor_width),
+        SoftWrap::None => wrap_width_for(MAX_LINE_LEN as u32 / 2),
+        SoftWrap::EditorWidth => editor_width,
     }
 }
 
@@ -2795,7 +2780,7 @@ fn compute_auto_height_layout(
     max_lines: Option<usize>,
     known_dimensions: Size<Option<Pixels>>,
     available_width: AvailableSpace,
-    window: &mut Window,
+    window: &Window,
     cx: &mut Context<Editor>,
 ) -> Option<Size<Pixels>> {
     let width = known_dimensions.width.or({
@@ -2819,8 +2804,7 @@ fn compute_auto_height_layout(
     let overscroll = size(em_width, px(0.));
 
     let editor_width = text_width - gutter_dimensions.margin - overscroll.width - em_width;
-    let wrap_width =
-        calculate_wrap_width(editor.soft_wrap_mode(cx), editor_width, em_width).map(|width| width.min(editor_width));
+    let wrap_width = Some(calculate_wrap_width(editor.soft_wrap_mode(cx), editor_width, em_width).min(editor_width));
     if wrap_width.is_some() && editor.set_wrap_width(wrap_width, cx) {
         snapshot = editor.snapshot(window, cx);
     }

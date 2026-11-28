@@ -1,11 +1,11 @@
 //! Treemaps: nested sections and valued leaves drawn as nested rectangles. Port of Pele's
 //! `src/diagrams/treemap/index.ts`.
 
-pub(crate) mod format;
-pub(crate) mod layout;
-pub(crate) mod model;
-pub(crate) mod parser;
-pub(crate) mod render;
+mod format;
+mod layout;
+mod model;
+mod parser;
+mod render;
 
 use super::Diagram;
 use super::Input;
@@ -30,6 +30,6 @@ pub(crate) use model::TreemapModel as Model;
 /// # Errors
 ///
 /// Returns a syntax error for input Mermaid rejects.
-pub(crate) fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
+fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
     Ok(model::build_treemap(parser::parse_treemap(source)?, title))
 }

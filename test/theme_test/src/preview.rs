@@ -79,6 +79,7 @@ fn editor(theme: &Theme) -> Div {
         let marker = match row {
             Row::Added => c.version_control_added,
             Row::Deleted => c.version_control_deleted,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => c.editor_gutter_background,
         };
         let number = if *row == Row::Active { c.editor_active_line_number } else { c.editor_line_number };
@@ -143,7 +144,7 @@ const fn fill_color(theme: &Theme, fill: Fill) -> Option<Hsla> {
 }
 
 /// The style of one span, with the editor's contrast fix applied to text over a fill.
-pub(crate) fn span_style(theme: &Theme, row_bg: Hsla, span: &Span) -> HighlightStyle {
+fn span_style(theme: &Theme, row_bg: Hsla, span: &Span) -> HighlightStyle {
     let syntax = |capture: &str| {
         theme.syntax().style_for_name(capture).unwrap_or_else(|| HighlightStyle {
             color: Some(theme.colors().editor_foreground),

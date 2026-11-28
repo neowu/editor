@@ -14,7 +14,7 @@ use crate::util::chars::is_word;
 
 /// Token types. The order is observable: it matches the generated parser's numbering.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum T {
+enum T {
     /// The end of the tokens.
     End,
     /// Text no rule matches.
@@ -47,7 +47,7 @@ pub(crate) enum T {
 
 /// The name the generated parser prints for a token type. It has no name for the end of input
 /// and prints its number.
-pub(crate) const fn token_name(kind: T, kanban: bool) -> &'static str {
+const fn token_name(kind: T, kanban: bool) -> &'static str {
     match kind {
         T::End => "1",
         T::Error => "INVALID",
@@ -69,17 +69,17 @@ pub(crate) const fn token_name(kind: T, kanban: bool) -> &'static str {
 
 /// Tokens of an outline: parallel lists of types, texts, and UTF-8 starts.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct Tokens<'a> {
+struct Tokens<'a> {
     /// Where each token starts.
-    pub(crate) starts: Vec<usize>,
+    starts: Vec<usize>,
     /// The text of each token. Quoted metadata owns a copy with its line breaks rewritten.
-    pub(crate) texts: Vec<Cow<'a, str>>,
+    texts: Vec<Cow<'a, str>>,
     /// The type of each token.
-    pub(crate) types: Vec<T>,
+    types: Vec<T>,
 }
 
 /// Node shapes, as Mermaid numbers them.
-pub(crate) mod node_type {
+mod node_type {
     /// No shape given.
     pub(crate) const DEFAULT: u8 = 0;
     /// No border; the same as the default.
@@ -100,7 +100,7 @@ pub(crate) mod node_type {
 
 /// The node shape for an opening and a closing delimiter. Any opening delimiter pairs with any
 /// closing one, as in Mermaid.
-pub(crate) fn get_type(start: &str, end: &str) -> u8 {
+fn get_type(start: &str, end: &str) -> u8 {
     match start {
         "[" => node_type::RECT,
         "(" if end == ")" => node_type::ROUNDED_RECT,
@@ -212,7 +212,7 @@ fn put<'a>(out: &mut Tokens<'a>, kind: T, start: usize, text: Cow<'a, str>) {
 /// Splits an outline into tokens. The list ends with `EOF` and `END`, or with `ERROR` where no
 /// rule matches.
 #[expect(clippy::many_single_char_names, reason = "names mirror Pele's outline.ts for side-by-side review")]
-pub(crate) fn tokenize<'a>(src: &'a str, kanban: bool) -> Tokens<'a> {
+fn tokenize<'a>(src: &'a str, kanban: bool) -> Tokens<'a> {
     let bytes = src.as_bytes();
     let n = src.len();
     let mut out = Tokens::default();

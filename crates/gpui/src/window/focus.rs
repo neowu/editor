@@ -30,32 +30,32 @@ pub(crate) struct FocusMap {
 }
 
 pub(crate) struct FocusRef {
-    pub(crate) ref_count: AtomicUsize,
-    pub(crate) tab_index: isize,
-    pub(crate) tab_stop: bool,
+    ref_count: AtomicUsize,
+    tab_index: isize,
+    tab_stop: bool,
 }
 
 impl FocusId {
     /// Obtains whether the element associated with this handle is currently focused.
-    pub fn is_focused(&self, window: &Window) -> bool {
-        window.focus == Some(*self)
+    fn is_focused(self, window: &Window) -> bool {
+        window.focus == Some(self)
     }
 
     /// Obtains whether the element associated with this handle contains the focused
     /// element or is itself focused.
-    pub fn contains_focused(&self, window: &Window, cx: &App) -> bool {
+    fn contains_focused(self, window: &Window, cx: &App) -> bool {
         window.focused(cx).is_some_and(|focused| self.contains(focused.id, window))
     }
 
     /// Obtains whether the element associated with this handle is contained within the
     /// focused element or is itself focused.
-    pub fn within_focused(&self, window: &Window, cx: &App) -> bool {
+    fn within_focused(self, window: &Window, cx: &App) -> bool {
         let focused = window.focused(cx);
-        focused.is_some_and(|focused| focused.id.contains(*self, window))
+        focused.is_some_and(|focused| focused.id.contains(self, window))
     }
 
     /// Obtains whether this handle contains the given handle in the most recently rendered frame.
-    pub(crate) fn contains(self, other: Self, window: &Window) -> bool {
+    fn contains(self, other: Self, window: &Window) -> bool {
         window.rendered_frame.dispatch_tree.focus_contains(self, other)
     }
 }
@@ -65,9 +65,9 @@ pub struct FocusHandle {
     pub(crate) id: FocusId,
     handles: Arc<RwLock<FocusMap>>,
     /// The index of this element in the tab order.
-    pub tab_index: isize,
+    pub(crate) tab_index: isize,
     /// Whether this element can be focused by tab navigation.
-    pub tab_stop: bool,
+    pub(crate) tab_stop: bool,
 }
 
 impl Debug for FocusHandle {
@@ -136,7 +136,7 @@ impl FocusHandle {
 
     /// Obtains whether the element associated with this handle is contained within the
     /// focused element or is itself focused.
-    pub fn within_focused(&self, window: &Window, cx: &mut App) -> bool {
+    pub(crate) fn within_focused(&self, window: &Window, cx: &App) -> bool {
         self.id.within_focused(window, cx)
     }
 

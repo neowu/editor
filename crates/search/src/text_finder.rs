@@ -47,20 +47,20 @@ actions!(
     text_finder,
     [
         /// Opens the Project Search Picker.
-        Toggle,
-        ToProjectSearch,
-        Fold,
-        Unfold,
-        ToggleFoldAll
+        pub Toggle,
+        pub ToProjectSearch,
+        pub Fold,
+        pub Unfold,
+        pub ToggleFoldAll
     ]
 );
 
-pub struct TextFinder {
+pub(crate) struct TextFinder {
     picker: Entity<Picker<Delegate>>,
     _subscription: Subscription,
 }
 
-pub fn init(workspace_actions: &mut WorkspaceActions) {
+pub(crate) fn init(workspace_actions: &mut WorkspaceActions) {
     TextFinder::register(workspace_actions);
 }
 
@@ -81,10 +81,10 @@ impl TextFinder {
         });
     }
 
-    pub fn open_from_project_search<T: 'static>(
+    pub(crate) fn open_from_project_search<T: 'static>(
         project_search_view: Entity<ProjectSearchView>,
-        window: &mut Window,
-        cx: &mut Context<T>,
+        window: &Window,
+        cx: &Context<T>,
     ) -> Task<()> {
         let project_search_item_id = project_search_view.entity_id();
         cx.spawn_in(window, async move |_, cx| {
@@ -258,7 +258,7 @@ impl TextFinder {
         None
     }
 
-    pub(crate) fn open(seed_query: Option<QuerySeed>, window: &Window, cx: &Context<Workspace>) -> Task<()> {
+    fn open(seed_query: Option<QuerySeed>, window: &Window, cx: &Context<Workspace>) -> Task<()> {
         cx.spawn_in(window, async move |workspace, cx| {
             let Ok(delegate_task) =
                 workspace.update_in(cx, |workspace, window, cx| Delegate::new(workspace, window, cx))
@@ -327,11 +327,11 @@ impl Focusable for TextFinder {
 }
 
 #[derive(Clone)]
-pub struct SearchMatch {
-    pub path: ProjectPath,
-    pub buffer: Entity<Buffer>,
-    pub anchor_range: Range<Anchor>,
-    pub range: Range<usize>,
-    pub match_start_byte_column: u32,
-    pub line_number: u32,
+pub(crate) struct SearchMatch {
+    path: ProjectPath,
+    buffer: Entity<Buffer>,
+    anchor_range: Range<Anchor>,
+    range: Range<usize>,
+    match_start_byte_column: u32,
+    line_number: u32,
 }

@@ -47,7 +47,7 @@ pub fn init(editor_actions: &mut ActionTable<Editor>) {
     editor_actions.add(GoToLine::toggle);
 }
 
-pub struct GoToLine {
+struct GoToLine {
     line_editor: Entity<Editor>,
     active_editor: Entity<Editor>,
     active_buffer: Entity<Buffer>,
@@ -91,7 +91,7 @@ impl GoToLine {
         });
     }
 
-    pub fn new(
+    fn new(
         active_editor: Entity<Editor>,
         active_buffer: Entity<Buffer>,
         window: &mut Window,
@@ -175,6 +175,7 @@ impl GoToLine {
                 cx.emit(DismissEvent);
             }
             editor::EditorEvent::BufferEdited => self.highlight_current_line(cx),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }

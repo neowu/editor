@@ -33,7 +33,7 @@ use crate::prelude::v_flex;
 
 /// The position of a [`ToggleButton`] within a group of buttons.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub(super) struct ToggleButtonPosition {
+struct ToggleButtonPosition {
     /// The toggle button is one of the leftmost of the group.
     leftmost: bool,
     /// The toggle button is one of the rightmost of the group.
@@ -45,7 +45,7 @@ pub(super) struct ToggleButtonPosition {
 }
 
 impl ToggleButtonPosition {
-    pub(crate) const fn to_rounding(self) -> ButtonLikeRounding {
+    const fn to_rounding(self) -> ButtonLikeRounding {
         ButtonLikeRounding {
             top_left: self.topmost && self.leftmost,
             top_right: self.topmost && self.rightmost,
@@ -218,6 +218,7 @@ impl<T: ButtonBuilder, const COLS: usize, const ROWS: usize> RenderOnce for Togg
     fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {
         let custom_height = match self.size {
             ToggleButtonGroupSize::Custom(height) => Some(height),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         };
 

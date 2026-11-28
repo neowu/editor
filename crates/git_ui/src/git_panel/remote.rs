@@ -13,8 +13,10 @@ use git_ui_core::notifications::open_output;
 use gpui::PromptLevel;
 use gpui::Task;
 use gpui::TaskExt as _;
+use gpui::WeakEntity;
 use itertools::Itertools as _;
 use notifications::status_toast::StatusToast;
+use ui::SharedString;
 use ui::prelude::App;
 use ui::prelude::Color;
 use ui::prelude::Context;
@@ -24,15 +26,146 @@ use ui::prelude::IconSize;
 use ui::prelude::Window;
 use util::ResultExt as _;
 use util::paths;
+use workspace::Workspace;
 
 use super::FALLBACK_BRANCH_NAME;
 use super::GitPanel;
 use super::RemoteOperationKind;
-use crate::clone;
 use crate::picker_prompt;
 use crate::remote_output;
 use crate::remote_output::RemoteAction;
 use crate::remote_output::SuccessMessage;
+
+#[allow(clippy::type_complexity)]
+fn clone_and_open(
+    repo_url: SharedString,
+    workspace: WeakEntity<Workspace>,
+    window: &Window,
+    cx: &App,
+    on_success: Arc<dyn Fn(&mut Workspace, &mut Window, &mut Context<Workspace>) + Send + Sync + 'static>,
+) {
+    let destination_prompt = cx.prompt_for_paths(gpui::PathPromptOptions {
+        files: false,
+        directories: true,
+        multiple: false,
+        prompt: Some("Select as Repository Destination".into()),
+    });
+
+    window
+        .spawn(cx, async move |cx| {
+            let mut paths = destination_prompt.await.ok()?.ok()??;
+            let mut destination_dir = paths.pop()?;
+
+            let repo_name = repo_url
+                .split('/')
+                .next_back()
+                .map_or("repository", |name| name.strip_suffix(".git").unwrap_or(name))
+                .to_owned();
+
+            let clone_task = workspace
+                .update(cx, |_, cx| {
+                    let fs = fs::Fs::global(cx);
+                    let destination_dir = destination_dir.clone();
+                    let repo_url = repo_url.clone();
+                    cx.spawn(async move |_workspace, _cx| fs.git_clone(destination_dir.as_path(), &repo_url).await)
+                })
+                .ok()?;
+
+            if let Err(error) = clone_task.await {
+                workspace
+                    .update(cx, |workspace, cx| {
+                        let toast = StatusToast::new(error.to_string(), cx, |this, _| {
+                            this.icon(Icon::new(IconName::XCircle).size(IconSize::Small).color(Color::Error))
+                                .dismiss_button(true)
+                        });
+                        workspace.toggle_status_toast(toast, cx);
+                    })
+                    .log_err();
+                return None;
+            }
+
+            let has_worktrees = workspace
+                .read_with(cx, |workspace, cx| workspace.project().read(cx).worktrees(cx).next().is_some())
+                .ok()?;
+
+            let prompt_answer = if has_worktrees {
+                cx.update(|window, _| {
+                    window.prompt(
+                        PromptLevel::Info,
+                        &format!("Git Clone: {repo_name}"),
+                        None,
+                        &["Add repo to project", "Open repo in new project"],
+                    )
+                })
+                .ok()?
+                .await
+                .ok()?
+            } else {
+                // Don't ask if project is empty
+                0
+            };
+
+            destination_dir.push(&repo_name);
+
+            match prompt_answer {
+                0 => {
+                    workspace
+                        .update_in(cx, |workspace, window, cx| {
+                            let create_task = workspace
+                                .project()
+                                .update(cx, |project, cx| project.create_worktree(destination_dir.as_path(), true, cx));
+
+                            let workspace_weak = cx.weak_entity();
+                            let on_success = Arc::clone(&on_success);
+                            cx.spawn_in(window, async move |_window, cx| {
+                                if create_task.await.log_err().is_some() {
+                                    workspace_weak
+                                        .update_in(cx, |workspace, window, cx| {
+                                            (on_success)(workspace, window, cx);
+                                        })
+                                        .ok();
+                                }
+                            })
+                            .detach();
+                        })
+                        .ok()?;
+                }
+                1 => {
+                    workspace
+                        .update(cx, move |_, cx| {
+                            let destination_path = destination_dir.clone();
+                            let on_success = Arc::clone(&on_success);
+
+                            workspace::open_new(workspace::OpenOptions::default(), cx, move |workspace, window, cx| {
+                                cx.activate(true);
+
+                                let create_task = workspace.project().update(cx, |project, cx| {
+                                    project.create_worktree(destination_path.as_path(), true, cx)
+                                });
+
+                                let workspace_weak = cx.weak_entity();
+                                cx.spawn_in(window, async move |_window, cx| {
+                                    if create_task.await.log_err().is_some() {
+                                        workspace_weak
+                                            .update_in(cx, |workspace, window, cx| {
+                                                (on_success)(workspace, window, cx);
+                                            })
+                                            .ok();
+                                    }
+                                })
+                                .detach();
+                            })
+                            .detach();
+                        })
+                        .ok();
+                }
+                _ => {}
+            }
+
+            Some(())
+        })
+        .detach();
+}
 
 impl GitPanel {
     fn get_fetch_options(&self, window: &Window, cx: &Context<Self>) -> Task<Option<FetchOptions>> {
@@ -113,19 +246,13 @@ impl GitPanel {
             .detach_and_log_err(cx);
     }
 
-    pub(crate) fn git_clone(&self, repo: String, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn git_clone(&self, repo: String, window: &Window, cx: &Context<Self>) {
         let workspace = self.workspace.clone();
 
-        clone::clone_and_open(
-            repo.into(),
-            workspace,
-            window,
-            cx,
-            Arc::new(|_workspace: &mut workspace::Workspace, _window, _cx| {}),
-        );
+        clone_and_open(repo.into(), workspace, window, cx, Arc::new(|_workspace: &mut Workspace, _window, _cx| {}));
     }
 
-    pub(crate) fn git_init(&self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn git_init(&self, window: &Window, cx: &Context<Self>) {
         let worktrees = self
             .project
             .read(cx)

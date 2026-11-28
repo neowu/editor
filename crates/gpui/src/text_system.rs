@@ -27,9 +27,9 @@ use derive_more::FromStr;
 use derive_more::Sub;
 pub use font_features::FontFeatures;
 use itertools::Itertools as _;
-pub use line::DecorationRun;
+pub(crate) use line::DecorationRun;
 pub use line::ShapedLine;
-pub use line::WrappedLine;
+pub(crate) use line::WrappedLine;
 pub use line_layout::FontRun;
 pub use line_layout::LineLayout;
 pub(crate) use line_layout::LineLayoutCache;
@@ -76,7 +76,7 @@ pub struct FontId(pub usize);
 pub const SUBPIXEL_VARIANTS_X: u8 = 4;
 
 /// Number of subpixel glyph variants along the Y axis.
-pub const SUBPIXEL_VARIANTS_Y: u8 = 1;
+pub(crate) const SUBPIXEL_VARIANTS_Y: u8 = 1;
 
 // Leave enough room below the underline for its stroke while keeping it below the baseline.
 const UNDERLINE_DESCENT_OFFSET_FACTOR: f32 = 0.618;
@@ -100,7 +100,7 @@ pub struct TextSystem {
 
 impl TextSystem {
     /// Create a new TextSystem with the given platform text system.
-    pub fn new(platform_text_system: Arc<dyn PlatformTextSystem>) -> Self {
+    pub(crate) fn new(platform_text_system: Arc<dyn PlatformTextSystem>) -> Self {
         TextSystem {
             platform_text_system,
             font_metrics: RwLock::default(),
@@ -187,7 +187,7 @@ impl TextSystem {
     /// Get the bounding box for the given font and font size.
     /// A font's bounding box is the smallest rectangle that could enclose all glyphs
     /// in the font. superimposed over one another.
-    pub fn bounding_box(&self, font_id: FontId, font_size: Pixels) -> Bounds<Pixels> {
+    fn bounding_box(&self, font_id: FontId, font_size: Pixels) -> Bounds<Pixels> {
         self.read_metrics(font_id, |metrics| metrics.bounding_box(font_size))
     }
 
@@ -251,7 +251,7 @@ impl TextSystem {
     /// Get the number of font size units per 'em square',
     /// Per MDN: "an abstract square whose height is the intended distance between
     /// lines of type in the same type size".
-    pub fn units_per_em(&self, font_id: FontId) -> u32 {
+    fn units_per_em(&self, font_id: FontId) -> u32 {
         self.read_metrics(font_id, |metrics| metrics.units_per_em)
     }
 
@@ -341,7 +341,7 @@ pub struct WindowTextSystem {
 
 impl WindowTextSystem {
     /// Create a new WindowTextSystem with the given TextSystem.
-    pub fn new(text_system: Arc<TextSystem>) -> Self {
+    pub(crate) fn new(text_system: Arc<TextSystem>) -> Self {
         Self {
             line_layout_cache: LineLayoutCache::new(
                 Arc::clone(&text_system.platform_text_system),
@@ -403,14 +403,14 @@ impl WindowTextSystem {
     /// Shape a multi line string of text, at the given font_size, for painting to the screen.
     /// Subsets of the text can be styled independently with the `runs` parameter.
     /// If `wrap_width` is provided, the line breaks will be adjusted to fit within the given width.
-    pub fn shape_text(
+    pub(crate) fn shape_text(
         &self,
         text: SharedString,
         font_size: Pixels,
         runs: &[TextRun],
         wrap_width: Option<Pixels>,
         line_clamp: Option<usize>,
-    ) -> Result<SmallVec<[WrappedLine; 1]>> {
+    ) -> SmallVec<[WrappedLine; 1]> {
         let mut runs = runs.iter().filter(|run| run.len > 0).cloned().peekable();
         let mut font_runs = self.font_runs_buffer.take();
 
@@ -509,7 +509,7 @@ impl WindowTextSystem {
 
         self.font_runs_buffer.set(font_runs);
 
-        Ok(lines)
+        lines
     }
 
     pub(crate) fn finish_frame(&self) {
@@ -694,11 +694,11 @@ impl Eq for FontWeight {}
 
 impl FontWeight {
     /// Thin weight (100), the thinnest value.
-    pub const THIN: FontWeight = FontWeight(100.0);
+    const THIN: FontWeight = FontWeight(100.0);
     /// Extra light weight (200).
-    pub const EXTRA_LIGHT: FontWeight = FontWeight(200.0);
+    const EXTRA_LIGHT: FontWeight = FontWeight(200.0);
     /// Light weight (300).
-    pub const LIGHT: FontWeight = FontWeight(300.0);
+    const LIGHT: FontWeight = FontWeight(300.0);
     /// Normal (400).
     pub const NORMAL: FontWeight = FontWeight(400.0);
     /// Medium weight (500, higher than normal).
@@ -708,7 +708,7 @@ impl FontWeight {
     /// Bold weight (700).
     pub const BOLD: FontWeight = FontWeight(700.0);
     /// Extra-bold weight (800).
-    pub const EXTRA_BOLD: FontWeight = FontWeight(800.0);
+    const EXTRA_BOLD: FontWeight = FontWeight(800.0);
     /// Black weight (900), the thickest value.
     pub const BLACK: FontWeight = FontWeight(900.0);
 
@@ -892,12 +892,12 @@ pub struct FontMetrics {
 
 impl FontMetrics {
     /// Returns the vertical distance from the baseline of the font to the top of the glyph covers in pixels.
-    pub fn ascent(&self, font_size: Pixels) -> Pixels {
+    fn ascent(&self, font_size: Pixels) -> Pixels {
         Pixels((self.ascent / self.units_per_em as f32) * font_size.0)
     }
 
     /// Returns the vertical distance from the baseline of the font to the bottom of the glyph covers in pixels.
-    pub fn descent(&self, font_size: Pixels) -> Pixels {
+    fn descent(&self, font_size: Pixels) -> Pixels {
         Pixels((self.descent / self.units_per_em as f32) * font_size.0)
     }
 
@@ -907,22 +907,22 @@ impl FontMetrics {
     }
 
     /// Returns the typographic width of `m` in pixels.
-    pub fn em_width(&self, font_size: Pixels) -> Pixels {
+    fn em_width(&self, font_size: Pixels) -> Pixels {
         Pixels((self.em_width / self.units_per_em as f32) * font_size.0)
     }
 
     /// Returns the advance of `m` in pixels.
-    pub fn em_advance(&self, font_size: Pixels) -> Pixels {
+    fn em_advance(&self, font_size: Pixels) -> Pixels {
         Pixels((self.em_advance / self.units_per_em as f32) * font_size.0)
     }
 
     /// Returns the typographic width of `0` in pixels.
-    pub fn ch_width(&self, font_size: Pixels) -> Pixels {
+    fn ch_width(&self, font_size: Pixels) -> Pixels {
         Pixels((self.ch_width / self.units_per_em as f32) * font_size.0)
     }
 
     /// Returns the advance of `0` in pixels.
-    pub fn ch_advance(&self, font_size: Pixels) -> Pixels {
+    fn ch_advance(&self, font_size: Pixels) -> Pixels {
         Pixels((self.ch_advance / self.units_per_em as f32) * font_size.0)
     }
 
@@ -937,17 +937,17 @@ impl FontMetrics {
     }
 
     /// Returns the height of a capital letter measured from the baseline of the font in pixels.
-    pub fn cap_height(&self, font_size: Pixels) -> Pixels {
+    fn cap_height(&self, font_size: Pixels) -> Pixels {
         Pixels((self.cap_height / self.units_per_em as f32) * font_size.0)
     }
 
     /// Returns the height of a lowercase x in pixels.
-    pub fn x_height(&self, font_size: Pixels) -> Pixels {
+    fn x_height(&self, font_size: Pixels) -> Pixels {
         Pixels((self.x_height / self.units_per_em as f32) * font_size.0)
     }
 
     /// Returns the outer limits of the area that the font covers in pixels.
-    pub fn bounding_box(&self, font_size: Pixels) -> Bounds<Pixels> {
+    fn bounding_box(&self, font_size: Pixels) -> Bounds<Pixels> {
         (self.bounding_box / self.units_per_em as f32 * font_size.0).map(px)
     }
 }

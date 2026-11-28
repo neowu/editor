@@ -27,7 +27,7 @@ pub struct HoverClientCapabilities {
 #[serde(rename_all = "camelCase")]
 pub struct HoverOptions {
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]

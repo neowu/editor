@@ -123,7 +123,7 @@ impl ListItem {
         }
     }
 
-    pub fn group_name(mut self, group_name: impl Into<SharedString>) -> Self {
+    pub(crate) fn group_name(mut self, group_name: impl Into<SharedString>) -> Self {
         self.group_name = Some(group_name.into());
         self
     }
@@ -143,7 +143,7 @@ impl ListItem {
         self
     }
 
-    pub fn on_hover(mut self, handler: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
+    pub(crate) fn on_hover(mut self, handler: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_hover = Some(Box::new(handler));
         self
     }
@@ -383,6 +383,7 @@ impl RenderOnce for ListItem {
                                     )
                                 }),
                         ),
+                        // lint: expect(wildcard_match) only some variants matter here
                         _ => this,
                     }),
             )

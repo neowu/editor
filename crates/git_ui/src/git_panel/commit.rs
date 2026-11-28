@@ -36,7 +36,7 @@ use super::commit_message_editor;
 use super::prompt;
 
 impl GitPanel {
-    pub fn commit_message_buffer(&self, cx: &App) -> Entity<Buffer> {
+    fn commit_message_buffer(&self, cx: &App) -> Entity<Buffer> {
         self.commit_editor.read(cx).buffer().read(cx).as_singleton().expect("commit editor has a singleton buffer")
     }
 
@@ -64,11 +64,11 @@ impl GitPanel {
         }
     }
 
-    pub fn head_commit(&self, cx: &App) -> Option<CommitDetails> {
+    pub(crate) fn head_commit(&self, cx: &App) -> Option<CommitDetails> {
         self.active_repository.as_ref().and_then(|repo| repo.read(cx).head_commit.as_ref()).cloned()
     }
 
-    pub fn load_last_commit_message(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn load_last_commit_message(&self, cx: &mut Context<Self>) {
         let Some(head_commit) = self.head_commit(cx) else {
             return;
         };
@@ -293,7 +293,7 @@ impl GitPanel {
     }
 
     /// Suggests a commit message based on the changed files and their statuses.
-    pub fn suggest_commit_message(&self, cx: &App) -> Option<String> {
+    pub(crate) fn suggest_commit_message(&self, cx: &App) -> Option<String> {
         if let Some(merge_message) =
             self.active_repository.as_ref().and_then(|repo| repo.read(cx).merge.message.as_ref())
         {
@@ -379,7 +379,7 @@ impl GitPanel {
         });
     }
 
-    pub fn configure_commit_button(&self, cx: &mut Context<Self>) -> (bool, &'static str) {
+    pub(crate) fn configure_commit_button(&self, cx: &Context<Self>) -> (bool, &'static str) {
         if self.rebase_in_progress(cx) {
             (false, "Rebase in progress: continue or abort it first")
         } else if self.has_unstaged_conflicts() {
@@ -395,7 +395,7 @@ impl GitPanel {
         }
     }
 
-    pub const fn commit_button_title(&self) -> &'static str {
+    pub(crate) const fn commit_button_title(&self) -> &'static str {
         if self.amend_pending {
             if self.has_staged_changes() {
                 "Amend"
@@ -446,14 +446,18 @@ impl GitPanel {
         cx.notify();
     }
 
-    pub fn load_commit_details(&self, sha: String, cx: &mut Context<Self>) -> Task<anyhow::Result<CommitDetails>> {
+    pub(crate) fn load_commit_details(
+        &self,
+        sha: String,
+        cx: &mut Context<Self>,
+    ) -> Task<anyhow::Result<CommitDetails>> {
         let Some(repo) = self.active_repository.clone() else {
             return Task::ready(Err(anyhow::anyhow!("no active repo")));
         };
         repo.update(cx, |repo, cx| repo.show_commit(sha, cx))
     }
 
-    pub fn load_commit_template(&self, cx: &mut Context<Self>) -> Task<anyhow::Result<Option<GitCommitTemplate>>> {
+    fn load_commit_template(&self, cx: &mut Context<Self>) -> Task<anyhow::Result<Option<GitCommitTemplate>>> {
         let Some(repo) = self.active_repository.clone() else {
             return Task::ready(Err(anyhow::anyhow!("no active repo")));
         };
@@ -463,14 +467,14 @@ impl GitPanel {
         })
     }
 
-    pub const fn amend_pending(&self) -> bool {
+    pub(crate) const fn amend_pending(&self) -> bool {
         self.amend_pending
     }
 
     /// Sets the pending amend state, ensuring that the original commit message
     /// is either saved, when `value` is `true` and there's no pending amend, or
     /// restored, when `value` is `false` and there's a pending amend.
-    pub fn set_amend_pending(&mut self, value: bool, cx: &mut Context<Self>) {
+    pub(crate) fn set_amend_pending(&mut self, value: bool, cx: &mut Context<Self>) {
         if value && !self.amend_pending {
             let current_message = self.commit_message_buffer(cx).read(cx).text();
             self.original_commit_message = if current_message.trim().is_empty() { None } else { Some(current_message) };
@@ -494,16 +498,16 @@ impl GitPanel {
         }
     }
 
-    pub fn toggle_skip_hooks(&mut self, _: &SkipHooks, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_skip_hooks(&mut self, _: &SkipHooks, _window: &mut Window, cx: &mut Context<Self>) {
         self.set_skip_hooks_enabled(!self.skip_hooks_enabled, cx);
     }
 
-    pub fn set_signoff_enabled(&mut self, value: bool, cx: &mut Context<Self>) {
+    fn set_signoff_enabled(&mut self, value: bool, cx: &mut Context<Self>) {
         self.signoff_enabled = value;
         cx.notify();
     }
 
-    pub fn toggle_signoff_enabled(&mut self, _: &Signoff, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_signoff_enabled(&mut self, _: &Signoff, _window: &mut Window, cx: &mut Context<Self>) {
         self.set_signoff_enabled(!self.signoff_enabled, cx);
     }
 

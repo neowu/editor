@@ -429,7 +429,7 @@ impl Hyperlink {
         }
     }
 
-    pub fn uri(&self) -> &str {
+    pub(crate) fn uri(&self) -> &str {
         match &self.data {
             HyperlinkData::Alacritty(hyperlink) => hyperlink.uri(),
             HyperlinkData::Owned { uri, .. } => uri,

@@ -20,9 +20,9 @@ actions!(
     preview,
     [
         /// Opens a preview of the current file (Markdown/HTML or SVG).
-        OpenPreview,
+        pub OpenPreview,
         /// Opens a preview of the current file in a split pane.
-        OpenPreviewToTheSide,
+        pub(crate) OpenPreviewToTheSide,
     ]
 );
 

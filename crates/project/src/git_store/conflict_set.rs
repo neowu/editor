@@ -11,7 +11,7 @@ use text::BufferId;
 use text::OffsetRangeExt as _;
 
 pub struct ConflictSet {
-    pub has_conflict: bool,
+    pub(crate) has_conflict: bool,
     pub snapshot: ConflictSetSnapshot,
 }
 
@@ -29,7 +29,7 @@ pub struct ConflictSetSnapshot {
 }
 
 impl ConflictSetSnapshot {
-    pub fn compare(&self, other: &Self, buffer: &text::BufferSnapshot) -> ConflictSetUpdate {
+    pub(crate) fn compare(&self, other: &Self, buffer: &text::BufferSnapshot) -> ConflictSetUpdate {
         let common_prefix_len =
             self.conflicts.iter().zip(other.conflicts.iter()).take_while(|(old, new)| old == new).count();
         let common_suffix_len = self.conflicts[common_prefix_len..]
@@ -76,7 +76,7 @@ pub struct ConflictRegion {
     pub range: Range<Anchor>,
     pub ours: Range<Anchor>,
     pub theirs: Range<Anchor>,
-    pub base: Option<Range<Anchor>>,
+    base: Option<Range<Anchor>>,
 }
 
 impl ConflictRegion {
@@ -104,11 +104,11 @@ impl ConflictRegion {
 }
 
 impl ConflictSet {
-    pub fn new(buffer_id: BufferId, has_conflict: bool, _: &mut Context<Self>) -> Self {
+    pub(crate) fn new(buffer_id: BufferId, has_conflict: bool, _: &mut Context<Self>) -> Self {
         Self { has_conflict, snapshot: ConflictSetSnapshot { buffer_id, conflicts: Arc::default() } }
     }
 
-    pub fn set_has_conflict(&mut self, has_conflict: bool, cx: &mut Context<Self>) -> bool {
+    pub(crate) fn set_has_conflict(&mut self, has_conflict: bool, cx: &mut Context<Self>) -> bool {
         if has_conflict == self.has_conflict {
             false
         } else {
@@ -129,12 +129,17 @@ impl ConflictSet {
         self.snapshot.clone()
     }
 
-    pub fn set_snapshot(&mut self, snapshot: ConflictSetSnapshot, update: ConflictSetUpdate, cx: &mut Context<Self>) {
+    pub(crate) fn set_snapshot(
+        &mut self,
+        snapshot: ConflictSetSnapshot,
+        update: ConflictSetUpdate,
+        cx: &mut Context<Self>,
+    ) {
         self.snapshot = snapshot;
         cx.emit(update);
     }
 
-    pub fn parse(buffer: &text::BufferSnapshot) -> ConflictSetSnapshot {
+    pub(crate) fn parse(buffer: &text::BufferSnapshot) -> ConflictSetSnapshot {
         let mut conflicts = Vec::new();
 
         let mut line_pos = 0;

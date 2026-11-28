@@ -5,17 +5,17 @@ use std::sync::Arc;
 use ignore::gitignore::Gitignore;
 
 #[derive(Clone, Debug)]
-pub struct IgnoreStack {
-    pub repo_root: Option<Arc<Path>>,
+pub(crate) struct IgnoreStack {
+    pub(crate) repo_root: Option<Arc<Path>>,
     /// The repository root, or the worktree root when no repository contains
     /// the worktree.
     /// Global ignore patterns are matched relative to this path.
-    pub global_ignore_root: Option<Arc<Path>>,
-    pub top: Arc<IgnoreStackEntry>,
+    pub(crate) global_ignore_root: Option<Arc<Path>>,
+    top: Arc<IgnoreStackEntry>,
 }
 
 #[derive(Debug)]
-pub enum IgnoreStackEntry {
+enum IgnoreStackEntry {
     None,
     Global { ignore: Arc<Gitignore> },
     RepoExclude { ignore: Arc<Gitignore>, parent: Arc<IgnoreStackEntry> },
@@ -24,27 +24,28 @@ pub enum IgnoreStackEntry {
 }
 
 #[derive(Debug)]
-pub enum IgnoreKind {
+pub(crate) enum IgnoreKind {
     Gitignore(Arc<Path>),
     RepoExclude,
 }
 
 impl IgnoreStack {
-    pub fn none() -> Self {
+    pub(crate) fn none() -> Self {
         Self { repo_root: None, global_ignore_root: None, top: Arc::new(IgnoreStackEntry::None) }
     }
 
-    pub fn all() -> Self {
+    pub(crate) fn all() -> Self {
         Self { repo_root: None, global_ignore_root: None, top: Arc::new(IgnoreStackEntry::All) }
     }
 
-    pub fn global(ignore: Arc<Gitignore>) -> Self {
+    pub(crate) fn global(ignore: Arc<Gitignore>) -> Self {
         Self { repo_root: None, global_ignore_root: None, top: Arc::new(IgnoreStackEntry::Global { ignore }) }
     }
 
-    pub fn append(self, kind: IgnoreKind, ignore: Arc<Gitignore>) -> Self {
+    pub(crate) fn append(self, kind: IgnoreKind, ignore: Arc<Gitignore>) -> Self {
         let top = match self.top.as_ref() {
             IgnoreStackEntry::All => Arc::clone(&self.top),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => Arc::new(match kind {
                 IgnoreKind::Gitignore(abs_base_path) => {
                     IgnoreStackEntry::Some { abs_base_path, ignore, parent: Arc::clone(&self.top) }
@@ -55,7 +56,7 @@ impl IgnoreStack {
         Self { repo_root: self.repo_root, global_ignore_root: self.global_ignore_root, top }
     }
 
-    pub fn is_abs_path_ignored(&self, abs_path: &Path, is_dir: bool) -> bool {
+    pub(crate) fn is_abs_path_ignored(&self, abs_path: &Path, is_dir: bool) -> bool {
         if is_dir && abs_path.file_name() == Some(OsStr::new(".git")) {
             return true;
         }

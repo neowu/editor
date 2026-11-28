@@ -56,11 +56,11 @@ fn fmt_pascal_case(f: &mut Formatter<'_>, name: &str) -> fmt::Result {
 }
 
 macro_rules! lsp_enum {
-    (impl $typ: ident { $( $(#[$attr:meta])* pub const $name: ident : $enum_type: ty = $value: expr; )* }) => {
+    (impl $typ: ident { $( $(#[$attr:meta])* $vis:vis const $name: ident : $enum_type: ty = $value: expr; )* }) => {
         impl $typ {
             $(
             $(#[$attr])*
-            pub const $name: $enum_type = $value;
+            $vis const $name: $enum_type = $value;
             )*
         }
 
@@ -122,8 +122,6 @@ pub use code_lens::CodeLensWorkspaceClientCapabilities;
 mod color;
 pub use color::Color;
 pub use color::ColorInformation;
-pub use color::ColorPresentation;
-pub use color::ColorPresentationParams;
 pub use color::ColorProviderCapability;
 pub use color::ColorProviderOptions;
 pub use color::DocumentColorClientCapabilities;
@@ -185,8 +183,6 @@ pub use document_symbols::DocumentSymbolResponse;
 pub use document_symbols::SymbolInformation;
 
 mod file_operations;
-pub use file_operations::CreateFilesParams;
-pub use file_operations::DeleteFilesParams;
 pub use file_operations::FileOperationFilter;
 pub use file_operations::FileOperationPatternKind;
 pub use file_operations::FileOperationRegistrationOptions;
@@ -236,16 +232,12 @@ pub use inlay_hint::InlayHintTooltip;
 pub use inlay_hint::InlayHintWorkspaceClientCapabilities;
 
 mod inline_value;
-pub use inline_value::InlineValue;
 pub use inline_value::InlineValueClientCapabilities;
-pub use inline_value::InlineValueParams;
 pub use inline_value::InlineValueServerCapabilities;
 pub use inline_value::InlineValueWorkspaceClientCapabilities;
 
 mod moniker;
-pub use moniker::Moniker;
 pub use moniker::MonikerClientCapabilities;
-pub use moniker::MonikerParams;
 pub use moniker::MonikerServerCapabilities;
 
 mod progress;
@@ -269,10 +261,8 @@ pub use rename::RenameClientCapabilities;
 pub use rename::RenameOptions;
 pub use rename::RenameParams;
 
-pub mod selection_range;
-pub use selection_range::SelectionRange;
+mod selection_range;
 pub use selection_range::SelectionRangeClientCapabilities;
-pub use selection_range::SelectionRangeParams;
 pub use selection_range::SelectionRangeProviderCapability;
 
 mod semantic_tokens;
@@ -288,8 +278,6 @@ pub use semantic_tokens::SemanticTokensFullOptions;
 pub use semantic_tokens::SemanticTokensLegend;
 pub use semantic_tokens::SemanticTokensOptions;
 pub use semantic_tokens::SemanticTokensParams;
-pub use semantic_tokens::SemanticTokensRangeParams;
-pub use semantic_tokens::SemanticTokensRangeResult;
 pub use semantic_tokens::SemanticTokensRegistrationOptions;
 pub use semantic_tokens::SemanticTokensResult;
 pub use semantic_tokens::SemanticTokensServerCapabilities;
@@ -297,18 +285,11 @@ pub use semantic_tokens::SemanticTokensWorkspaceClientCapabilities;
 pub use semantic_tokens::TokenFormat;
 
 mod signature_help;
-pub use signature_help::SignatureHelp;
 pub use signature_help::SignatureHelpClientCapabilities;
 pub use signature_help::SignatureHelpOptions;
-pub use signature_help::SignatureHelpParams;
-pub use signature_help::SignatureInformation;
 
 mod type_hierarchy;
 pub use type_hierarchy::TypeHierarchyClientCapabilities;
-pub use type_hierarchy::TypeHierarchyItem;
-pub use type_hierarchy::TypeHierarchyPrepareParams;
-pub use type_hierarchy::TypeHierarchySubtypesParams;
-pub use type_hierarchy::TypeHierarchySupertypesParams;
 
 mod linked_editing;
 pub use linked_editing::LinkedEditingRangeClientCapabilities;
@@ -390,16 +371,6 @@ pub struct CancelParams {
 /// @since 3.17.0.
 pub type LSPAny = Value;
 
-/// LSP object definition.
-///
-/// @since 3.17.0.
-pub type LSPObject = serde_json::Map<String, Value>;
-
-/// LSP arrays.
-///
-/// @since 3.17.0.
-pub type LSPArray = Vec<Value>;
-
 /// Position in a text document expressed as zero-based line and character offset.
 /// A position is between two characters like an 'insert' cursor in a editor.
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Default, Deserialize, Serialize, Hash)]
@@ -443,12 +414,6 @@ pub struct Location {
     pub range: Range,
 }
 
-impl Location {
-    pub const fn new(uri: Uri, range: Range) -> Location {
-        Location { uri, range }
-    }
-}
-
 /// Represents a link between a source and a target location.
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -484,12 +449,8 @@ impl PositionEncodingKind {
     /// by servers.
     pub const UTF16: PositionEncodingKind = PositionEncodingKind::new("utf-16");
 
-    pub const fn new(tag: &'static str) -> Self {
+    const fn new(tag: &'static str) -> Self {
         PositionEncodingKind(Cow::Borrowed(tag))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
     }
 }
 
@@ -518,7 +479,7 @@ pub enum DiagnosticMessage {
 
 impl DiagnosticMessage {
     /// Returns the raw text of the message, regardless of its markup kind.
-    pub fn as_str(&self) -> &str {
+    fn as_str(&self) -> &str {
         match self {
             DiagnosticMessage::String(message) => message,
             DiagnosticMessage::MarkupContent(markup) => &markup.value,
@@ -627,29 +588,6 @@ pub struct CodeDescription {
     pub href: Option<Uri>,
 }
 
-impl Diagnostic {
-    pub fn new(
-        range: Range,
-        severity: Option<DiagnosticSeverity>,
-        code: Option<NumberOrString>,
-        source: Option<String>,
-        message: String,
-        related_information: Option<Vec<DiagnosticRelatedInformation>>,
-        tags: Option<Vec<DiagnosticTag>>,
-    ) -> Diagnostic {
-        Diagnostic {
-            range,
-            severity,
-            code,
-            source,
-            message: message.into(),
-            related_information,
-            tags,
-            ..Diagnostic::default()
-        }
-    }
-}
-
 /// The protocol currently supports the following diagnostic severities:
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Deserialize, Serialize)]
 #[serde(transparent)]
@@ -713,12 +651,6 @@ pub struct Command {
     pub arguments: Option<Vec<Value>>,
 }
 
-impl Command {
-    pub const fn new(title: String, command: String, arguments: Option<Vec<Value>>) -> Command {
-        Command { title, command, arguments }
-    }
-}
-
 /// A textual edit applicable to a text document.
 ///
 /// If n `TextEdit`s are applied to a text document all text edits describe changes to the initial document version.
@@ -735,17 +667,11 @@ pub struct TextEdit {
     pub new_text: String,
 }
 
-impl TextEdit {
-    pub const fn new(range: Range, new_text: String) -> TextEdit {
-        TextEdit { range, new_text }
-    }
-}
-
 /// An identifier referring to a change annotation managed by a workspace
 /// edit.
 ///
 /// @since 3.16.0.
-pub type ChangeAnnotationIdentifier = String;
+type ChangeAnnotationIdentifier = String;
 
 /// A special text edit with an additional change annotation.
 ///
@@ -757,7 +683,7 @@ pub struct AnnotatedTextEdit {
     pub text_edit: TextEdit,
 
     /// The actual annotation.
-    pub annotation_id: ChangeAnnotationIdentifier,
+    annotation_id: ChangeAnnotationIdentifier,
 }
 
 /// An interactive text edit.
@@ -773,7 +699,7 @@ pub struct SnippetTextEdit {
     /// The actual identifier of the snippet edit.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub annotation_id: Option<ChangeAnnotationIdentifier>,
+    annotation_id: Option<ChangeAnnotationIdentifier>,
 }
 
 /// The kind of string value.
@@ -781,7 +707,7 @@ pub struct SnippetTextEdit {
 /// @since 3.18.0.
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
-pub enum StringValueKind {
+enum StringValueKind {
     Snippet,
 }
 
@@ -798,7 +724,7 @@ pub enum StringValueKind {
 #[serde(rename_all = "camelCase")]
 pub struct StringValue {
     /// The kind of string value.
-    pub kind: StringValueKind,
+    kind: StringValueKind,
     /// The snippet string.
     pub value: String,
 }
@@ -837,20 +763,20 @@ pub struct TextDocumentEdit {
 /// @since 3.16.0.
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ChangeAnnotation {
+struct ChangeAnnotation {
     /// A human-readable string describing the actual change. The string
     /// is rendered prominent in the user interface.
-    pub label: String,
+    label: String,
 
     /// A flag which indicates that user confirmation is needed
     /// before applying the change.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub needs_confirmation: Option<bool>,
+    needs_confirmation: Option<bool>,
 
     /// A human-readable string which is rendered less prominent in
     /// the user interface.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    description: Option<String>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
@@ -860,7 +786,7 @@ pub struct ChangeAnnotationWorkspaceEditClientCapabilities {
     /// for instance all edits labelled with "Changes in Strings" would
     /// be a tree node.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub groups_on_label: Option<bool>,
+    groups_on_label: Option<bool>,
 }
 
 /// Options to create a file.
@@ -889,7 +815,7 @@ pub struct CreateFile {
     ///
     /// @since 3.16.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub annotation_id: Option<ChangeAnnotationIdentifier>,
+    annotation_id: Option<ChangeAnnotationIdentifier>,
 }
 
 /// Rename file options.
@@ -920,7 +846,7 @@ pub struct RenameFile {
     ///
     /// @since 3.16.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub annotation_id: Option<ChangeAnnotationIdentifier>,
+    annotation_id: Option<ChangeAnnotationIdentifier>,
 }
 
 /// Delete file options.
@@ -938,7 +864,7 @@ pub struct DeleteFileOptions {
     ///
     /// @since 3.16.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub annotation_id: Option<ChangeAnnotationIdentifier>,
+    annotation_id: Option<ChangeAnnotationIdentifier>,
 }
 
 /// Delete file operation.
@@ -987,7 +913,7 @@ pub struct WorkspaceEdit {
     ///
     /// @since 3.16.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub change_annotations: Option<HashMap<ChangeAnnotationIdentifier, ChangeAnnotation>>,
+    change_annotations: Option<HashMap<ChangeAnnotationIdentifier, ChangeAnnotation>>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
@@ -1160,12 +1086,6 @@ mod url_map {
     }
 }
 
-impl WorkspaceEdit {
-    pub fn new(changes: HashMap<Uri, Vec<TextEdit>>) -> WorkspaceEdit {
-        WorkspaceEdit { changes: Some(changes), document_changes: None, ..Default::default() }
-    }
-}
-
 /// Text documents are identified using a URI. On the protocol level, URIs are passed as strings.
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 pub struct TextDocumentIdentifier {
@@ -1188,17 +1108,17 @@ impl TextDocumentIdentifier {
 #[serde(rename_all = "camelCase")]
 pub struct TextDocumentItem {
     /// The text document's URI.
-    pub uri: Uri,
+    uri: Uri,
 
     /// The text document's language identifier.
-    pub language_id: String,
+    language_id: String,
 
     /// The version number of this document (it will strictly increase after each
     /// change, including undo/redo).
-    pub version: i32,
+    version: i32,
 
     /// The content of the opened text document.
-    pub text: String,
+    text: String,
 }
 
 impl TextDocumentItem {
@@ -1212,13 +1132,13 @@ impl TextDocumentItem {
 pub struct VersionedTextDocumentIdentifier {
     // This field was "mixed-in" from TextDocumentIdentifier
     /// The text document's URI.
-    pub uri: Uri,
+    uri: Uri,
 
     /// The version number of this document.
     ///
     /// The version number of a document will increase after each change,
     /// including undo/redo. The number doesn't need to be consecutive.
-    pub version: i32,
+    version: i32,
 }
 
 impl VersionedTextDocumentIdentifier {
@@ -1246,12 +1166,6 @@ pub struct OptionalVersionedTextDocumentIdentifier {
     pub version: Option<i32>,
 }
 
-impl OptionalVersionedTextDocumentIdentifier {
-    pub const fn new(uri: Uri, version: i32) -> OptionalVersionedTextDocumentIdentifier {
-        OptionalVersionedTextDocumentIdentifier { uri, version: Some(version) }
-    }
-}
-
 /// A parameter literal used in requests to pass a text document and a position inside that document.
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1265,12 +1179,6 @@ pub struct TextDocumentPositionParams {
 
     /// The position inside the text document.
     pub position: Position,
-}
-
-impl TextDocumentPositionParams {
-    pub const fn new(text_document: TextDocumentIdentifier, position: Position) -> TextDocumentPositionParams {
-        TextDocumentPositionParams { text_document, position }
-    }
 }
 
 /// A document filter denotes a document through properties like language, schema or pattern.
@@ -1491,7 +1399,7 @@ pub struct SymbolKindCapability {
     /// the symbol kinds from `File` to `Array` as defined in
     /// the initial version of the protocol.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value_set: Option<Vec<SymbolKind>>,
+    value_set: Option<Vec<SymbolKind>>,
 }
 
 /// Workspace specific client capabilities.
@@ -1864,41 +1772,41 @@ pub struct GeneralClientCapabilities {
 #[serde(rename_all = "camelCase")]
 pub struct StaleRequestSupportClientCapabilities {
     /// The client will actively cancel the request.
-    pub cancel: bool,
+    cancel: bool,
 
     /// The list of requests for which the client
     /// will retry the request if it receives a
     /// response with error code `ContentModified``.
-    pub retry_on_content_modified: Vec<String>,
+    retry_on_content_modified: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegularExpressionsClientCapabilities {
     /// The engine's name.
-    pub engine: String,
+    engine: String,
 
     /// The engine's version.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
+    version: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MarkdownClientCapabilities {
     /// The name of the parser.
-    pub parser: String,
+    parser: String,
 
     /// The version of the parser.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
+    version: Option<String>,
 
     /// A list of HTML tags that the client allows / supports in
     /// Markdown.
     ///
     /// @since 3.17.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub allowed_tags: Option<Vec<String>>,
+    allowed_tags: Option<Vec<String>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Deserialize, Serialize)]
@@ -1930,7 +1838,7 @@ pub struct TextDocumentSyncKind(i32);
 lsp_enum! {
 impl TextDocumentSyncKind {
     /// Documents should not be synced at all.
-    pub const NONE: TextDocumentSyncKind = TextDocumentSyncKind(0);
+    const NONE: TextDocumentSyncKind = TextDocumentSyncKind(0);
 
     /// Documents are synced by always sending the full content of the document.
     pub const FULL: TextDocumentSyncKind = TextDocumentSyncKind(1);
@@ -1950,7 +1858,7 @@ pub struct ExecuteCommandOptions {
     pub commands: Vec<String>,
 
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 /// Save options.
@@ -2272,55 +2180,55 @@ pub enum DeclarationCapability {
 #[serde(rename_all = "camelCase")]
 pub struct DeclarationRegistrationOptions {
     #[serde(flatten)]
-    pub declaration_options: DeclarationOptions,
+    declaration_options: DeclarationOptions,
 
     #[serde(flatten)]
-    pub text_document_registration_options: TextDocumentRegistrationOptions,
+    text_document_registration_options: TextDocumentRegistrationOptions,
 
     #[serde(flatten)]
-    pub static_registration_options: StaticRegistrationOptions,
+    static_registration_options: StaticRegistrationOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeclarationOptions {
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StaticRegistrationOptions {
+struct StaticRegistrationOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
+    id: Option<String>,
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Deserialize, Serialize, Copy)]
 #[serde(rename_all = "camelCase")]
-pub struct WorkDoneProgressOptions {
+struct WorkDoneProgressOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub work_done_progress: Option<bool>,
+    work_done_progress: Option<bool>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentFormattingOptions {
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentRangeFormattingOptions {
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DefinitionOptions {
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
@@ -2331,38 +2239,38 @@ pub struct DocumentSymbolOptions {
     ///
     /// @since 3.16.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub label: Option<String>,
+    label: Option<String>,
 
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferencesOptions {
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentHighlightOptions {
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceSymbolOptions {
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 
     /// The server provides support to resolve additional
     /// information for a workspace symbol.
     ///
     /// @since 3.17.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub resolve_provider: Option<bool>,
+    resolve_provider: Option<bool>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
@@ -2370,10 +2278,10 @@ pub struct WorkspaceSymbolOptions {
 pub struct StaticTextDocumentRegistrationOptions {
     /// A document selector to identify the scope of the registration. If set to null
     /// the document selector provided on the client side will be used.
-    pub document_selector: Option<DocumentSelector>,
+    document_selector: Option<DocumentSelector>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
+    id: Option<String>,
 }
 
 /// General parameters to unregister a capability.
@@ -2434,22 +2342,6 @@ pub struct TextDocumentContentChangeEvent {
     /// The new text of the document.
     pub text: String,
 }
-
-/// The parameters send in a will save text document notification.
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WillSaveTextDocumentParams {
-    /// The document that will be saved.
-    pub text_document: TextDocumentIdentifier,
-
-    /// The 'TextDocumentSaveReason'.
-    pub reason: TextDocumentSaveReason,
-}
-
-/// Represents reasons why a text document is saved.
-#[derive(Debug, Copy, Eq, PartialEq, Clone, Deserialize, Serialize)]
-#[serde(transparent)]
-pub struct TextDocumentSaveReason(i32);
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2521,12 +2413,6 @@ pub struct FileEvent {
     pub typ: FileChangeType,
 }
 
-impl FileEvent {
-    pub const fn new(uri: Uri, typ: FileChangeType) -> FileEvent {
-        FileEvent { uri, typ }
-    }
-}
-
 /// Describe options to be used when registered for text document change events.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Deserialize, Serialize)]
 pub struct DidChangeWatchedFilesRegistrationOptions {
@@ -2546,7 +2432,7 @@ pub struct FileSystemWatcher {
     /// The kind of events of interest. If omitted it defaults to WatchKind.Create |
     /// WatchKind.Change | WatchKind.Delete which is 7.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub kind: Option<WatchKind>,
+    kind: Option<WatchKind>,
 }
 
 /// The glob pattern. Either a string pattern or a relative pattern.
@@ -2609,10 +2495,13 @@ bitflags::bitflags! {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WatchKind: u8 {
     /// Interested in create events.
+    // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
     const Create = 1;
     /// Interested in change events
+    // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
     const Change = 2;
     /// Interested in delete events
+    // lint: expect(excess_visibility) visibility is written by the `bitflags!` macro
     const Delete = 4;
 }
 }
@@ -2650,12 +2539,6 @@ pub struct PublishDiagnosticsParams {
     pub version: Option<i32>,
 }
 
-impl PublishDiagnosticsParams {
-    pub const fn new(uri: Uri, diagnostics: Vec<Diagnostic>, version: Option<i32>) -> PublishDiagnosticsParams {
-        PublishDiagnosticsParams { uri, diagnostics, version }
-    }
-}
-
 #[derive(Debug, Eq, PartialEq, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
 pub enum Documentation {
@@ -2686,16 +2569,6 @@ pub enum MarkedString {
 pub struct LanguageString {
     pub language: String,
     pub value: String,
-}
-
-impl MarkedString {
-    pub const fn from_markdown(markdown: String) -> MarkedString {
-        MarkedString::String(markdown)
-    }
-
-    pub const fn from_language_code(language: String, code_block: String) -> MarkedString {
-        MarkedString::LanguageString(LanguageString { language, value: code_block })
-    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
@@ -2757,7 +2630,7 @@ pub struct ApplyWorkspaceEditParams {
     /// presented in the user interface for example on an undo
     /// stack to undo the workspace edit.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub label: Option<String>,
+    label: Option<String>,
 
     /// The edits to apply.
     pub edit: WorkspaceEdit,
@@ -2827,7 +2700,7 @@ pub struct SymbolTag(i32);
 lsp_enum! {
 impl SymbolTag {
     /// Render a symbol as obsolete, usually using a strike-out.
-    pub const DEPRECATED: SymbolTag = SymbolTag(1);
+    const DEPRECATED: SymbolTag = SymbolTag(1);
 }
 }
 
@@ -2919,10 +2792,10 @@ mod tests {
 
     #[test]
     fn marked_string() {
-        test_serialization(&MarkedString::from_markdown("xxx".into()), r#""xxx""#);
+        test_serialization(&MarkedString::String("xxx".into()), r#""xxx""#);
 
         test_serialization(
-            &MarkedString::from_language_code("lang".into(), "code".into()),
+            &MarkedString::LanguageString(LanguageString { language: "lang".into(), value: "code".into() }),
             r#"{"language":"lang","value":"code"}"#,
         );
     }

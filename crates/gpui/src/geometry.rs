@@ -170,7 +170,7 @@ impl Point<Pixels> {
     /// # Arguments
     ///
     /// * `factor` - The scaling factor to apply to both the x and y coordinates.
-    pub fn scale(&self, factor: f32) -> Point<ScaledPixels> {
+    pub(crate) fn scale(self, factor: f32) -> Point<ScaledPixels> {
         Point { x: self.x.scale(factor), y: self.y.scale(factor) }
     }
 
@@ -234,7 +234,7 @@ where
     /// # Arguments
     ///
     /// * `other` - A reference to another `Point` to compare with `self`.
-    pub fn max(&self, other: &Self) -> Self {
+    pub(crate) fn max(&self, other: &Self) -> Self {
         Point {
             x: if self.x > other.x { self.x.clone() } else { other.x.clone() },
             y: if self.y > other.y { self.y.clone() } else { other.y.clone() },
@@ -246,7 +246,7 @@ where
     /// # Arguments
     ///
     /// * `other` - A reference to another `Point` to compare with `self`.
-    pub fn min(&self, other: &Self) -> Self {
+    pub(crate) fn min(&self, other: &Self) -> Self {
         Point {
             x: if self.x <= other.x { self.x.clone() } else { other.x.clone() },
             y: if self.y <= other.y { self.y.clone() } else { other.y.clone() },
@@ -291,7 +291,7 @@ pub struct Size<T: Clone + Debug + Default + PartialEq> {
 
 impl<T: Clone + Debug + Default + PartialEq> Size<T> {
     /// Create a new Size, a synonym for [`size`].
-    pub const fn new(width: T, height: T) -> Self {
+    pub(crate) const fn new(width: T, height: T) -> Self {
         size(width, height)
     }
 
@@ -345,7 +345,7 @@ impl Size<Pixels> {
     /// # Arguments
     ///
     /// * `factor` - The scaling factor to apply to the width and height.
-    pub fn scale(&self, factor: f32) -> Size<ScaledPixels> {
+    fn scale(self, factor: f32) -> Size<ScaledPixels> {
         Size { width: self.width.scale(factor), height: self.height.scale(factor) }
     }
 
@@ -489,7 +489,7 @@ impl Size<Length> {
     /// # Returns
     ///
     /// A `Size<Length>` with width and height set to `Length::Auto`.
-    pub const fn auto() -> Self {
+    pub(crate) const fn auto() -> Self {
         Self { width: Length::Auto, height: Length::Auto }
     }
 }
@@ -552,7 +552,7 @@ impl Bounds<Pixels> {
     /// # Returns
     ///
     /// Returns a new `Bounds<ScaledPixels>` that represents the scaled bounds.
-    pub fn scale(&self, factor: f32) -> Bounds<ScaledPixels> {
+    pub(crate) fn scale(&self, factor: f32) -> Bounds<ScaledPixels> {
         Bounds { origin: self.origin.scale(factor), size: self.size.scale(factor) }
     }
 
@@ -634,7 +634,7 @@ where
     }
 
     /// Creates a new bounds centered at the given point.
-    pub fn centered_at(center: Point<T>, size: Size<T>) -> Self {
+    fn centered_at(center: Point<T>, size: Size<T>) -> Self {
         let origin = Point { x: center.x - size.width.half(), y: center.y - size.height.half() };
         Self::new(origin, size)
     }
@@ -645,22 +645,22 @@ where
     T: Add<T, Output = T> + Half + Clone + Debug + Default + PartialEq,
 {
     /// Returns the top center point of the bounds.
-    pub fn top_center(&self) -> Point<T> {
+    fn top_center(&self) -> Point<T> {
         Point { x: self.origin.x.clone() + self.size.width.half(), y: self.origin.y.clone() }
     }
 
     /// Returns the bottom center point of the bounds.
-    pub fn bottom_center(&self) -> Point<T> {
+    fn bottom_center(&self) -> Point<T> {
         Point { x: self.origin.x.clone() + self.size.width.half(), y: self.origin.y.clone() + self.size.height.clone() }
     }
 
     /// Returns the left center point of the bounds.
-    pub fn left_center(&self) -> Point<T> {
+    fn left_center(&self) -> Point<T> {
         Point { x: self.origin.x.clone(), y: self.origin.y.clone() + self.size.height.half() }
     }
 
     /// Returns the right center point of the bounds.
-    pub fn right_center(&self) -> Point<T> {
+    fn right_center(&self) -> Point<T> {
         Point { x: self.origin.x.clone() + self.size.width.clone(), y: self.origin.y.clone() + self.size.height.half() }
     }
 
@@ -776,7 +776,7 @@ where
     /// # Returns
     ///
     /// Returns a new `Bounds<U>` with the origin and size mapped by the provided function.
-    pub fn map<U>(&self, f: impl Fn(T) -> U) -> Bounds<U>
+    pub(crate) fn map<U>(&self, f: impl Fn(T) -> U) -> Bounds<U>
     where
         U: Clone + Debug + Default + PartialEq,
     {
@@ -784,12 +784,12 @@ where
     }
 
     /// Applies a function to the origin  of the bounds, producing a new `Bounds` with the new origin.
-    pub fn map_origin(self, f: impl Fn(T) -> T) -> Bounds<T> {
+    pub(crate) fn map_origin(self, f: impl Fn(T) -> T) -> Bounds<T> {
         Bounds { origin: self.origin.map(f), size: self.size }
     }
 
     /// Applies a function to the origin  of the bounds, producing a new `Bounds` with the new origin.
-    pub fn map_size(self, f: impl Fn(T) -> T) -> Bounds<T> {
+    pub(crate) fn map_size(self, f: impl Fn(T) -> T) -> Bounds<T> {
         Bounds { origin: self.origin, size: self.size.map(f) }
     }
 }
@@ -804,7 +804,7 @@ where
     /// This method is generic over the type `T` which must implement the `Sub` trait to allow
     /// calculation of the width and height from the bounds' origin and size, as well as the `Add` trait
     /// to sum the width and height for the half perimeter.
-    pub fn half_perimeter(&self) -> T {
+    pub(crate) fn half_perimeter(&self) -> T {
         self.size.width.clone() + self.size.height.clone()
     }
 
@@ -1062,7 +1062,7 @@ impl<T: Clone + Debug + Default + PartialEq + Display + Add<T, Output = T>> Disp
 
 impl Size<DevicePixels> {
     /// Converts the size from physical to logical pixels.
-    pub fn to_pixels(self, scale_factor: f32) -> Size<Pixels> {
+    fn to_pixels(self, scale_factor: f32) -> Size<Pixels> {
         size(px(self.width.0 as f32 / scale_factor), px(self.height.0 as f32 / scale_factor))
     }
 }
@@ -1156,7 +1156,7 @@ impl<T: Clone + Debug + Default + PartialEq> Edges<T> {
     /// # Returns
     ///
     /// Returns a new `Edges<U>` with each field mapped by the provided function.
-    pub fn map<U>(&self, f: impl Fn(&T) -> U) -> Edges<U>
+    pub(crate) fn map<U>(&self, f: impl Fn(&T) -> U) -> Edges<U>
     where
         U: Clone + Debug + Default + PartialEq,
     {
@@ -1174,7 +1174,7 @@ impl<T: Clone + Debug + Default + PartialEq> Edges<T> {
     /// # Returns
     ///
     /// Returns `true` if the predicate returns `true` for any of the edge values, `false` otherwise.
-    pub fn any<F: Fn(&T) -> bool>(&self, predicate: F) -> bool {
+    pub(crate) fn any<F: Fn(&T) -> bool>(&self, predicate: F) -> bool {
         predicate(&self.top) || predicate(&self.right) || predicate(&self.bottom) || predicate(&self.left)
     }
 }
@@ -1187,7 +1187,7 @@ impl Edges<Length> {
     /// # Returns
     ///
     /// Returns an `Edges<Length>` with all edges set to `Length::Auto`.
-    pub const fn auto() -> Self {
+    pub(crate) const fn auto() -> Self {
         Self { top: Length::Auto, right: Length::Auto, bottom: Length::Auto, left: Length::Auto }
     }
 
@@ -1199,7 +1199,7 @@ impl Edges<Length> {
     /// # Returns
     ///
     /// Returns an `Edges<Length>` with all edges set to zero length.
-    pub fn zero() -> Self {
+    pub(crate) fn zero() -> Self {
         Self { top: px(0.).into(), right: px(0.).into(), bottom: px(0.).into(), left: px(0.).into() }
     }
 }
@@ -1213,7 +1213,7 @@ impl Edges<DefiniteLength> {
     /// # Returns
     ///
     /// Returns an `Edges<DefiniteLength>` with all edges set to zero length.
-    pub fn zero() -> Self {
+    pub(crate) fn zero() -> Self {
         Self { top: px(0.).into(), right: px(0.).into(), bottom: px(0.).into(), left: px(0.).into() }
     }
 
@@ -1230,7 +1230,7 @@ impl Edges<DefiniteLength> {
     /// # Returns
     ///
     /// Returns an `Edges<Pixels>` representing the edges with lengths converted to pixels.
-    pub fn to_pixels(self, parent_size: Size<AbsoluteLength>, rem_size: Pixels) -> Edges<Pixels> {
+    pub(crate) fn to_pixels(self, parent_size: Size<AbsoluteLength>, rem_size: Pixels) -> Edges<Pixels> {
         Edges {
             top: self.top.to_pixels(parent_size.height, rem_size),
             right: self.right.to_pixels(parent_size.width, rem_size),
@@ -1249,7 +1249,7 @@ impl Edges<AbsoluteLength> {
     /// # Returns
     ///
     /// Returns an `Edges<AbsoluteLength>` with all edges set to zero length.
-    pub fn zero() -> Self {
+    pub(crate) fn zero() -> Self {
         Self { top: px(0.).into(), right: px(0.).into(), bottom: px(0.).into(), left: px(0.).into() }
     }
 
@@ -1265,7 +1265,7 @@ impl Edges<AbsoluteLength> {
     /// # Returns
     ///
     /// Returns an `Edges<Pixels>` representing the edges with lengths converted to pixels.
-    pub fn to_pixels(self, rem_size: Pixels) -> Edges<Pixels> {
+    pub(crate) fn to_pixels(self, rem_size: Pixels) -> Edges<Pixels> {
         Edges {
             top: self.top.to_pixels(rem_size),
             right: self.right.to_pixels(rem_size),
@@ -1358,7 +1358,7 @@ impl Anchor {
 
     /// Returns the corner across from this corner, moving along the specified axis.
     #[must_use]
-    pub const fn other_side_along(self, axis: Axis) -> Self {
+    pub(crate) const fn other_side_along(self, axis: Axis) -> Self {
         match axis {
             Axis::Vertical => match self {
                 Anchor::TopLeft => Anchor::BottomLeft,
@@ -1464,7 +1464,7 @@ impl Corners<AbsoluteLength> {
     /// # Returns
     ///
     /// Returns a `Corners<Pixels>` instance with each corner's length converted to pixels.
-    pub fn to_pixels(self, rem_size: Pixels) -> Corners<Pixels> {
+    pub(crate) fn to_pixels(self, rem_size: Pixels) -> Corners<Pixels> {
         Corners {
             top_left: self.top_left.to_pixels(rem_size),
             top_right: self.top_right.to_pixels(rem_size),
@@ -1487,7 +1487,7 @@ impl Corners<Pixels> {
     ///
     /// Returns a new `Corners<ScaledPixels>` where each corner is the result of scaling the original corner by the given factor.
     #[must_use]
-    pub fn scale(&self, factor: f32) -> Corners<ScaledPixels> {
+    pub(crate) fn scale(&self, factor: f32) -> Corners<ScaledPixels> {
         Corners {
             top_left: self.top_left.scale(factor),
             top_right: self.top_right.scale(factor),
@@ -1605,10 +1605,10 @@ impl From<Pixels> for Corners<Pixels> {
     Clone, Copy, Default, Add, AddAssign, Sub, SubAssign, Neg, Div, DivAssign, PartialEq, Serialize, Deserialize, Debug,
 )]
 #[repr(transparent)]
-pub struct Radians(pub f32);
+pub struct Radians(pub(crate) f32);
 
 /// Create a `Radian` from a raw value.
-pub const fn radians(value: f32) -> Radians {
+pub(crate) const fn radians(value: f32) -> Radians {
     Radians(value)
 }
 
@@ -1617,7 +1617,7 @@ pub const fn radians(value: f32) -> Radians {
     Clone, Copy, Default, Add, AddAssign, Sub, SubAssign, Neg, Div, DivAssign, PartialEq, Serialize, Deserialize, Debug,
 )]
 #[repr(transparent)]
-pub struct Percentage(pub f32);
+pub struct Percentage(f32);
 
 /// Generate a `Radian` from a percentage of a full circle.
 pub const fn percentage(value: f32) -> Percentage {
@@ -1751,7 +1751,7 @@ impl Pixels {
     /// The maximum value that can be represented by `Pixels`.
     pub const MAX: Pixels = Pixels(f32::MAX);
     /// The minimum value that can be represented by `Pixels`.
-    pub const MIN: Pixels = Pixels(f32::MIN);
+    pub(crate) const MIN: Pixels = Pixels(f32::MIN);
 
     /// Returns the raw `f32` value of this `Pixels`.
     pub const fn as_f32(self) -> f32 {
@@ -1794,7 +1794,7 @@ impl Pixels {
     /// The resulting `ScaledPixels` represent the scaled value which can be used for rendering
     /// calculations where display scaling is considered.
     #[must_use]
-    pub fn scale(&self, factor: f32) -> ScaledPixels {
+    pub(crate) fn scale(self, factor: f32) -> ScaledPixels {
         ScaledPixels(self.0 * factor)
     }
 
@@ -1827,7 +1827,7 @@ impl Pixels {
     /// Returns:
     /// * `1.0` if the value is positive
     /// * `-1.0` if the value is negative
-    pub const fn signum(&self) -> f32 {
+    pub(crate) const fn signum(self) -> f32 {
         self.0.signum()
     }
 
@@ -2061,7 +2061,7 @@ impl ScaledPixels {
     /// # Returns
     ///
     /// Returns a new `ScaledPixels` instance with the ceiled value.
-    pub const fn ceil(&self) -> Self {
+    pub(crate) const fn ceil(self) -> Self {
         Self(self.0.ceil())
     }
 }
@@ -2260,7 +2260,7 @@ pub enum AbsoluteLength {
 
 impl AbsoluteLength {
     /// Checks if the absolute length is zero.
-    pub fn is_zero(&self) -> bool {
+    pub(crate) fn is_zero(self) -> bool {
         match self {
             AbsoluteLength::Pixels(px) => px.0 == 0.0,
             AbsoluteLength::Rems(rems) => rems.0 == 0.0,
@@ -2589,7 +2589,7 @@ pub const fn relative(fraction: f32) -> DefiniteLength {
 }
 
 /// Returns the Golden Ratio, i.e. `~(1.0 + sqrt(5.0)) / 2.0`.
-pub const fn phi() -> DefiniteLength {
+pub(crate) const fn phi() -> DefiniteLength {
     relative(GOLDEN_RATIO)
 }
 
@@ -2674,14 +2674,14 @@ impl From<()> for Length {
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, Default)]
 pub struct GridLocation {
     /// The rows this item uses within the grid.
-    pub row: Range<GridPlacement>,
+    pub(crate) row: Range<GridPlacement>,
     /// The columns this item uses within the grid.
-    pub column: Range<GridPlacement>,
+    pub(crate) column: Range<GridPlacement>,
 }
 
 /// The placement of an item within a grid layout's column or row.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, Default)]
-pub enum GridPlacement {
+pub(crate) enum GridPlacement {
     /// The grid line index to place this item.
     Line(i16),
     /// The number of grid lines to span.
@@ -2706,6 +2706,7 @@ impl From<GridPlacement> for taffy::GridPlacement {
 /// The `Half` trait is used for types that can be evenly divided, returning a new instance of the same type
 /// representing half of the original value. This is commonly used for types that represent measurements or sizes,
 /// such as lengths or pixels, where halving is a frequent operation during layout calculations or animations.
+// lint: expect(excess_visibility) named by a more visible signature; rustc private_interfaces rejects narrowing
 pub trait Half {
     /// Returns half of the current value.
     ///

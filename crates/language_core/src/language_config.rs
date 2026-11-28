@@ -234,12 +234,6 @@ pub struct JsxTagAutoCloseConfig {
     /// detecting already closed tags will not work properly.
     #[serde(default)]
     pub erroneous_close_tag_node_name: Option<String>,
-    /// See above for erroneous_close_tag_node_name for details
-    /// This should be set if the node used for the tag name
-    /// within erroneous closing tags is different from the
-    /// normal tag name node name.
-    #[serde(default)]
-    pub erroneous_close_tag_name_node_name: Option<String>,
 }
 
 /// The configuration for block comments for this language.
@@ -335,9 +329,9 @@ pub struct BracketPairConfig {
 #[derive(Deserialize)]
 pub struct BracketPairContent {
     #[serde(flatten)]
-    pub bracket_pair: BracketPair,
+    bracket_pair: BracketPair,
     #[serde(default)]
-    pub not_in: Vec<String>,
+    not_in: Vec<String>,
 }
 
 impl<'de> Deserialize<'de> for BracketPairConfig {

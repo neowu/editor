@@ -72,7 +72,7 @@ use crate::project_diff::ProjectDiff;
 /// the [`Item`] surface to it. The merge base can be changed in place via the
 /// [`BranchDiffToolbar`]'s branch picker, which reloads without reconfiguring
 /// the editor (the merge styling is identical for every base ref).
-pub struct BranchDiff {
+pub(crate) struct BranchDiff {
     diff: Entity<DiffMultibuffer>,
     workspace: WeakEntity<Workspace>,
     _diff_event_subscription: Subscription,
@@ -101,7 +101,7 @@ impl BranchDiff {
         workspace::register_serializable_item::<Self>(cx);
     }
 
-    pub(crate) fn deploy_branch_diff(workspace: &Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
+    fn deploy_branch_diff(workspace: &Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
         let project = workspace.project().clone();
         let Some(intended_repo) = project.read(cx).active_repository(cx) else {
             let workspace = cx.entity().downgrade();
@@ -180,7 +180,7 @@ impl BranchDiff {
         });
     }
 
-    pub(crate) fn deploy_branch_diff_with_base_ref(
+    fn deploy_branch_diff_with_base_ref(
         workspace: &mut Workspace,
         project: Entity<Project>,
         intended_repo: Entity<Repository>,
@@ -219,7 +219,7 @@ impl BranchDiff {
             .detach_and_notify_err(workspace_weak, window, cx);
     }
 
-    pub(crate) fn new_with_branch_base(
+    fn new_with_branch_base(
         project: Entity<Project>,
         workspace: Entity<Workspace>,
         base_ref: SharedString,
@@ -234,7 +234,7 @@ impl BranchDiff {
         })
     }
 
-    pub(crate) fn new_with_base_ref(
+    fn new_with_base_ref(
         project: Entity<Project>,
         workspace: Entity<Workspace>,
         base_ref: SharedString,
@@ -274,11 +274,11 @@ impl BranchDiff {
         Self { diff, workspace: workspace.downgrade(), _diff_event_subscription: diff_event_subscription }
     }
 
-    pub(crate) fn diff_base<'a>(&'a self, cx: &'a App) -> &'a DiffBase {
+    fn diff_base<'a>(&'a self, cx: &'a App) -> &'a DiffBase {
         self.diff.read(cx).diff_base(cx)
     }
 
-    pub(crate) fn repo(&self, cx: &App) -> Option<Entity<Repository>> {
+    fn repo(&self, cx: &App) -> Option<Entity<Repository>> {
         self.diff.read(cx).repo(cx)
     }
 

@@ -75,7 +75,7 @@ use crate::git_panel::GitPanel;
 use crate::git_panel::GitPanelAddon;
 use crate::git_panel::GitStatusEntry;
 
-pub(crate) struct StagedDiffHunkRenderer;
+struct StagedDiffHunkRenderer;
 
 impl DiffHunkRenderer for StagedDiffHunkRenderer {
     fn render_hunk_controls(
@@ -123,7 +123,7 @@ impl DiffHunkRenderer for StagedDiffHunkRenderer {
 /// The workspace item for the staged diff. It wraps a single read-only
 /// [`DiffMultibuffer`] over [`DiffBase::Staged`] and delegates the [`Item`]
 /// surface to it.
-pub struct StagedDiff {
+pub(crate) struct StagedDiff {
     diff: Entity<DiffMultibuffer>,
     workspace: WeakEntity<Workspace>,
     _diff_event_subscription: Subscription,
@@ -134,7 +134,7 @@ impl StagedDiff {
         workspace::register_serializable_item::<Self>(cx);
     }
 
-    pub fn deploy_at(
+    pub(crate) fn deploy_at(
         workspace: &mut Workspace,
         entry: Option<GitStatusEntry>,
         window: &mut Window,
@@ -179,7 +179,7 @@ impl StagedDiff {
         self.diff.update(cx, |diff, cx| diff.move_to_entry(entry, window, cx));
     }
 
-    pub(crate) fn new(
+    fn new(
         project: Entity<Project>,
         workspace: Entity<Workspace>,
         window: &mut Window,
@@ -209,11 +209,7 @@ impl StagedDiff {
         Self::from_diff(diff, workspace, cx)
     }
 
-    pub(crate) fn from_diff(
-        diff: Entity<DiffMultibuffer>,
-        workspace: Entity<Workspace>,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    fn from_diff(diff: Entity<DiffMultibuffer>, workspace: Entity<Workspace>, cx: &mut Context<Self>) -> Self {
         let diff_event_subscription = cx.subscribe(&diff, |_, _, event: &EditorEvent, cx| cx.emit(event.clone()));
 
         Self { diff, workspace: workspace.downgrade(), _diff_event_subscription: diff_event_subscription }

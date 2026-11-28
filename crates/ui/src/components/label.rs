@@ -4,7 +4,6 @@ mod label;
 mod label_like;
 
 pub use highlighted_label::HighlightedLabel;
-pub use highlighted_label::highlight_ranges;
 pub use label::Label;
 pub use label_like::LabelCommon;
 pub use label_like::LabelLike;

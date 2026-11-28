@@ -31,7 +31,7 @@ use super::dimension::ExcerptOffset;
 use super::dimension::OutputDimension;
 
 impl MultiBufferSnapshot {
-    pub fn summary_for_anchor<MBD>(&self, anchor: &Anchor) -> MBD
+    pub(crate) fn summary_for_anchor<MBD>(&self, anchor: &Anchor) -> MBD
     where
         MBD: MultiBufferDimension
             + Ord
@@ -257,7 +257,7 @@ impl MultiBufferSnapshot {
         position
     }
 
-    pub fn summaries_for_anchors<'a, MBD, I>(&'a self, anchors: I) -> Vec<MBD>
+    pub(crate) fn summaries_for_anchors<'a, MBD, I>(&'a self, anchors: I) -> Vec<MBD>
     where
         MBD: MultiBufferDimension + Ord + Sub<Output = MBD::TextDimension> + AddAssign<MBD::TextDimension>,
         MBD::TextDimension: Sub<Output = MBD::TextDimension> + Ord,

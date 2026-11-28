@@ -40,7 +40,7 @@ pub(crate) unsafe fn array_count(array: id) -> NSUInteger {
 }
 
 /// Returns an `NSArray`'s element at `index`.
-pub(crate) unsafe fn array_object_at(array: id, index: NSUInteger) -> id {
+unsafe fn array_object_at(array: id, index: NSUInteger) -> id {
     unsafe { msg_send![array, objectAtIndex: index] }
 }
 

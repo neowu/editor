@@ -589,7 +589,7 @@ fn window_state_unarchiver_restoration_options(_this: &AnyObject) -> id {
     }
 }
 
-pub(crate) fn convert_mouse_position(position: NSPoint, window_height: Pixels) -> Point<Pixels> {
+fn convert_mouse_position(position: NSPoint, window_height: Pixels) -> Point<Pixels> {
     point(
         px(position.x as f32),
         // macOS screen coordinates are relative to bottom left
@@ -2315,6 +2315,7 @@ fn handle_key_event(this: &AnyObject, native_event: id, key_equivalent: bool) ->
             run_callback(event)
         }
 
+        // lint: expect(wildcard_match) only some variants matter here
         _ => false,
     }
 }
@@ -2376,6 +2377,7 @@ fn handle_view_event(this: &AnyObject, native_event: id) {
                 };
             }
 
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
 
@@ -2420,6 +2422,7 @@ fn handle_view_event(this: &AnyObject, native_event: id) {
                 lock.previous_modifiers_changed_event = Some(event.clone());
             }
 
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
 

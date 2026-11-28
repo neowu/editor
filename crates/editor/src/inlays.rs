@@ -36,8 +36,8 @@ use crate::hover_links::InlayHighlight;
 /// Splice is picked to help avoid extra hint flickering and "jumps" on the screen.
 #[derive(Debug, Default)]
 pub(crate) struct InlaySplice {
-    pub to_remove: Vec<InlayId>,
-    pub to_insert: Vec<Inlay>,
+    pub(crate) to_remove: Vec<InlayId>,
+    pub(crate) to_insert: Vec<Inlay>,
 }
 
 impl InlaySplice {
@@ -47,21 +47,21 @@ impl InlaySplice {
 }
 
 #[derive(Debug, Clone)]
-pub struct Inlay {
-    pub id: InlayId,
+pub(crate) struct Inlay {
+    pub(crate) id: InlayId,
     // TODO this could be an ExcerptAnchor
-    pub position: Anchor,
-    pub content: InlayContent,
+    pub(crate) position: Anchor,
+    pub(crate) content: InlayContent,
 }
 
 #[derive(Debug, Clone)]
-pub enum InlayContent {
+pub(crate) enum InlayContent {
     Text(Rope),
     Color(Hsla),
 }
 
 impl Inlay {
-    pub fn hint(id: InlayId, position: Anchor, hint: &InlayHint) -> Self {
+    fn hint(id: InlayId, position: Anchor, hint: &InlayHint) -> Self {
         let mut text = hint.text();
         let needs_right_padding = hint.padding_right && !text.ends_with(" ");
         let needs_left_padding = hint.padding_left && !text.starts_with(" ");
@@ -74,11 +74,11 @@ impl Inlay {
         Self { id, position, content: InlayContent::Text(text) }
     }
 
-    pub fn color(id: usize, position: Anchor, color: Rgba) -> Self {
+    pub(crate) fn color(id: usize, position: Anchor, color: Rgba) -> Self {
         Self { id: InlayId::Color(id), position, content: InlayContent::Color(color.into()) }
     }
 
-    pub fn text(&self) -> &Rope {
+    pub(crate) fn text(&self) -> &Rope {
         static COLOR_TEXT: OnceLock<Rope> = OnceLock::new();
         match &self.content {
             InlayContent::Text(text) => text,
@@ -89,7 +89,7 @@ impl Inlay {
 
 impl Editor {
     /// Modify which hints are displayed in the editor.
-    pub fn splice_inlays(&mut self, to_remove: &[InlayId], to_insert: Vec<Inlay>, cx: &mut Context<Self>) {
+    pub(crate) fn splice_inlays(&mut self, to_remove: &[InlayId], to_insert: Vec<Inlay>, cx: &mut Context<Self>) {
         if let Some(inlay_hints) = &mut self.inlay_hints {
             for id_to_remove in to_remove {
                 inlay_hints.remove_inlay(id_to_remove);

@@ -105,9 +105,9 @@ impl Registered {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ArchitectureDb {
     /// The accessible description.
-    pub(crate) acc_descr: Option<String>,
+    acc_descr: Option<String>,
     /// The accessible title.
-    pub(crate) acc_title: Option<String>,
+    acc_title: Option<String>,
     /// Edges in source order.
     pub(crate) edges: Vec<ArchEdge>,
     /// Groups in insertion order.
@@ -134,7 +134,7 @@ fn fail(parts: &[&str]) -> Error {
 
 impl ArchitectureDb {
     /// The node with `id`.
-    pub(crate) fn node(&self, id: &str) -> Option<&ArchNode> {
+    fn node(&self, id: &str) -> Option<&ArchNode> {
         let i = self.position(id)?;
         self.nodes.get(i)
     }
@@ -180,7 +180,7 @@ impl ArchitectureDb {
     }
 
     /// Adds a service.
-    pub(crate) fn add_service(
+    fn add_service(
         &mut self,
         id: String,
         icon: Option<String>,
@@ -194,7 +194,7 @@ impl ArchitectureDb {
     }
 
     /// Adds a junction.
-    pub(crate) fn add_junction(&mut self, id: String, parent: Option<String>) -> Result<(), Error> {
+    fn add_junction(&mut self, id: String, parent: Option<String>) -> Result<(), Error> {
         self.register("junction", &id, parent.as_deref())?;
         self.add_node(ArchNode {
             icon: None,
@@ -208,14 +208,14 @@ impl ArchitectureDb {
     }
 
     /// Adds a group.
-    pub(crate) fn add_group(&mut self, group: ArchGroup) -> Result<(), Error> {
+    fn add_group(&mut self, group: ArchGroup) -> Result<(), Error> {
         self.register("group", &group.id, group.r#in.as_deref())?;
         self.groups.push(group);
         Ok(())
     }
 
     /// Adds an edge.
-    pub(crate) fn add_edge(&mut self, edge: ArchEdge) -> Result<(), Error> {
+    fn add_edge(&mut self, edge: ArchEdge) -> Result<(), Error> {
         let ends = [("left", edge.lhs_id.as_str(), edge.lhs_group), ("right", edge.rhs_id.as_str(), edge.rhs_group)];
         for (side, id, _) in ends {
             if !self.registered.contains_key(id) {
@@ -259,7 +259,7 @@ impl ArchitectureDb {
     }
 
     /// Adds an alignment.
-    pub(crate) fn add_layout_hint(&mut self, hint: ArchLayoutHint) -> Result<(), Error> {
+    fn add_layout_hint(&mut self, hint: ArchLayoutHint) -> Result<(), Error> {
         if hint.members.len() < 2 {
             let mut message = String::from("An align directive requires at least two members; got ");
             error::push_u32(&mut message, u32::try_from(hint.members.len()).unwrap_or(u32::MAX));

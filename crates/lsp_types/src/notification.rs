@@ -2,9 +2,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use super::CancelParams;
-use super::CreateFilesParams;
 use super::Debug;
-use super::DeleteFilesParams;
 use super::DidChangeConfigurationParams;
 use super::DidChangeTextDocumentParams;
 use super::DidChangeWatchedFilesParams;
@@ -13,17 +11,13 @@ use super::DidCloseTextDocumentParams;
 use super::DidOpenTextDocumentParams;
 use super::DidSaveTextDocumentParams;
 use super::InitializedParams;
-use super::LSPArray;
-use super::LSPObject;
 use super::LogMessageParams;
 use super::LogTraceParams;
-use super::OneOf;
 use super::ProgressParams;
 use super::PublishDiagnosticsParams;
 use super::RenameFilesParams;
 use super::SetTraceParams;
 use super::ShowMessageParams;
-use super::WillSaveTextDocumentParams;
 use super::WorkDoneProgressCancelParams;
 
 pub trait Notification {
@@ -59,18 +53,11 @@ macro_rules! lsp_notification {
         $crate::notification::WorkDoneProgressCancel
     };
 
-    ("telemetry/event") => {
-        $crate::notification::TelemetryEvent
-    };
-
     ("textDocument/didOpen") => {
         $crate::notification::DidOpenTextDocument
     };
     ("textDocument/didChange") => {
         $crate::notification::DidChangeTextDocument
-    };
-    ("textDocument/willSave") => {
-        $crate::notification::WillSaveTextDocument
     };
     ("textDocument/didSave") => {
         $crate::notification::DidSaveTextDocument
@@ -94,14 +81,8 @@ macro_rules! lsp_notification {
     ("$/progress") => {
         $crate::notification::Progress
     };
-    ("workspace/didCreateFiles") => {
-        $crate::notification::DidCreateFiles
-    };
     ("workspace/didRenameFiles") => {
         $crate::notification::DidRenameFiles
-    };
-    ("workspace/didDeleteFiles") => {
-        $crate::notification::DidDeleteFiles
     };
 }
 
@@ -184,17 +165,6 @@ impl Notification for LogMessage {
     const METHOD: &'static str = "window/logMessage";
 }
 
-/// The telemetry notification is sent from the server to the client to ask the client to log a telemetry event.
-/// The protocol doesn't specify the payload since no interpretation of the data happens in the protocol. Most clients even don't handle
-/// the event directly but forward them to the extensions owning the corresponding server issuing the event.
-#[derive(Debug)]
-pub struct TelemetryEvent(!);
-
-impl Notification for TelemetryEvent {
-    type Params = OneOf<LSPObject, LSPArray>;
-    const METHOD: &'static str = "telemetry/event";
-}
-
 /// A notification sent from the client to the server to signal the change of configuration settings.
 #[derive(Debug)]
 pub struct DidChangeConfiguration(!);
@@ -223,16 +193,6 @@ pub struct DidChangeTextDocument(!);
 impl Notification for DidChangeTextDocument {
     type Params = DidChangeTextDocumentParams;
     const METHOD: &'static str = "textDocument/didChange";
-}
-
-/// The document will save notification is sent from the client to the server before the document
-/// is actually saved.
-#[derive(Debug)]
-pub struct WillSaveTextDocument(!);
-
-impl Notification for WillSaveTextDocument {
-    type Params = WillSaveTextDocumentParams;
-    const METHOD: &'static str = "textDocument/willSave";
 }
 
 /// The document close notification is sent from the client to the server when the document got closed in the client.
@@ -306,15 +266,6 @@ impl Notification for WorkDoneProgressCancel {
     const METHOD: &'static str = "window/workDoneProgress/cancel";
 }
 
-/// The did create files notification is sent from the client to the server when files were created from within the client.
-#[derive(Debug)]
-pub struct DidCreateFiles(!);
-
-impl Notification for DidCreateFiles {
-    type Params = CreateFilesParams;
-    const METHOD: &'static str = "workspace/didCreateFiles";
-}
-
 /// The did rename files notification is sent from the client to the server when files were renamed from within the client.
 #[derive(Debug)]
 pub struct DidRenameFiles(!);
@@ -322,15 +273,6 @@ pub struct DidRenameFiles(!);
 impl Notification for DidRenameFiles {
     type Params = RenameFilesParams;
     const METHOD: &'static str = "workspace/didRenameFiles";
-}
-
-/// The did delete files notification is sent from the client to the server when files were deleted from within the client.
-#[derive(Debug)]
-pub struct DidDeleteFiles(!);
-
-impl Notification for DidDeleteFiles {
-    type Params = DeleteFilesParams;
-    const METHOD: &'static str = "workspace/didDeleteFiles";
 }
 
 #[cfg(test)]
@@ -365,18 +307,14 @@ mod test {
         check_macro!("window/showMessage");
         check_macro!("window/logMessage");
         check_macro!("window/workDoneProgress/cancel");
-        check_macro!("telemetry/event");
         check_macro!("textDocument/didOpen");
         check_macro!("textDocument/didChange");
-        check_macro!("textDocument/willSave");
         check_macro!("textDocument/didSave");
         check_macro!("textDocument/didClose");
         check_macro!("textDocument/publishDiagnostics");
         check_macro!("workspace/didChangeConfiguration");
         check_macro!("workspace/didChangeWatchedFiles");
         check_macro!("workspace/didChangeWorkspaceFolders");
-        check_macro!("workspace/didCreateFiles");
         check_macro!("workspace/didRenameFiles");
-        check_macro!("workspace/didDeleteFiles");
     }
 }

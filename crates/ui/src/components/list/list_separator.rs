@@ -7,7 +7,7 @@ use crate::prelude::Window;
 use crate::prelude::div;
 
 #[derive(IntoElement)]
-pub struct ListSeparator;
+pub(crate) struct ListSeparator;
 
 impl RenderOnce for ListSeparator {
     fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {

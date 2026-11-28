@@ -5,7 +5,6 @@
 //! Basic Multilingual Plane counts as the two units a rule would see in JavaScript.
 
 use super::tokens::T;
-use crate::diagrams::common::caseless::word_at;
 use crate::util::chars::is_digit;
 use crate::util::chars::is_letter;
 use crate::util::chars::is_space;
@@ -44,6 +43,7 @@ impl S {
             Self::AccTitle => T::AccTitleValue,
             Self::AccDescr => T::AccDescrValue,
             Self::AccDescrMultiline => T::AccDescrMultilineValue,
+            // lint: expect(wildcard_match) only a few variants of `S` matter here
             _ => T::Eof,
         }
     }
@@ -108,6 +108,16 @@ fn digits(src: &str, mut q: usize) -> usize {
 /// Where the next `needle` is from `from`, or the end.
 fn up_to(src: &str, from: usize, needle: char) -> usize {
     src.get(from..).and_then(|rest| rest.find(needle)).map_or(src.len(), |at| from + at)
+}
+
+/// Whether `word`, written in lower case ASCII, is at UTF-8 offset `at` of `src`. Only ASCII
+/// letters match in either case, as with the `i` flag on a regular expression without the `u`
+/// flag.
+fn word_at(src: &str, at: usize, word: &str) -> bool {
+    let bytes = src.as_bytes();
+    word.bytes()
+        .enumerate()
+        .all(|(k, w)| bytes.get(at + k).is_some_and(|&c| c == w || (w.is_ascii_lowercase() && c == w - 32)))
 }
 
 /// Produces the tokens of Mermaid's Jison lexer for XY charts. An unrecognized character ends the

@@ -123,7 +123,7 @@ impl MetalFrameSource {
     }
 
     /// A paused link delivers no updates.
-    pub(crate) fn set_paused(&self, paused: bool) {
+    fn set_paused(&self, paused: bool) {
         self.link.setPaused(paused);
     }
 }

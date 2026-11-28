@@ -93,14 +93,11 @@ use crate::hover_popover::open_markdown_url;
 use crate::split_words;
 use crate::styled_runs_for_code_label;
 
-pub const MENU_GAP: Pixels = px(4.);
-pub const MENU_ASIDE_X_PADDING: Pixels = px(16.);
-pub const MENU_ASIDE_MIN_WIDTH: Pixels = px(260.);
-pub const MENU_ASIDE_MAX_WIDTH: Pixels = px(500.);
-pub const COMPLETION_MENU_MIN_WIDTH: Pixels = px(280.);
-pub const COMPLETION_MENU_MAX_WIDTH: Pixels = px(540.);
-pub const CODE_ACTION_MENU_MIN_WIDTH: Pixels = px(220.);
-pub const CODE_ACTION_MENU_MAX_WIDTH: Pixels = px(540.);
+const MENU_ASIDE_X_PADDING: Pixels = px(16.);
+const COMPLETION_MENU_MIN_WIDTH: Pixels = px(280.);
+const COMPLETION_MENU_MAX_WIDTH: Pixels = px(540.);
+const CODE_ACTION_MENU_MIN_WIDTH: Pixels = px(220.);
+const CODE_ACTION_MENU_MAX_WIDTH: Pixels = px(540.);
 
 // Constants for the markdown cache. The purpose of this cache is to reduce flickering due to
 // documentation not yet being parsed.
@@ -117,32 +114,32 @@ const RESOLVE_BEFORE_ITEMS: usize = 4;
 const RESOLVE_AFTER_ITEMS: usize = 4;
 
 #[derive(Clone, Debug)]
-pub enum CompletionMenuEntry {
+pub(crate) enum CompletionMenuEntry {
     Match(StringMatch),
     Divider,
     GroupHeader(SharedString),
 }
 
 impl CompletionMenuEntry {
-    pub const fn as_match(&self) -> Option<&StringMatch> {
+    pub(crate) const fn as_match(&self) -> Option<&StringMatch> {
         match self {
             CompletionMenuEntry::Match(m) => Some(m),
             CompletionMenuEntry::Divider | CompletionMenuEntry::GroupHeader(_) => None,
         }
     }
 
-    pub const fn is_selectable(&self) -> bool {
+    const fn is_selectable(&self) -> bool {
         matches!(self, CompletionMenuEntry::Match(_))
     }
 }
 
-pub enum CodeContextMenu {
+pub(crate) enum CodeContextMenu {
     Completions(CompletionsMenu),
     CodeActions(CodeActionsMenu),
 }
 
 impl CodeContextMenu {
-    pub fn select_first(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) -> bool {
+    pub(crate) fn select_first(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) -> bool {
         if self.visible() {
             match self {
                 CodeContextMenu::Completions(menu) => menu.select_first(provider, cx),
@@ -154,7 +151,7 @@ impl CodeContextMenu {
         }
     }
 
-    pub fn select_prev(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) -> bool {
+    pub(crate) fn select_prev(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) -> bool {
         if self.visible() {
             match self {
                 CodeContextMenu::Completions(menu) => menu.select_prev(provider, cx),
@@ -166,7 +163,7 @@ impl CodeContextMenu {
         }
     }
 
-    pub fn select_next(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) -> bool {
+    pub(crate) fn select_next(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) -> bool {
         if self.visible() {
             match self {
                 CodeContextMenu::Completions(menu) => menu.select_next(provider, cx),
@@ -178,7 +175,7 @@ impl CodeContextMenu {
         }
     }
 
-    pub fn select_last(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) -> bool {
+    pub(crate) fn select_last(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) -> bool {
         if self.visible() {
             match self {
                 CodeContextMenu::Completions(menu) => menu.select_last(provider, cx),
@@ -190,26 +187,26 @@ impl CodeContextMenu {
         }
     }
 
-    pub fn visible(&self) -> bool {
+    pub(crate) fn visible(&self) -> bool {
         match self {
             CodeContextMenu::Completions(menu) => menu.visible(),
             CodeContextMenu::CodeActions(menu) => menu.visible(),
         }
     }
 
-    pub const fn origin(&self) -> ContextMenuOrigin {
+    pub(crate) const fn origin(&self) -> ContextMenuOrigin {
         match self {
             CodeContextMenu::Completions(menu) => menu.origin(),
             CodeContextMenu::CodeActions(menu) => menu.origin(),
         }
     }
 
-    pub fn render(
+    pub(crate) fn render(
         &self,
         style: &EditorStyle,
         max_height_in_lines: u32,
-        window: &mut Window,
-        cx: &mut Context<Editor>,
+        window: &Window,
+        cx: &Context<Editor>,
     ) -> AnyElement {
         match self {
             CodeContextMenu::Completions(menu) => menu.render(style, max_height_in_lines, window, cx),
@@ -217,10 +214,10 @@ impl CodeContextMenu {
         }
     }
 
-    pub fn render_aside(
+    pub(crate) fn render_aside(
         &mut self,
         max_size: Size<Pixels>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Editor>,
     ) -> Option<AnyElement> {
         match self {
@@ -229,7 +226,7 @@ impl CodeContextMenu {
         }
     }
 
-    pub fn focused(&self, window: &mut Window, cx: &mut Context<Editor>) -> bool {
+    pub(crate) fn focused(&self, window: &Window, cx: &mut Context<Editor>) -> bool {
         match self {
             CodeContextMenu::Completions(completions_menu) => completions_menu
                 .get_or_create_entry_markdown(completions_menu.selected_item, cx)
@@ -239,7 +236,7 @@ impl CodeContextMenu {
         }
     }
 
-    pub fn primary_scroll_handle(&self) -> UniformListScrollHandle {
+    pub(crate) fn primary_scroll_handle(&self) -> UniformListScrollHandle {
         match self {
             CodeContextMenu::Completions(menu) => menu.scroll_handle.clone(),
             CodeContextMenu::CodeActions(menu) => menu.scroll_handle.clone(),
@@ -247,32 +244,32 @@ impl CodeContextMenu {
     }
 }
 
-pub enum ContextMenuOrigin {
+pub(crate) enum ContextMenuOrigin {
     Cursor,
     GutterIndicator(DisplayRow),
 }
 
-pub struct CompletionsMenu {
-    pub id: CompletionId,
-    pub source: CompletionsMenuSource,
+pub(crate) struct CompletionsMenu {
+    pub(crate) id: CompletionId,
+    pub(crate) source: CompletionsMenuSource,
     sort_completions: bool,
-    pub initial_position: Anchor,
-    pub initial_query: Option<Arc<String>>,
-    pub is_incomplete: bool,
-    pub buffer: Entity<Buffer>,
-    pub completions: Rc<RefCell<Box<[Completion]>>>,
+    pub(crate) initial_position: Anchor,
+    pub(crate) initial_query: Option<Arc<str>>,
+    pub(crate) is_incomplete: bool,
+    pub(crate) buffer: Entity<Buffer>,
+    pub(crate) completions: Rc<RefCell<Box<[Completion]>>>,
     /// String match candidate for each completion, grouped by `match_start`.
     match_candidates: Arc<[(Option<text::Anchor>, Vec<StringMatchCandidate>)]>,
     label_match_state: LabelMatchState,
     /// Entries displayed in the menu, which is a filtered and sorted subset of `match_candidates`.
-    pub entries: Rc<RefCell<Box<[CompletionMenuEntry]>>>,
-    pub selected_item: usize,
+    pub(crate) entries: Rc<RefCell<Box<[CompletionMenuEntry]>>>,
+    pub(crate) selected_item: usize,
     filter_task: Task<()>,
     cancel_filter: Arc<AtomicBool>,
     scroll_handle: UniformListScrollHandle,
     // The `ScrollHandle` used on the Markdown documentation rendered on the
     // side of the completions menu.
-    pub scroll_handle_aside: ScrollHandle,
+    scroll_handle_aside: ScrollHandle,
     resolve_completions: bool,
     show_completion_documentation: bool,
     last_rendered_range: Rc<RefCell<Option<Range<usize>>>>,
@@ -290,7 +287,7 @@ enum MarkdownCacheKey {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum CompletionsMenuSource {
+pub(crate) enum CompletionsMenuSource {
     /// Show all completions (words, snippets, LSP).
     Normal,
     /// Show only snippets (not words or LSP).
@@ -305,7 +302,7 @@ pub enum CompletionsMenuSource {
     Words { ignore_threshold: bool },
 }
 
-pub struct CompletionMatchResults {
+pub(crate) struct CompletionMatchResults {
     /// Fuzzy match result against the filter text.
     filter_matches: Vec<StringMatch>,
     /// Fuzzy match result against the displayed label.
@@ -341,13 +338,13 @@ impl Drop for CompletionsMenu {
 }
 
 impl CompletionsMenu {
-    pub fn new(
+    pub(crate) fn new(
         id: CompletionId,
         source: CompletionsMenuSource,
         sort_completions: bool,
         show_completion_documentation: bool,
         initial_position: Anchor,
-        initial_query: Option<Arc<String>>,
+        initial_query: Option<Arc<str>>,
         is_incomplete: bool,
         buffer: Entity<Buffer>,
         completions: Box<[Completion]>,
@@ -397,7 +394,7 @@ impl CompletionsMenu {
         completions_menu
     }
 
-    pub fn new_snippet_choices(
+    pub(crate) fn new_snippet_choices(
         id: CompletionId,
         sort_completions: bool,
         choices: &[String],
@@ -583,7 +580,7 @@ impl CompletionsMenu {
         cx.notify();
     }
 
-    pub fn resolve_visible_completions(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) {
+    fn resolve_visible_completions(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) {
         if !self.resolve_completions {
             return;
         }
@@ -792,7 +789,7 @@ impl CompletionsMenu {
         }
     }
 
-    pub fn visible(&self) -> bool {
+    pub(crate) fn visible(&self) -> bool {
         self.entries.borrow().iter().any(|e| e.as_match().is_some())
     }
 
@@ -1113,14 +1110,14 @@ impl CompletionsMenu {
         )
     }
 
-    pub fn filter(
+    pub(crate) fn filter(
         &mut self,
-        query: Arc<String>,
+        query: Arc<str>,
         query_end: text::Anchor,
         buffer: &Entity<Buffer>,
         provider: Option<Rc<dyn CompletionProvider>>,
-        window: &mut Window,
-        cx: &mut Context<Editor>,
+        window: &Window,
+        cx: &Context<Editor>,
     ) {
         self.cancel_filter.store(true, Ordering::Relaxed);
         self.cancel_filter = Arc::new(AtomicBool::new(false));
@@ -1140,9 +1137,9 @@ impl CompletionsMenu {
         });
     }
 
-    pub fn do_async_filtering(
+    pub(crate) fn do_async_filtering(
         &self,
-        query: Arc<String>,
+        query: Arc<str>,
         query_end: text::Anchor,
         buffer: &Entity<Buffer>,
         cx: &Context<Editor>,
@@ -1159,7 +1156,7 @@ impl CompletionsMenu {
                 .iter()
                 .map(|(query_start, candidates)| {
                     let query_for_batch = match query_start {
-                        Some(start) => Arc::new(buffer_snapshot.text_for_range(*start..query_end).collect()),
+                        Some(start) => Arc::from(buffer_snapshot.text_for_range(*start..query_end).collect::<String>()),
                         None => Arc::clone(&default_query),
                     };
                     (query_for_batch, candidates)
@@ -1249,7 +1246,7 @@ impl CompletionsMenu {
         })
     }
 
-    pub fn set_filter_results(
+    pub(crate) fn set_filter_results(
         &mut self,
         match_results: CompletionMatchResults,
         provider: Option<Rc<dyn CompletionProvider>>,
@@ -1281,7 +1278,7 @@ impl CompletionsMenu {
         self.handle_selection_changed(provider.as_deref(), cx);
     }
 
-    pub fn sort_string_matches(
+    fn sort_string_matches(
         matches: Vec<StringMatch>,
         query: Option<&str>,
         completions: &[Completion],
@@ -1312,6 +1309,7 @@ impl CompletionsMenu {
 
             let sort_text = match &completion.source {
                 CompletionSource::Lsp { lsp_completion, .. } => lsp_completion.sort_text.as_deref(),
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => None,
             };
 
@@ -1351,7 +1349,7 @@ impl CompletionsMenu {
         matches
     }
 
-    pub fn preserve_markdown_cache(&mut self, prev_menu: CompletionsMenu) {
+    pub(crate) fn preserve_markdown_cache(&mut self, prev_menu: CompletionsMenu) {
         self.markdown_cache = Rc::clone(&prev_menu.markdown_cache);
 
         // Convert ForCandidate cache keys to ForCompletionMatch keys.
@@ -1555,13 +1553,13 @@ fn exact_case_match_count(query: &str, string_match: &StringMatch) -> usize {
 }
 
 #[derive(Clone)]
-pub struct AvailableCodeAction {
-    pub action: CodeAction,
-    pub provider: Rc<dyn CodeActionProvider>,
+pub(crate) struct AvailableCodeAction {
+    pub(crate) action: CodeAction,
+    pub(crate) provider: Rc<dyn CodeActionProvider>,
 }
 
 #[derive(Clone)]
-pub struct CodeActionContents {
+pub(crate) struct CodeActionContents {
     tasks: Option<Rc<ResolvedTasks>>,
     actions: Option<Rc<[AvailableCodeAction]>>,
 }
@@ -1571,7 +1569,7 @@ impl CodeActionContents {
         Self { tasks: tasks.map(Rc::new), actions }
     }
 
-    pub fn tasks(&self) -> Option<&ResolvedTasks> {
+    pub(crate) fn tasks(&self) -> Option<&ResolvedTasks> {
         self.tasks.as_deref()
     }
 
@@ -1581,7 +1579,7 @@ impl CodeActionContents {
         tasks_len + code_actions_len
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
@@ -1596,7 +1594,7 @@ impl CodeActionContents {
         )
     }
 
-    pub fn get(&self, mut index: usize) -> Option<CodeActionsItem> {
+    pub(crate) fn get(&self, mut index: usize) -> Option<CodeActionsItem> {
         if let Some(tasks) = &self.tasks {
             if let Some(task) = tasks.tasks.get(index) {
                 return Some(CodeActionsItem::Task(task.clone()));
@@ -1617,20 +1615,20 @@ impl CodeActionContents {
 }
 
 #[derive(Clone)]
-pub enum CodeActionsItem {
+pub(crate) enum CodeActionsItem {
     Task(SpawnInTerminal),
     CodeAction { action: CodeAction, provider: Rc<dyn CodeActionProvider> },
 }
 
 impl CodeActionsItem {
-    pub fn label(&self) -> String {
+    pub(crate) fn label(&self) -> String {
         match self {
             Self::CodeAction { action, .. } => action.lsp_action.title().to_owned(),
             Self::Task(task) => task.full_label.clone(),
         }
     }
 
-    pub fn menu_label(&self) -> String {
+    fn menu_label(&self) -> String {
         match self {
             Self::CodeAction { action, .. } => action.lsp_action.title().replace('\n', ""),
             Self::Task(task) => task.full_label.replace('\n', ""),
@@ -1638,12 +1636,12 @@ impl CodeActionsItem {
     }
 }
 
-pub struct CodeActionsMenu {
-    pub actions: CodeActionContents,
-    pub buffer: Entity<Buffer>,
-    pub selected_item: usize,
-    pub scroll_handle: UniformListScrollHandle,
-    pub deployed_from: Option<CodeActionSource>,
+pub(crate) struct CodeActionsMenu {
+    pub(crate) actions: CodeActionContents,
+    pub(crate) buffer: Entity<Buffer>,
+    pub(crate) selected_item: usize,
+    pub(crate) scroll_handle: UniformListScrollHandle,
+    pub(crate) deployed_from: Option<CodeActionSource>,
 }
 
 impl CodeActionsMenu {
@@ -1681,7 +1679,7 @@ impl CodeActionsMenu {
         if self.selected_item + 1 < self.actions.len() { self.selected_item + 1 } else { 0 }
     }
 
-    pub fn visible(&self) -> bool {
+    pub(crate) fn visible(&self) -> bool {
         !self.actions.is_empty()
     }
 

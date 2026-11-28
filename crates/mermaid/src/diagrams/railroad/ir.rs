@@ -54,7 +54,7 @@ mod t {
 const ID: &[u16] = &[t::ID];
 
 /// Pele's `IR_TOKENS`, in matching order.
-pub(crate) const IR_TOKENS: &[TokenType] = &[
+const IR_TOKENS: &[TokenType] = &[
     opening("railroad-beta", ID),
     word("nonterminal", ID),
     word("zeroOrMore", ID),

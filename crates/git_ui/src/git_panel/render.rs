@@ -130,7 +130,6 @@ use super::TREE_INDENT;
 use super::ToggleTreeView;
 use super::ViewStagedChanges;
 use super::ViewUnstagedChanges;
-use super::discard::restore_title;
 use super::git_commit_editor_style;
 use super::git_commit_font_size;
 use super::panel_editor_container;
@@ -145,6 +144,22 @@ use crate::git_status_icon;
 use crate::project_diff::DeployBranchDiff;
 use crate::project_diff::Diff;
 use crate::render_remote_button;
+
+/// Label of the context-menu entry that reverts the selection. Untracked
+/// entries are deleted (moved to the system trash), matching the project panel.
+fn restore_title(target_kind: SelectionTargetKind, all_created: bool, all_deleted: bool, file_count: usize) -> String {
+    let file_label = if file_count == 1 { "File" } else { "Files" };
+    match (target_kind, all_created, all_deleted) {
+        (SelectionTargetKind::Directory, true, _) => "Delete Folder".into(),
+        (SelectionTargetKind::Directory, false, _) => "Discard Changes".into(),
+        (SelectionTargetKind::File, true, _) => "Delete File".into(),
+        (SelectionTargetKind::File, _, true) => "Restore File".into(),
+        (SelectionTargetKind::File, _, _) => "Discard Changes".into(),
+        (SelectionTargetKind::Multiple, true, _) => format!("Delete {file_count} {file_label}"),
+        (SelectionTargetKind::Multiple, _, true) => format!("Restore {file_count} {file_label}"),
+        (SelectionTargetKind::Multiple, _, _) => format!("Discard Changes to {file_count} {file_label}"),
+    }
+}
 
 fn git_panel_context_menu(
     has_tracked_changes: bool,
@@ -775,7 +790,7 @@ impl GitPanel {
         )
     }
 
-    pub fn render_footer(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<impl IntoElement> {
+    fn render_footer(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         self.active_repository.as_ref()?;
         let panel_editor_style = git_commit_editor_style(git_commit_font_size(cx));
 
@@ -871,7 +886,7 @@ impl GitPanel {
         Some(footer)
     }
 
-    fn render_commit_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_commit_button(&self, cx: &Context<Self>) -> impl IntoElement {
         let (can_commit, tooltip) = self.configure_commit_button(cx);
         let title = self.commit_button_title();
         let commit_tooltip_focus_handle = self.commit_editor.focus_handle(cx);
@@ -1416,6 +1431,7 @@ impl GitPanel {
         let message = match section {
             Section::Staged => "No staged changes yet",
             Section::Unstaged => "No unstaged changes",
+            // lint: expect(wildcard_match) only some variants matter here
             _ => "No changes",
         };
         h_flex()
@@ -1946,5 +1962,24 @@ impl GitPanel {
             .when_some(directory, |this, dir| {
                 this.child(self.entry_label(dir, path_color).truncate_start().when(strikethrough, Label::strikethrough))
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SelectionTargetKind;
+    use super::restore_title;
+
+    #[test]
+    fn restore_title_works() {
+        assert_eq!(restore_title(SelectionTargetKind::Directory, true, false, 3), "Delete Folder");
+        assert_eq!(restore_title(SelectionTargetKind::Directory, false, false, 3), "Discard Changes");
+        assert_eq!(restore_title(SelectionTargetKind::File, true, false, 1), "Delete File");
+        assert_eq!(restore_title(SelectionTargetKind::File, false, true, 1), "Restore File");
+        assert_eq!(restore_title(SelectionTargetKind::File, false, false, 1), "Discard Changes");
+        assert_eq!(restore_title(SelectionTargetKind::Multiple, true, false, 2), "Delete 2 Files");
+        assert_eq!(restore_title(SelectionTargetKind::Multiple, true, false, 1), "Delete 1 File");
+        assert_eq!(restore_title(SelectionTargetKind::Multiple, false, true, 2), "Restore 2 Files");
+        assert_eq!(restore_title(SelectionTargetKind::Multiple, false, false, 2), "Discard Changes to 2 Files");
     }
 }

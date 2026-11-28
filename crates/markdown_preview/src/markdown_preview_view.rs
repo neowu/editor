@@ -160,8 +160,8 @@ enum PreviewLinkTarget {
 }
 
 impl MarkdownPreviewView {
-    pub fn open_preview_in_pane(
-        workspace: &mut Workspace,
+    pub(crate) fn open_preview_in_pane(
+        workspace: &Workspace,
         editor: Entity<Editor>,
         pane: Entity<Pane>,
         window: &mut Window,
@@ -170,7 +170,7 @@ impl MarkdownPreviewView {
         Self::activate_or_add_preview(workspace, editor, pane, true, window, cx);
     }
 
-    pub fn open_preview_to_the_side_of_pane(
+    pub(crate) fn open_preview_to_the_side_of_pane(
         workspace: &mut Workspace,
         editor: Entity<Editor>,
         origin_pane: Entity<Pane>,
@@ -183,7 +183,7 @@ impl MarkdownPreviewView {
     }
 
     fn activate_or_add_preview(
-        workspace: &mut Workspace,
+        workspace: &Workspace,
         editor: Entity<Editor>,
         pane: Entity<Pane>,
         activate: bool,
@@ -217,10 +217,10 @@ impl MarkdownPreviewView {
             .is_some_and(|state| state.editor.read(cx).buffer().read(cx).as_singleton().as_ref() == Some(buffer))
     }
 
-    pub fn create_markdown_view(
-        workspace: &mut Workspace,
+    fn create_markdown_view(
+        workspace: &Workspace,
         editor: Entity<Editor>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Workspace>,
     ) -> Entity<MarkdownPreviewView> {
         let language_registry = Arc::clone(workspace.project().read(cx).languages());
@@ -228,11 +228,11 @@ impl MarkdownPreviewView {
         MarkdownPreviewView::new(editor, workspace_handle, language_registry, window, cx)
     }
 
-    pub fn new(
+    fn new(
         active_editor: Entity<Editor>,
         workspace: WeakEntity<Workspace>,
         language_registry: Arc<LanguageRegistry>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut App,
     ) -> Entity<Self> {
         cx.new(|cx| {
@@ -323,7 +323,7 @@ impl MarkdownPreviewView {
         .detach();
     }
 
-    pub fn is_markdown_file(editor: &Entity<Editor>, cx: &App) -> bool {
+    pub(crate) fn is_markdown_file(editor: &Entity<Editor>, cx: &App) -> bool {
         let buffer = editor.read(cx).buffer().read(cx);
         buffer
             .as_singleton()
@@ -364,6 +364,7 @@ impl MarkdownPreviewView {
                         cx.notify();
                     }
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             });
 

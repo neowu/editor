@@ -1,4 +1,4 @@
-pub(crate) fn simple_lowercase(c: char) -> char {
+fn simple_lowercase(c: char) -> char {
     c.to_lowercase().next().unwrap_or(c)
 }
 
@@ -6,7 +6,7 @@ pub(crate) fn simple_lowercase(c: char) -> char {
 pub struct CharBag(u64);
 
 impl CharBag {
-    pub const fn is_superset(self, other: CharBag) -> bool {
+    pub(crate) const fn is_superset(self, other: CharBag) -> bool {
         self.0 & other.0 == other.0
     }
 

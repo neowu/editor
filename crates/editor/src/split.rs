@@ -104,7 +104,7 @@ impl DiffViewStyle {
         cx.try_global::<GlobalDiffViewStyle>().map_or_default(|style| style.0)
     }
 
-    pub fn set_global(style: DiffViewStyle, cx: &mut App) {
+    fn set_global(style: DiffViewStyle, cx: &mut App) {
         cx.set_global(GlobalDiffViewStyle(style));
     }
 }
@@ -518,7 +518,7 @@ impl SplittableEditor {
         &self.rhs_editor
     }
 
-    pub fn lhs_editor(&self) -> Option<&Entity<Editor>> {
+    pub(crate) fn lhs_editor(&self) -> Option<&Entity<Editor>> {
         self.lhs.as_ref().map(|s| &s.editor)
     }
 
@@ -526,7 +526,7 @@ impl SplittableEditor {
         self.diff_view_style
     }
 
-    pub const fn is_split(&self) -> bool {
+    const fn is_split(&self) -> bool {
         self.lhs.is_some()
     }
 
@@ -579,6 +579,7 @@ impl SplittableEditor {
                 EditorEvent::ExpandExcerptsRequested { excerpt_anchors, lines, direction } => {
                     this.expand_excerpts(excerpt_anchors.iter().copied(), *lines, *direction, cx);
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => cx.emit(event.clone()),
             }),
             cx.subscribe(&rhs_editor, |this, _, event: &SearchEvent, cx| {
@@ -713,6 +714,7 @@ impl SplittableEditor {
                         }
                     }
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => cx.emit(event.clone()),
             })];
 

@@ -39,7 +39,7 @@ pub(super) struct PendingInput {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DispatchEventResult {
     pub propagate: bool,
-    pub default_prevented: bool,
+    default_prevented: bool,
 }
 
 impl Window {
@@ -80,6 +80,7 @@ impl Window {
         self.last_input_modality = match &event {
             PlatformInput::KeyDown(_) => InputModality::Keyboard,
             PlatformInput::MouseMove(_) | PlatformInput::MouseDown(_) => InputModality::Mouse,
+            // lint: expect(wildcard_match) only a few variants of `PlatformInput` matter here
             _ => self.last_input_modality,
         };
         if self.last_input_modality != old_modality {
@@ -357,7 +358,7 @@ impl Window {
         self.dispatch_modifiers_changed_event(event, dispatch_path, cx);
     }
 
-    pub(crate) fn pending_input_changed(&mut self, cx: &mut App) {
+    fn pending_input_changed(&mut self, cx: &mut App) {
         self.pending_input_observers.clone().retain(|callback| callback(self, cx));
     }
 
@@ -426,7 +427,7 @@ impl Window {
     }
 
     /// Determine whether a potential multi-stroke key binding is in progress on this window.
-    pub fn has_pending_keystrokes(&self) -> bool {
+    pub(crate) fn has_pending_keystrokes(&self) -> bool {
         self.pending_input_keystrokes().is_some()
     }
 

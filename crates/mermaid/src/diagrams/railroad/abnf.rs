@@ -8,7 +8,6 @@ use super::common::ACC_DESCR;
 use super::common::ACC_TITLE;
 use super::common::AstNode;
 use super::common::Grammar;
-use super::common::LETTERS;
 use super::common::add;
 use super::common::attach;
 use super::common::choice;
@@ -32,6 +31,9 @@ use crate::diagrams::common::tokens::TokenType;
 use crate::diagrams::common::tokens::YAML;
 use crate::diagrams::common::tokens::literal;
 use crate::error::Error;
+
+/// The ASCII letters.
+const LETTERS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 /// Token kinds, as indices into [`ABNF_TOKENS`].
 mod t {
@@ -121,7 +123,7 @@ const fn matched(name: &'static str, first: &'static str, matcher: fn(&str, usiz
 }
 
 /// Pele's `ABNF_TOKENS`, in matching order.
-pub(crate) const ABNF_TOKENS: &[TokenType] = &[
+const ABNF_TOKENS: &[TokenType] = &[
     opening("railroad-abnf-beta", &[t::NAME]),
     literal("="),
     // A semicolon closes a rule only at the end of its line; with anything after it, it starts

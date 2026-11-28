@@ -22,7 +22,7 @@ use task::SpawnInTerminal;
 use crate::LanguageDef;
 use crate::npx;
 
-pub(crate) struct BashContextProvider;
+struct BashContextProvider;
 
 impl ContextProvider for BashContextProvider {
     fn runnables(&self, cx: RunContext, _: &App) -> Task<Vec<SpawnInTerminal>> {
@@ -39,7 +39,7 @@ pub fn bash_tasks(cx: &RunContext) -> Vec<SpawnInTerminal> {
     vec![SpawnInTerminal::new(format!("run '{file}'"), file, Vec::new(), cx.worktree_root.clone())]
 }
 
-pub(crate) struct BashLspAdapter;
+struct BashLspAdapter;
 
 impl BashLspAdapter {
     const PACKAGE_NAME: &str = "bash-language-server";
@@ -61,7 +61,7 @@ impl LspAdapter for BashLspAdapter {
 }
 
 /// Settings for Shell Script.
-pub(crate) fn settings() -> LanguageSettings {
+fn settings() -> LanguageSettings {
     LanguageSettings {
         tab_size: NonZeroU32::new(4).expect("non-zero"),
         hard_tabs: false,

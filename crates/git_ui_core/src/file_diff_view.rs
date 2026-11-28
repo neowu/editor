@@ -119,7 +119,7 @@ impl FileDiffView {
         })
     }
 
-    pub fn new(
+    fn new(
         old_buffer: Entity<Buffer>,
         new_buffer: Entity<Buffer>,
         diff: Entity<BufferDiff>,
@@ -173,6 +173,7 @@ impl FileDiffView {
                 | language::BufferEvent::Reparsed => {
                     this.buffer_changes_tx.send(()).ok();
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             })
             .detach();

@@ -24,27 +24,6 @@ enum DeleteCancel {
     Cancel,
 }
 
-/// Label of the context-menu entry that reverts the selection. Untracked
-/// entries are deleted (moved to the system trash), matching the project panel.
-pub(super) fn restore_title(
-    target_kind: SelectionTargetKind,
-    all_created: bool,
-    all_deleted: bool,
-    file_count: usize,
-) -> String {
-    let file_label = if file_count == 1 { "File" } else { "Files" };
-    match (target_kind, all_created, all_deleted) {
-        (SelectionTargetKind::Directory, true, _) => "Delete Folder".into(),
-        (SelectionTargetKind::Directory, false, _) => "Discard Changes".into(),
-        (SelectionTargetKind::File, true, _) => "Delete File".into(),
-        (SelectionTargetKind::File, _, true) => "Restore File".into(),
-        (SelectionTargetKind::File, _, _) => "Discard Changes".into(),
-        (SelectionTargetKind::Multiple, true, _) => format!("Delete {file_count} {file_label}"),
-        (SelectionTargetKind::Multiple, _, true) => format!("Restore {file_count} {file_label}"),
-        (SelectionTargetKind::Multiple, _, _) => format!("Discard Changes to {file_count} {file_label}"),
-    }
-}
-
 /// Message and confirm label for reverting several entries at once, or `None`
 /// when there is nothing to revert.
 fn bulk_revert_prompt(tracked_count: usize, untracked_count: usize) -> Option<(String, &'static str)> {
@@ -422,22 +401,7 @@ impl GitPanel {
 #[cfg(test)]
 mod tests {
 
-    use super::SelectionTargetKind;
     use super::bulk_revert_prompt;
-    use super::restore_title;
-
-    #[test]
-    fn restore_title_works() {
-        assert_eq!(restore_title(SelectionTargetKind::Directory, true, false, 3), "Delete Folder");
-        assert_eq!(restore_title(SelectionTargetKind::Directory, false, false, 3), "Discard Changes");
-        assert_eq!(restore_title(SelectionTargetKind::File, true, false, 1), "Delete File");
-        assert_eq!(restore_title(SelectionTargetKind::File, false, true, 1), "Restore File");
-        assert_eq!(restore_title(SelectionTargetKind::File, false, false, 1), "Discard Changes");
-        assert_eq!(restore_title(SelectionTargetKind::Multiple, true, false, 2), "Delete 2 Files");
-        assert_eq!(restore_title(SelectionTargetKind::Multiple, true, false, 1), "Delete 1 File");
-        assert_eq!(restore_title(SelectionTargetKind::Multiple, false, true, 2), "Restore 2 Files");
-        assert_eq!(restore_title(SelectionTargetKind::Multiple, false, false, 2), "Discard Changes to 2 Files");
-    }
 
     #[test]
     fn bulk_revert_prompt_works() {

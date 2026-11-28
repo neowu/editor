@@ -88,7 +88,7 @@ pub mod scrollbars {
     /// Default: auto.
     #[derive(Copy, Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
     #[serde(rename_all = "snake_case")]
-    pub enum ShowScrollbar {
+    pub(crate) enum ShowScrollbar {
         /// Show the scrollbar if there's important information or
         /// follow the system's configured behavior.
         #[default]
@@ -363,6 +363,7 @@ impl ReservedSpace {
     fn needs_space_reserved(&self, max_offset: Pixels) -> bool {
         match self {
             Self::Track => !max_offset.is_zero(),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => false,
         }
     }
@@ -382,7 +383,7 @@ pub enum ScrollbarStyle {
 }
 
 impl ScrollbarStyle {
-    pub const fn to_pixels(self) -> Pixels {
+    const fn to_pixels(self) -> Pixels {
         match self {
             ScrollbarStyle::Regular => px(6.),
             ScrollbarStyle::Editor => px(15.),
@@ -543,6 +544,7 @@ impl VisibilityState {
                 animation_duration: if *showing { SCROLLBAR_SHOW_DURATION } else { SCROLLBAR_HIDE_DURATION },
                 showing: *showing,
             }),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         }
     }
@@ -559,6 +561,7 @@ impl VisibilityState {
                 }
             }
             Self::Animating { delta, .. } => *delta = new_delta,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }
@@ -575,6 +578,7 @@ impl VisibilityState {
             Self::Animating { showing: false, delta: progress } => {
                 Self::Animating { showing: true, delta: DELTA_MAX - progress }
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => self.clone(),
         }
     }
@@ -1221,6 +1225,7 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
                         ThumbState::Hover(hovered_axis) if hovered_axis == axis => {
                             (colors.scrollbar_thumb_hover_background, true)
                         }
+                        // lint: expect(wildcard_match) only some variants matter here
                         _ => (colors.scrollbar_thumb_background, false),
                     };
 
@@ -1393,6 +1398,7 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
                                 cx.stop_propagation();
                             }
                         }
+                        // lint: expect(wildcard_match) only some variants matter here
                         _ => state.update(cx, |state, cx| match state.update_parent_hovered(window) {
                             hover @ (ParentHoverEvent::Entered | ParentHoverEvent::Within)
                                 if event.pressed_button.is_none() =>
@@ -1408,6 +1414,7 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
                             ParentHoverEvent::Exited => {
                                 state.set_thumb_state(ThumbState::Inactive, window, cx);
                             }
+                            // lint: expect(wildcard_match) only some variants matter here
                             _ => {}
                         }),
                     }

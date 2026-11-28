@@ -29,7 +29,7 @@ use crate::lsp_store::RunningFetch;
 use crate::lsp_store::missing_servers_to_query;
 use crate::lsp_store::next_lsp_fetch_id;
 
-pub(super) type DocumentSymbolsTask = Shared<Task<Result<Vec<OutlineItem<Anchor>>, Arc<anyhow::Error>>>>;
+type DocumentSymbolsTask = Shared<Task<Result<Vec<OutlineItem<Anchor>>, Arc<anyhow::Error>>>>;
 
 #[derive(Debug, Default)]
 pub(super) struct DocumentSymbolsData {
@@ -207,7 +207,7 @@ impl LspStore {
 
     #[allow(clippy::type_complexity)]
     fn fetch_document_symbols_for_buffer(
-        &mut self,
+        &self,
         buffer: &Entity<Buffer>,
         for_servers: Option<FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,

@@ -182,14 +182,14 @@ pub struct Buffer {
 }
 
 #[derive(Debug)]
-pub struct TreeSitterData {
+struct TreeSitterData {
     chunks: RowChunks,
     brackets_by_chunks: Mutex<FxHashMap<RowChunkId, Vec<BracketMatch>>>,
     highlights_by_chunks: ChunkHighlightCache,
 }
 
-pub(crate) const MAX_ROWS_IN_A_CHUNK: u32 = 50;
-pub(crate) const MAX_BYTES_TO_HIGHLIGHT_IN_A_CHUNK: usize = 4 * MAX_BYTES_TO_QUERY;
+const MAX_ROWS_IN_A_CHUNK: u32 = 50;
+const MAX_BYTES_TO_HIGHLIGHT_IN_A_CHUNK: usize = 4 * MAX_BYTES_TO_QUERY;
 
 impl TreeSitterData {
     fn clear(&mut self, snapshot: &text::BufferSnapshot) {
@@ -221,7 +221,7 @@ pub enum ParseStatus {
 /// state of a buffer.
 pub struct BufferSnapshot {
     pub text: text::BufferSnapshot,
-    pub(crate) syntax: SyntaxSnapshot,
+    syntax: SyntaxSnapshot,
     tree_sitter_data: Arc<TreeSitterData>,
     fallback_highlighter: Option<Arc<FallbackHighlighter>>,
     diagnostics: TreeMap<LanguageServerId, DiagnosticSet>,
@@ -390,6 +390,7 @@ impl DiskState {
         match self {
             DiskState::Deleted => true,
             DiskState::Historic { was_deleted } => *was_deleted,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => false,
         }
     }
@@ -531,7 +532,7 @@ pub struct Diff {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct DiagnosticEndpoint {
+struct DiagnosticEndpoint {
     offset: usize,
     is_start: bool,
     underline: bool,
@@ -572,26 +573,6 @@ pub struct Runnable {
     pub tags: SmallVec<[RunnableTag; 1]>,
     pub language: Arc<Language>,
     pub buffer: BufferId,
-}
-
-#[derive(Default, Clone, Debug)]
-pub struct HighlightedText {
-    pub text: SharedString,
-    pub highlights: Vec<(Range<usize>, HighlightStyle)>,
-}
-
-#[derive(Default, Debug)]
-pub struct HighlightedTextBuilder {
-    text: String,
-    highlights: Vec<(Range<usize>, HighlightStyle)>,
-}
-
-impl HighlightedText {}
-
-impl HighlightedTextBuilder {
-    pub fn build(self) -> HighlightedText {
-        HighlightedText { text: self.text.into(), highlights: self.highlights }
-    }
 }
 
 /// Which pre-existing line to exclude from auto-indentation when inserting
@@ -971,7 +952,7 @@ impl Buffer {
     }
 
     /// This method is called to signal that the buffer has been reloaded.
-    pub fn did_reload(
+    fn did_reload(
         &mut self,
         version: clock::Global,
         line_ending: LineEnding,
@@ -2187,7 +2168,7 @@ impl Buffer {
     /// Call this directly after performing edits to prevent the preview tab
     /// from being dismissed by those edits. It causes `should_dismiss_preview`
     /// to return false until there are additional edits.
-    pub fn refresh_preview(&mut self) {
+    fn refresh_preview(&mut self) {
         self.preview_version = self.version.clone();
     }
 
@@ -2715,7 +2696,7 @@ impl BufferSnapshot {
         BufferChunks::new(self.text.as_rope(), range, syntax, language_aware.diagnostics, Some(self))
     }
 
-    pub(crate) fn cached_highlight_runs(&self, range: Range<usize>) -> Option<Vec<HighlightRun>> {
+    fn cached_highlight_runs(&self, range: Range<usize>) -> Option<Vec<HighlightRun>> {
         if let Some(fallback_highlighter) = &self.fallback_highlighter {
             return fallback_highlighter.highlight_runs(&self.text, range);
         }
@@ -2835,7 +2816,7 @@ impl BufferSnapshot {
         self.syntax_layers_for_range(0..self.len(), true)
     }
 
-    pub fn syntax_layer_at<D: ToOffset>(&self, position: D) -> Option<SyntaxLayer<'_>> {
+    fn syntax_layer_at<D: ToOffset>(&self, position: D) -> Option<SyntaxLayer<'_>> {
         let offset = position.to_offset(self);
         self.syntax_layers_for_range(offset..offset, false)
             .filter(|l| {
@@ -2854,7 +2835,7 @@ impl BufferSnapshot {
             .last()
     }
 
-    pub fn syntax_layers_for_range<D: ToOffset>(
+    fn syntax_layers_for_range<D: ToOffset>(
         &self,
         range: Range<D>,
         include_hidden: bool,
@@ -3213,7 +3194,7 @@ impl BufferSnapshot {
         items
     }
 
-    pub fn outline_ranges_containing<T: ToOffset>(&self, range: Range<T>) -> impl Iterator<Item = Range<Point>> + '_ {
+    fn outline_ranges_containing<T: ToOffset>(&self, range: Range<T>) -> impl Iterator<Item = Range<Point>> + '_ {
         let range = range.to_offset(self);
         let mut matches =
             self.syntax.matches(range.clone(), &self.text, |grammar| grammar.outline_config.as_ref().map(|c| &c.query));
@@ -3256,7 +3237,7 @@ impl BufferSnapshot {
         self.outline_ranges_containing(range).next()
     }
 
-    pub fn outline_items_containing<T: ToOffset>(
+    fn outline_items_containing<T: ToOffset>(
         &self,
         range: Range<T>,
         include_extra_context: bool,
@@ -3478,7 +3459,7 @@ impl BufferSnapshot {
 
     /// For each grammar in the language, runs the provided
     /// [`tree_sitter::Query`] against the given range.
-    pub fn matches(
+    pub(crate) fn matches(
         &self,
         range: Range<usize>,
         query: fn(&Grammar) -> Option<&tree_sitter::Query>,
@@ -3807,7 +3788,7 @@ impl Deref for BufferSnapshot {
 unsafe impl Send for BufferChunks<'_> {}
 
 impl<'a> BufferChunks<'a> {
-    pub(crate) fn new(
+    fn new(
         text: &'a Rope,
         range: Range<usize>,
         syntax: Option<(SyntaxMapCaptures<'a>, Vec<HighlightMap>)>,
@@ -4123,7 +4104,7 @@ impl IndentSize {
     }
 
     /// The character representation of this [`IndentSize`].
-    pub const fn char(&self) -> char {
+    const fn char(self) -> char {
         match self.kind {
             IndentKind::Space => ' ',
             IndentKind::Tab => '\t',
@@ -4132,7 +4113,7 @@ impl IndentSize {
 
     /// Consumes the current [`IndentSize`] and returns a new one that has
     /// been shrunk or enlarged by the given size along the given direction.
-    pub fn with_delta(mut self, direction: Ordering, size: IndentSize) -> Self {
+    fn with_delta(mut self, direction: Ordering, size: IndentSize) -> Self {
         match direction {
             Ordering::Less => {
                 if self.kind == size.kind && self.len >= size.len {
@@ -4169,7 +4150,7 @@ impl IndentSize {
     }
 }
 
-pub(crate) fn contiguous_ranges(values: impl Iterator<Item = u32>, max_len: usize) -> impl Iterator<Item = Range<u32>> {
+fn contiguous_ranges(values: impl Iterator<Item = u32>, max_len: usize) -> impl Iterator<Item = Range<u32>> {
     let mut values = values;
     let mut current_range: Option<Range<u32>> = None;
     iter::from_fn(move || {
@@ -4223,7 +4204,7 @@ impl CharClassifier {
         self.kind(c) == CharKind::Punctuation
     }
 
-    pub fn kind_with(&self, c: char, ignore_punctuation: bool) -> CharKind {
+    fn kind_with(&self, c: char, ignore_punctuation: bool) -> CharKind {
         if c.is_alphanumeric() || c == '_' {
             return CharKind::Word;
         }
@@ -4262,7 +4243,7 @@ impl CharClassifier {
 ///
 /// When `row_ranges` is `Some`, only lines whose row falls within one of the ranges are
 /// included. The single pass keeps filtering cheap, avoiding collecting every range up front.
-pub(crate) fn trailing_whitespace_ranges(rope: &Rope, row_ranges: Option<&[Range<u32>]>) -> Vec<Range<usize>> {
+fn trailing_whitespace_ranges(rope: &Rope, row_ranges: Option<&[Range<u32>]>) -> Vec<Range<usize>> {
     let mut ranges = Vec::new();
 
     let is_row_included = |row: u32| match row_ranges {

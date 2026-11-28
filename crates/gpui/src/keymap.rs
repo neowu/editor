@@ -34,7 +34,7 @@ pub struct Keymap {
 
 /// Index of a binding within a keymap.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub(crate) struct BindingIndex(usize);
+struct BindingIndex(usize);
 
 fn disabled_binding_matches_context(disabled_binding: &KeyBinding, binding: &KeyBinding) -> bool {
     match (&disabled_binding.context_predicate, &binding.context_predicate) {
@@ -67,7 +67,7 @@ impl Keymap {
     }
 
     /// Add more bindings to the keymap.
-    pub fn add_bindings<T: IntoIterator<Item = KeyBinding>>(&mut self, bindings: T) {
+    pub(crate) fn add_bindings<T: IntoIterator<Item = KeyBinding>>(&mut self, bindings: T) {
         for binding in bindings {
             let action_id = binding.action().as_any().type_id();
             if is_no_action(&*binding.action) || is_unbind(&*binding.action) {
@@ -90,7 +90,7 @@ impl Keymap {
     }
 
     /// Iterate over all bindings, in the order they were added.
-    pub fn bindings(&self) -> impl DoubleEndedIterator<Item = &KeyBinding> + ExactSizeIterator {
+    fn bindings(&self) -> impl DoubleEndedIterator<Item = &KeyBinding> + ExactSizeIterator {
         self.bindings.iter()
     }
 
@@ -136,7 +136,7 @@ impl Keymap {
 
     /// Returns all bindings that might match the input without checking context. The bindings
     /// returned in precedence order (reverse of the order they were added to the keymap).
-    pub fn all_bindings_for_input(&self, input: &[Keystroke]) -> Vec<KeyBinding> {
+    pub(crate) fn all_bindings_for_input(&self, input: &[Keystroke]) -> Vec<KeyBinding> {
         self.bindings()
             .rev()
             .filter(|binding| binding.match_keystrokes(input).is_some_and(|pending| !pending))
@@ -159,7 +159,7 @@ impl Keymap {
     /// are evaluated with the same precedence rules so you can disable a rule in a given context
     /// only. A disabled binding only suppresses bindings from sources with equal or weaker
     /// precedence: a base keymap null hides default bindings, but user bindings still apply.
-    pub fn bindings_for_input(
+    pub(crate) fn bindings_for_input(
         &self,
         input: &[impl AsKeystroke],
         context_stack: &[KeyContext],
@@ -265,7 +265,6 @@ impl Keymap {
 }
 
 #[cfg(test)]
-#[allow(unreachable_pub, reason = "actions! emits pub structs")]
 mod tests {
     use super::*;
 

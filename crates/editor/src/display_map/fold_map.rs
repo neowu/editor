@@ -19,7 +19,6 @@ use gpui::HighlightStyle;
 use gpui::Pixels;
 use gpui::SharedString;
 use gpui::Stateful;
-use gpui::Window;
 use language::Edit;
 use language::HighlightId;
 use language::LanguageAwareStyling;
@@ -55,19 +54,19 @@ use super::inlay_map::InlaySnapshot;
 use crate::display_map::inlay_map::InlayChunk;
 
 #[derive(Clone)]
-pub struct FoldPlaceholder {
+pub(crate) struct FoldPlaceholder {
     /// Creates an element to represent this fold's placeholder.
     #[allow(clippy::type_complexity)]
-    pub render: Arc<dyn Send + Sync + Fn(FoldId, Range<Anchor>, &mut App) -> AnyElement>,
+    pub(crate) render: Arc<dyn Send + Sync + Fn(FoldId, Range<Anchor>, &mut App) -> AnyElement>,
     /// If true, the element is constrained to the shaped width of an ellipsis.
-    pub constrain_width: bool,
+    pub(crate) constrain_width: bool,
     /// If true, merges the fold with an adjacent one.
-    pub merge_adjacent: bool,
+    pub(crate) merge_adjacent: bool,
     /// Category of the fold. Useful for carefully removing from overlapping folds.
-    pub type_tag: Option<TypeId>,
+    pub(crate) type_tag: Option<TypeId>,
     /// Text provided by the language server to display in place of the folded range.
     /// When set, this is used instead of the default "⋯" ellipsis.
-    pub collapsed_text: Option<SharedString>,
+    pub(crate) collapsed_text: Option<SharedString>,
 }
 
 impl Default for FoldPlaceholder {
@@ -86,7 +85,7 @@ impl FoldPlaceholder {
     /// Returns a styled `Div` container with the standard fold‐placeholder
     /// look (background, hover, active, rounded corners, full size).
     /// Callers add children and event handlers on top.
-    pub fn fold_element(fold_id: FoldId) -> Stateful<gpui::Div> {
+    pub(crate) fn fold_element(fold_id: FoldId) -> Stateful<gpui::Div> {
         use gpui::InteractiveElement as _;
         use gpui::StatefulInteractiveElement as _;
         use gpui::Styled as _;
@@ -122,32 +121,32 @@ impl PartialEq for FoldPlaceholder {
 }
 
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
-pub struct FoldPoint(pub Point);
+pub struct FoldPoint(pub(crate) Point);
 
 impl FoldPoint {
-    pub const fn new(row: u32, column: u32) -> Self {
+    pub(crate) const fn new(row: u32, column: u32) -> Self {
         Self(Point::new(row, column))
     }
 
-    pub const fn row(self) -> u32 {
+    pub(crate) const fn row(self) -> u32 {
         self.0.row
     }
 
-    pub const fn column(self) -> u32 {
+    pub(crate) const fn column(self) -> u32 {
         self.0.column
     }
 
-    pub const fn row_mut(&mut self) -> &mut u32 {
+    const fn row_mut(&mut self) -> &mut u32 {
         &mut self.0.row
     }
 
-    pub fn to_inlay_point(self, snapshot: &FoldSnapshot) -> InlayPoint {
+    pub(crate) fn to_inlay_point(self, snapshot: &FoldSnapshot) -> InlayPoint {
         let (start, _, _) = snapshot.transforms.find::<Dimensions<FoldPoint, InlayPoint>, _>((), &self, Bias::Right);
         let overshoot = self.0 - start.0.0;
         InlayPoint(start.1.0 + overshoot)
     }
 
-    pub fn to_offset(self, snapshot: &FoldSnapshot) -> FoldOffset {
+    pub(crate) fn to_offset(self, snapshot: &FoldSnapshot) -> FoldOffset {
         let (start, _, item) =
             snapshot.transforms.find::<Dimensions<FoldPoint, TransformSummary>, _>((), &self, Bias::Right);
         let overshoot = self.0 - start.1.output.lines;
@@ -334,13 +333,13 @@ impl FoldMapWriter<'_> {
 /// Decides where the fold indicators should be; also tracks parts of a source file that are currently folded.
 ///
 /// See the [`display_map` module documentation](crate::display_map) for more information.
-pub struct FoldMap {
+pub(crate) struct FoldMap {
     snapshot: FoldSnapshot,
     next_fold_id: FoldId,
 }
 
 impl FoldMap {
-    pub fn new(inlay_snapshot: InlaySnapshot) -> (Self, FoldSnapshot) {
+    pub(crate) fn new(inlay_snapshot: InlaySnapshot) -> (Self, FoldSnapshot) {
         let this = Self {
             snapshot: FoldSnapshot {
                 folds: SumTree::new(&inlay_snapshot.buffer),
@@ -364,7 +363,11 @@ impl FoldMap {
         (this, snapshot)
     }
 
-    pub fn read(&mut self, inlay_snapshot: InlaySnapshot, edits: Vec<InlayEdit>) -> (FoldSnapshot, Vec<FoldEdit>) {
+    pub(crate) fn read(
+        &mut self,
+        inlay_snapshot: InlaySnapshot,
+        edits: Vec<InlayEdit>,
+    ) -> (FoldSnapshot, Vec<FoldEdit>) {
         let edits = self.sync(inlay_snapshot, edits);
         self.check_invariants();
         (self.snapshot.clone(), edits)
@@ -646,11 +649,11 @@ impl FoldMap {
 
 #[derive(Clone)]
 pub struct FoldSnapshot {
-    pub inlay_snapshot: InlaySnapshot,
+    pub(crate) inlay_snapshot: InlaySnapshot,
     transforms: SumTree<Transform>,
     folds: SumTree<Fold>,
     fold_metadata_by_id: TreeMap<FoldId, FoldMetadata>,
-    pub version: usize,
+    pub(crate) version: usize,
 }
 
 impl Deref for FoldSnapshot {
@@ -662,7 +665,7 @@ impl Deref for FoldSnapshot {
 }
 
 impl FoldSnapshot {
-    pub const fn buffer(&self) -> &MultiBufferSnapshot {
+    pub(crate) const fn buffer(&self) -> &MultiBufferSnapshot {
         &self.inlay_snapshot.buffer
     }
 
@@ -676,11 +679,11 @@ impl FoldSnapshot {
     }
 
     #[inline(always)]
-    pub fn has_folds(&self) -> bool {
+    pub(crate) fn has_folds(&self) -> bool {
         !self.folds.is_empty()
     }
 
-    pub fn text_summary_for_range(&self, range: Range<FoldPoint>) -> MBTextSummary {
+    pub(crate) fn text_summary_for_range(&self, range: Range<FoldPoint>) -> MBTextSummary {
         let mut summary = MBTextSummary::default();
 
         let mut cursor = self.transforms.cursor::<Dimensions<FoldPoint, InlayPoint>>(());
@@ -717,7 +720,7 @@ impl FoldSnapshot {
         summary
     }
 
-    pub fn to_fold_point(&self, point: InlayPoint, bias: Bias) -> FoldPoint {
+    pub(crate) fn to_fold_point(&self, point: InlayPoint, bias: Bias) -> FoldPoint {
         let (start, end, item) = self.transforms.find::<Dimensions<InlayPoint, FoldPoint>, _>((), &point, Bias::Right);
         if item.is_some_and(|t| t.is_fold()) {
             if bias == Bias::Left || point == start.0 { start.1 } else { end.1 }
@@ -727,23 +730,23 @@ impl FoldSnapshot {
         }
     }
 
-    pub fn fold_point_cursor(&self) -> FoldPointCursor<'_> {
+    pub(crate) fn fold_point_cursor(&self) -> FoldPointCursor<'_> {
         let cursor = self.transforms.cursor::<Dimensions<InlayPoint, FoldPoint>>(());
         FoldPointCursor { cursor }
     }
 
-    pub fn len(&self) -> FoldOffset {
+    pub(crate) fn len(&self) -> FoldOffset {
         FoldOffset(self.transforms.summary().output.len)
     }
 
-    pub fn line_len(&self, row: u32) -> u32 {
+    pub(crate) fn line_len(&self, row: u32) -> u32 {
         let line_start = FoldPoint::new(row, 0).to_offset(self).0;
         let line_end =
             if row >= self.max_point().row() { self.len().0 } else { FoldPoint::new(row + 1, 0).to_offset(self).0 - 1 };
         (line_end - line_start) as u32
     }
 
-    pub fn row_infos(&self, start_row: u32) -> FoldRows<'_> {
+    pub(crate) fn row_infos(&self, start_row: u32) -> FoldRows<'_> {
         assert!(start_row <= self.transforms.summary().output.lines.row, "invalid display row {start_row}");
 
         let fold_point = FoldPoint::new(start_row, 0);
@@ -757,11 +760,11 @@ impl FoldSnapshot {
         FoldRows { cursor, input_rows, fold_point }
     }
 
-    pub fn max_point(&self) -> FoldPoint {
+    pub(crate) fn max_point(&self) -> FoldPoint {
         FoldPoint(self.transforms.summary().output.lines)
     }
 
-    pub fn folds_in_range<T>(&self, range: Range<T>) -> impl Iterator<Item = &Fold>
+    pub(crate) fn folds_in_range<T>(&self, range: Range<T>) -> impl Iterator<Item = &Fold>
     where
         T: ToOffset,
     {
@@ -775,7 +778,7 @@ impl FoldSnapshot {
         })
     }
 
-    pub fn intersects_fold<T>(&self, offset: T) -> bool
+    pub(crate) fn intersects_fold<T>(&self, offset: T) -> bool
     where
         T: ToOffset,
     {
@@ -784,7 +787,7 @@ impl FoldSnapshot {
         self.is_inlay_offset_folded(inlay_offset)
     }
 
-    pub fn is_line_folded(&self, buffer_row: MultiBufferRow) -> bool {
+    pub(crate) fn is_line_folded(&self, buffer_row: MultiBufferRow) -> bool {
         let mut inlay_point = self.inlay_snapshot.to_inlay_point(Point::new(buffer_row.0, 0));
         let mut cursor = self.transforms.cursor::<InlayPoint>(());
         cursor.seek(&inlay_point, Bias::Right);
@@ -859,7 +862,7 @@ impl FoldSnapshot {
         .flat_map(|chunk| chunk.text.chars())
     }
 
-    pub fn chunks_at(&self, start: FoldPoint) -> FoldChunks<'_> {
+    pub(crate) fn chunks_at(&self, start: FoldPoint) -> FoldChunks<'_> {
         self.chunks(
             start.to_offset(self)..self.len(),
             LanguageAwareStyling { tree_sitter: false, diagnostics: false },
@@ -867,7 +870,7 @@ impl FoldSnapshot {
         )
     }
 
-    pub fn clip_point(&self, point: FoldPoint, bias: Bias) -> FoldPoint {
+    pub(crate) fn clip_point(&self, point: FoldPoint, bias: Bias) -> FoldPoint {
         let (start, end, item) = self.transforms.find::<Dimensions<FoldPoint, InlayPoint>, _>((), &point, Bias::Right);
         if let Some(transform) = item {
             let transform_start = start.0.0;
@@ -889,17 +892,17 @@ impl FoldSnapshot {
     }
 }
 
-pub struct FoldPointCursor<'transforms> {
+pub(crate) struct FoldPointCursor<'transforms> {
     cursor: Cursor<'transforms, 'static, Transform, Dimensions<InlayPoint, FoldPoint>>,
 }
 
 impl FoldPointCursor<'_> {
     /// Resets the cursor to the start so it can seek backward again.
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.cursor.reset();
     }
 
-    pub fn map(&mut self, point: InlayPoint, bias: Bias) -> FoldPoint {
+    pub(crate) fn map(&mut self, point: InlayPoint, bias: Bias) -> FoldPoint {
         let cursor = &mut self.cursor;
         if cursor.did_seek() {
             cursor.seek_forward(&point, Bias::Right);
@@ -1001,7 +1004,7 @@ impl sum_tree::ContextLessSummary for TransformSummary {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default, Ord, PartialOrd, Hash)]
-pub struct FoldId(pub(super) usize);
+pub(crate) struct FoldId(usize);
 
 impl From<FoldId> for ElementId {
     fn from(val: FoldId) -> Self {
@@ -1010,14 +1013,14 @@ impl From<FoldId> for ElementId {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Fold {
-    pub id: FoldId,
-    pub range: FoldRange,
-    pub placeholder: FoldPlaceholder,
+pub(crate) struct Fold {
+    id: FoldId,
+    pub(crate) range: FoldRange,
+    pub(crate) placeholder: FoldPlaceholder,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FoldRange(pub(crate) Range<Anchor>);
+pub(crate) struct FoldRange(Range<Anchor>);
 
 impl Deref for FoldRange {
     type Target = Range<Anchor>;
@@ -1060,7 +1063,7 @@ impl sum_tree::Item for Fold {
 }
 
 #[derive(Clone, Debug)]
-pub struct FoldSummary {
+pub(crate) struct FoldSummary {
     start: Anchor,
     end: Anchor,
     min_start: Anchor,
@@ -1129,7 +1132,7 @@ impl<'a> sum_tree::Dimension<'a, FoldSummary> for MultiBufferOffset {
 }
 
 #[derive(Clone)]
-pub struct FoldRows<'a> {
+pub(crate) struct FoldRows<'a> {
     cursor: Cursor<'a, 'static, Transform, Dimensions<FoldPoint, InlayPoint>>,
     input_rows: InlayBufferRows<'a>,
     fold_point: FoldPoint,
@@ -1175,59 +1178,57 @@ impl Iterator for FoldRows<'_> {
 /// A chunk of a buffer's text, along with its syntax highlight and
 /// diagnostic status.
 #[derive(Clone, Debug, Default)]
-pub struct Chunk<'a> {
+pub(crate) struct Chunk<'a> {
     /// The text of the chunk.
-    pub text: &'a str,
+    pub(crate) text: &'a str,
     /// The syntax highlighting style of the chunk.
-    pub syntax_highlight_id: Option<HighlightId>,
+    pub(crate) syntax_highlight_id: Option<HighlightId>,
     /// The highlight style that has been applied to this chunk in
     /// the editor.
-    pub highlight_style: Option<HighlightStyle>,
+    pub(crate) highlight_style: Option<HighlightStyle>,
     /// The severity of diagnostic associated with this chunk, if any.
-    pub diagnostic_severity: Option<lsp_types::DiagnosticSeverity>,
+    pub(crate) diagnostic_severity: Option<lsp_types::DiagnosticSeverity>,
     /// Whether this chunk of text is marked as unnecessary.
-    pub is_unnecessary: bool,
+    pub(crate) is_unnecessary: bool,
     /// Whether this chunk of text should be underlined.
-    pub underline: bool,
+    pub(crate) underline: bool,
     /// Whether this chunk of text was originally a tab character.
-    pub is_tab: bool,
+    pub(crate) is_tab: bool,
     /// Whether this chunk of text was originally a tab character.
-    pub is_inlay: bool,
+    pub(crate) is_inlay: bool,
     /// An optional recipe for how the chunk should be presented.
-    pub renderer: Option<ChunkRenderer>,
+    pub(crate) renderer: Option<ChunkRenderer>,
     /// Bitmap of tab character locations in chunk.
-    pub tabs: u128,
+    pub(crate) tabs: u128,
     /// Bitmap of character locations in chunk.
-    pub chars: u128,
+    pub(crate) chars: u128,
     /// Bitmap of newline locations in chunk.
-    pub newlines: u128,
+    pub(crate) newlines: u128,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ChunkRendererId {
+pub(crate) enum ChunkRendererId {
     Fold(FoldId),
     Inlay(InlayId),
 }
 
 /// A recipe for how the chunk should be presented.
 #[derive(Clone)]
-pub struct ChunkRenderer {
+pub(crate) struct ChunkRenderer {
     /// The id of the renderer associated with this chunk.
-    pub id: ChunkRendererId,
+    pub(crate) id: ChunkRendererId,
     /// Creates a custom element to represent this chunk.
-    pub render: Arc<dyn Send + Sync + Fn(&mut ChunkRendererContext) -> AnyElement>,
+    pub(crate) render: Arc<dyn Send + Sync + Fn(&mut ChunkRendererContext) -> AnyElement>,
     /// If true, the element is constrained to the shaped width of the text.
-    pub constrain_width: bool,
+    pub(crate) constrain_width: bool,
     /// The width of the element, as measured during the last layout pass.
     ///
     /// This is None if the element has not been laid out yet.
-    pub measured_width: Option<Pixels>,
+    pub(crate) measured_width: Option<Pixels>,
 }
 
-pub struct ChunkRendererContext<'a, 'b> {
-    pub window: &'a mut Window,
-    pub context: &'b mut App,
-    pub max_width: Pixels,
+pub(crate) struct ChunkRendererContext<'a> {
+    pub(crate) context: &'a mut App,
 }
 
 impl fmt::Debug for ChunkRenderer {
@@ -1236,7 +1237,7 @@ impl fmt::Debug for ChunkRenderer {
     }
 }
 
-impl Deref for ChunkRendererContext<'_, '_> {
+impl Deref for ChunkRendererContext<'_> {
     type Target = App;
 
     fn deref(&self) -> &Self::Target {
@@ -1244,13 +1245,13 @@ impl Deref for ChunkRendererContext<'_, '_> {
     }
 }
 
-impl DerefMut for ChunkRendererContext<'_, '_> {
+impl DerefMut for ChunkRendererContext<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.context
     }
 }
 
-pub struct FoldChunks<'a> {
+pub(crate) struct FoldChunks<'a> {
     transform_cursor: Cursor<'a, 'static, Transform, Dimensions<FoldOffset, InlayOffset>>,
     inlay_chunks: InlayChunks<'a>,
     inlay_chunk: Option<(InlayOffset, InlayChunk<'a>)>,
@@ -1384,10 +1385,10 @@ impl<'a> Iterator for FoldChunks<'a> {
 }
 
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
-pub struct FoldOffset(pub MultiBufferOffset);
+pub(crate) struct FoldOffset(pub(crate) MultiBufferOffset);
 
 impl FoldOffset {
-    pub fn to_point(self, snapshot: &FoldSnapshot) -> FoldPoint {
+    pub(crate) fn to_point(self, snapshot: &FoldSnapshot) -> FoldPoint {
         let (start, _, item) =
             snapshot.transforms.find::<Dimensions<FoldOffset, TransformSummary>, _>((), &self, Bias::Right);
         let overshoot = if item.is_none_or(|t| t.is_fold()) {

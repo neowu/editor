@@ -2,9 +2,6 @@
 
 use crate::svg::builder::push_num;
 
-/// How far a marker reaches back along its line from the box it touches.
-pub(crate) const MARKER_LENGTH: f64 = 18.0;
-
 /// Half the length of a bar.
 const BAR: f64 = 5.0;
 /// Half the spread of a crow's foot.

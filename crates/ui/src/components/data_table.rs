@@ -134,12 +134,12 @@ pub enum StaticColumnWidths {
 
 impl ColumnWidthConfig {
     /// Auto-width columns, auto-size table.
-    pub const fn auto() -> Self {
+    const fn auto() -> Self {
         ColumnWidthConfig::Static { widths: StaticColumnWidths::Auto, table_width: None }
     }
 
     /// Auto-width columns, fixed table width.
-    pub fn auto_with_table_width(width: impl Into<DefiniteLength>) -> Self {
+    fn auto_with_table_width(width: impl Into<DefiniteLength>) -> Self {
         ColumnWidthConfig::Static { widths: StaticColumnWidths::Auto, table_width: Some(width.into()) }
     }
 
@@ -155,7 +155,7 @@ impl ColumnWidthConfig {
     }
 
     /// Column widths for rendering.
-    pub fn widths_to_render(&self, cx: &App) -> Option<TableRow<Length>> {
+    fn widths_to_render(&self, cx: &App) -> Option<TableRow<Length>> {
         match self {
             ColumnWidthConfig::Static { widths: StaticColumnWidths::Auto, .. } => None,
             ColumnWidthConfig::Static { widths: StaticColumnWidths::Explicit(widths), .. } => {
@@ -168,7 +168,7 @@ impl ColumnWidthConfig {
     }
 
     /// Table-level width.
-    pub fn table_width(&self) -> Option<Length> {
+    fn table_width(&self) -> Option<Length> {
         match self {
             ColumnWidthConfig::Static { table_width, .. } | ColumnWidthConfig::Redistributable { table_width, .. } => {
                 table_width.map(Length::Definite)
@@ -177,7 +177,7 @@ impl ColumnWidthConfig {
     }
 
     /// ListHorizontalSizingBehavior for uniform_list.
-    pub fn list_horizontal_sizing(&self) -> ListHorizontalSizingBehavior {
+    fn list_horizontal_sizing(&self) -> ListHorizontalSizingBehavior {
         match self.table_width() {
             Some(_) => ListHorizontalSizingBehavior::Unconstrained,
             None => ListHorizontalSizingBehavior::FitList,
@@ -359,7 +359,7 @@ fn render_header_cell(
         })
 }
 
-pub(super) fn render_table_row(
+fn render_table_row(
     row_index: usize,
     items: TableRow<impl IntoElement>,
     table_context: TableRenderContext,
@@ -476,17 +476,17 @@ pub fn render_table_header(
 
 #[derive(Clone)]
 pub struct TableRenderContext {
-    pub striped: bool,
-    pub show_row_borders: bool,
-    pub show_row_hover: bool,
-    pub total_row_count: usize,
-    pub column_widths: Option<TableRow<Length>>,
+    striped: bool,
+    show_row_borders: bool,
+    show_row_hover: bool,
+    total_row_count: usize,
+    column_widths: Option<TableRow<Length>>,
     #[allow(clippy::type_complexity)]
-    pub map_row: Option<Rc<dyn Fn((usize, Stateful<Div>), &mut Window, &mut App) -> AnyElement>>,
-    pub use_ui_font: bool,
+    map_row: Option<Rc<dyn Fn((usize, Stateful<Div>), &mut Window, &mut App) -> AnyElement>>,
+    use_ui_font: bool,
     /// Per-column visibility mask. When `Some`, columns whose entry is `true` are filtered
     /// out (hidden) and not rendered. Indices map to the table's original column positions.
-    pub column_filter: Option<TableRow<bool>>,
+    column_filter: Option<TableRow<bool>>,
 }
 
 impl TableRenderContext {
@@ -557,6 +557,7 @@ impl RenderOnce for Table {
                     cx,
                 )),
             ),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => (None, None),
         };
 

@@ -86,12 +86,12 @@ impl Workspace {
         }
     }
 
-    pub fn prompt_for_new_path(
-        &mut self,
+    pub(crate) fn prompt_for_new_path(
+        &self,
         lister: DirectoryLister,
         suggested_name: Option<String>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
+        window: &Window,
+        cx: &Context<Self>,
     ) -> oneshot::Receiver<Option<Vec<PathBuf>>> {
         let (tx, rx) = oneshot::channel();
         cx.spawn_in(window, async move |workspace, cx| {
@@ -349,7 +349,12 @@ impl Workspace {
         }
     }
 
-    pub fn add_folder_to_project(&mut self, _: &AddFolderToProject, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn add_folder_to_project(
+        &mut self,
+        _: &AddFolderToProject,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let _project = self.project.read(cx);
 
         let paths = self.prompt_for_open_path(
@@ -380,7 +385,7 @@ impl Workspace {
         .detach_and_log_err(cx);
     }
 
-    pub fn project_path_for_path(
+    pub(crate) fn project_path_for_path(
         project: Entity<Project>,
         abs_path: &Path,
         visible: bool,
@@ -673,7 +678,7 @@ impl Workspace {
         cx.open_url(url_or_path);
     }
 
-    pub fn split_path(
+    fn split_path(
         &mut self,
         path: impl Into<ProjectPath>,
         window: &mut Window,
@@ -752,12 +757,7 @@ impl Workspace {
         registry.open_path(self.project(), &path, window, cx)
     }
 
-    pub fn find_project_item<T>(
-        &self,
-        pane: &Entity<Pane>,
-        project_item: &Entity<T::Item>,
-        cx: &App,
-    ) -> Option<Entity<T>>
+    fn find_project_item<T>(&self, pane: &Entity<Pane>, project_item: &Entity<T::Item>, cx: &App) -> Option<Entity<T>>
     where
         T: ProjectItem,
     {
@@ -922,10 +922,11 @@ pub fn prompt_for_open_path_and_open(
     .detach();
 }
 
-pub async fn find_existing_workspace(
+#[allow(clippy::type_complexity)]
+fn find_existing_workspace(
     abs_paths: &[PathBuf],
     open_options: &OpenOptions,
-    cx: &mut AsyncApp,
+    cx: &AsyncApp,
 ) -> (Option<(WindowHandle<Workspace>, Entity<Workspace>)>, OpenVisible) {
     let mut existing: Option<(WindowHandle<Workspace>, Entity<Workspace>)> = None;
     let open_visible = OpenVisible::All;
@@ -997,7 +998,7 @@ pub fn open_paths(abs_paths: &[PathBuf], open_options: OpenOptions, cx: &mut App
     let fs = fs::Fs::global(cx);
 
     cx.spawn(async move |cx| {
-        let (mut existing, mut open_visible) = find_existing_workspace(&abs_paths, &open_options, cx).await;
+        let (mut existing, mut open_visible) = find_existing_workspace(&abs_paths, &open_options, cx);
 
         // Fallback: if no workspace contains the paths and all paths are files,
         // prefer an existing local workspace window (active window first).

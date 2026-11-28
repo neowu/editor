@@ -76,23 +76,20 @@ enum SearchKind {
 /// just the handles to buffers that may match the search. Grabbing the handles is cheaper than obtaining full match positions, because in that case we'll look for
 /// at most one match in each file.
 #[must_use]
-pub struct SearchResultsHandle {
+pub(crate) struct SearchResultsHandle {
     results: Receiver<SearchResult>,
-    matching_buffers: Receiver<(Entity<Buffer>, MatchPositionHint)>,
     #[allow(clippy::type_complexity)]
     trigger_search: Box<dyn FnOnce(&mut App) -> Task<()> + Send + Sync>,
 }
 
 pub struct SearchResults<T> {
-    pub task_handle: Task<()>,
+    /// Keeps the search running; dropping it cancels the search.
+    _task_handle: Task<()>,
     pub rx: Receiver<T>,
 }
 impl SearchResultsHandle {
-    pub fn results(self, cx: &mut App) -> SearchResults<SearchResult> {
-        SearchResults { task_handle: (self.trigger_search)(cx), rx: self.results }
-    }
-    pub fn matching_buffers(self, cx: &mut App) -> SearchResults<(Entity<Buffer>, MatchPositionHint)> {
-        SearchResults { task_handle: (self.trigger_search)(cx), rx: self.matching_buffers }
+    pub(crate) fn results(self, cx: &mut App) -> SearchResults<SearchResult> {
+        SearchResults { _task_handle: (self.trigger_search)(cx), rx: self.results }
     }
 }
 
@@ -116,12 +113,12 @@ enum FindSearchCandidates {
 }
 
 impl Search {
-    pub fn local(
+    pub(crate) fn local(
         fs: Arc<Fs>,
         buffer_store: Entity<BufferStore>,
         worktree_store: Entity<WorktreeStore>,
         limit: usize,
-        cx: &mut App,
+        cx: &App,
     ) -> Self {
         let mut worktrees = worktree_store.read(cx).visible_worktrees(cx).collect::<Vec<_>>();
         worktrees.sort_by_key(|worktree| worktree.read(cx).id());
@@ -140,7 +137,7 @@ impl Search {
     pub const MAX_SEARCH_RESULT_RANGES: usize = 10_000;
     /// Prepares a project search run. The resulting [`SearchResultsHandle`] has to be used to specify whether you're interested in matching buffers
     /// or full search results.
-    pub fn into_handle(mut self, query: SearchQuery, cx: &mut App) -> SearchResultsHandle {
+    pub(crate) fn into_handle(mut self, query: SearchQuery, cx: &App) -> SearchResultsHandle {
         let mut open_buffers = FxHashMap::default();
         let mut unnamed_buffers = Vec::new();
         let mut entryless_file_buffers = Vec::new();
@@ -173,7 +170,6 @@ impl Search {
         let executor = cx.background_executor().clone();
         let (tx, rx) = unbounded();
         let (grab_buffer_snapshot_tx, grab_buffer_snapshot_rx) = unbounded::<(Entity<Buffer>, MatchPositionHint)>();
-        let matching_buffers = grab_buffer_snapshot_rx.clone();
         let trigger_search = Box::new(move |cx: &mut App| {
             cx.spawn(async move |cx| {
                 for buffer in unnamed_buffers {
@@ -307,7 +303,7 @@ impl Search {
             })
         });
 
-        SearchResultsHandle { results: rx, matching_buffers, trigger_search }
+        SearchResultsHandle { results: rx, trigger_search }
     }
 
     fn provide_search_paths(
@@ -778,13 +774,13 @@ struct FindAllMatchesRequest {
 /// scanned based on include/exclude patterns of a search query (as include/exclude parameters may match paths inside it).
 /// It is kind-of doing an inverse of glob. Given a glob pattern like `src/**/` and a parent path like `src`, we need to decide whether the parent
 /// may contain glob hits.
-pub struct PathInclusionMatcher {
+struct PathInclusionMatcher {
     included: BTreeSet<PathBuf>,
     query: Arc<SearchQuery>,
 }
 
 impl PathInclusionMatcher {
-    pub fn new(query: Arc<SearchQuery>) -> Self {
+    fn new(query: Arc<SearchQuery>) -> Self {
         let mut included = BTreeSet::new();
         // To do an inverse glob match, we split each glob into it's prefix and the glob part.
         // For example, `src/**/*.rs` becomes `src/` and `**/*.rs`. The glob part gets dropped.
@@ -795,7 +791,7 @@ impl PathInclusionMatcher {
         Self { included, query }
     }
 
-    pub fn should_scan_gitignored_dir(
+    fn should_scan_gitignored_dir(
         &self,
         entry: &Entry,
         snapshot: &Snapshot,

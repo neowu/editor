@@ -78,7 +78,7 @@ impl FileIcons {
         Self::get_icon_for_type("default", cx)
     }
 
-    pub fn get_icon_for_type(typ: &str, _cx: &App) -> Option<SharedString> {
+    fn get_icon_for_type(typ: &str, _cx: &App) -> Option<SharedString> {
         ICONS.file_icons.get(typ).cloned()
     }
 

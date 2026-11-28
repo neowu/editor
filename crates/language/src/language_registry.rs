@@ -65,7 +65,7 @@ struct LanguageRegistryState {
 }
 
 #[derive(Debug)]
-pub(crate) struct LanguageNotFound;
+struct LanguageNotFound;
 
 impl Display for LanguageNotFound {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -175,7 +175,7 @@ impl LanguageRegistry {
     }
 
     /// Add a pre-loaded language to the registry.
-    pub fn add(&self, language: Arc<Language>) {
+    fn add(&self, language: Arc<Language>) {
         let mut state = self.state.write();
         state.available_languages.add(AvailableLanguage {
             id: language.id,
@@ -195,7 +195,7 @@ impl LanguageRegistry {
 
     /// Returns the number of times that the registry has been changed,
     /// by adding languages or reloading.
-    pub fn version(&self) -> usize {
+    pub(crate) fn version(&self) -> usize {
         self.state.read().version
     }
 
@@ -422,7 +422,7 @@ impl LanguageRegistry {
             .cloned()
     }
 
-    pub fn all_lsp_adapters(&self) -> Vec<Arc<CachedLspAdapter>> {
+    pub(crate) fn all_lsp_adapters(&self) -> Vec<Arc<CachedLspAdapter>> {
         self.state.read().all_lsp_adapters.values().cloned().collect()
     }
 

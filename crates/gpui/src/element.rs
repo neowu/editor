@@ -213,7 +213,7 @@ pub(crate) fn extend_path_hash(prefix: u64, id: &ElementId) -> u64 {
 }
 
 impl GlobalElementId {
-    pub(crate) fn new(ids: &[ElementId]) -> Self {
+    fn new(ids: &[ElementId]) -> Self {
         let hash = ids.iter().fold(EMPTY_PATH_HASH, extend_path_hash);
         Self::with_hash(ids, hash)
     }
@@ -282,9 +282,9 @@ trait ElementObject {
 }
 
 /// A wrapper around an implementer of [`Element`] that allows it to be drawn in a window.
-pub(crate) struct Drawable<E: Element> {
+struct Drawable<E: Element> {
     /// The drawn element.
-    pub element: E,
+    element: E,
     phase: ElementDrawPhase<E::RequestLayoutState, E::PrepaintState>,
 }
 
@@ -315,7 +315,7 @@ enum ElementDrawPhase<RequestLayoutState, PrepaintState> {
 
 /// A wrapper around an implementer of [`Element`] that allows it to be drawn in a window.
 impl<E: Element> Drawable<E> {
-    pub(crate) const fn new(element: E) -> Self {
+    const fn new(element: E) -> Self {
         Drawable { element, phase: ElementDrawPhase::Start }
     }
 
@@ -333,11 +333,12 @@ impl<E: Element> Drawable<E> {
                 self.phase = ElementDrawPhase::RequestLayout { layout_id, global_id, request_layout };
                 layout_id
             }
+            // lint: expect(wildcard_match) only a few variants of `ElementDrawPhase` matter here
             _ => panic!("must call request_layout only once"),
         }
     }
 
-    pub(crate) fn prepaint(&mut self, window: &mut Window, cx: &mut App) {
+    fn prepaint(&mut self, window: &mut Window, cx: &mut App) {
         match mem::take(&mut self.phase) {
             ElementDrawPhase::RequestLayout { layout_id, global_id, mut request_layout }
             | ElementDrawPhase::LayoutComputed { layout_id, global_id, mut request_layout, .. } => {
@@ -356,11 +357,13 @@ impl<E: Element> Drawable<E> {
 
                 self.phase = ElementDrawPhase::Prepaint { node_id, global_id, bounds, request_layout, prepaint };
             }
-            _ => panic!("must call request_layout before prepaint"),
+            ElementDrawPhase::Start | ElementDrawPhase::Prepaint { .. } | ElementDrawPhase::Painted => {
+                panic!("must call request_layout before prepaint")
+            }
         }
     }
 
-    pub(crate) fn paint(&mut self, window: &mut Window, cx: &mut App) -> (E::RequestLayoutState, E::PrepaintState) {
+    fn paint(&mut self, window: &mut Window, cx: &mut App) -> (E::RequestLayoutState, E::PrepaintState) {
         match mem::take(&mut self.phase) {
             ElementDrawPhase::Prepaint { node_id, global_id, bounds, mut request_layout, mut prepaint, .. } => {
                 if let Some(element_id) = self.element.id() {
@@ -377,11 +380,12 @@ impl<E: Element> Drawable<E> {
                 self.phase = ElementDrawPhase::Painted;
                 (request_layout, prepaint)
             }
+            // lint: expect(wildcard_match) only a few variants of `ElementDrawPhase` matter here
             _ => panic!("must call prepaint before paint"),
         }
     }
 
-    pub(crate) fn layout_as_root(
+    fn layout_as_root(
         &mut self,
         available_space: Size<AvailableSpace>,
         window: &mut Window,
@@ -409,7 +413,9 @@ impl<E: Element> Drawable<E> {
                 self.phase = ElementDrawPhase::LayoutComputed { layout_id, global_id, available_space, request_layout };
                 layout_id
             }
-            _ => panic!("cannot measure after painting"),
+            ElementDrawPhase::Start | ElementDrawPhase::Prepaint { .. } | ElementDrawPhase::Painted => {
+                panic!("cannot measure after painting")
+            }
         };
 
         window.layout_bounds(layout_id).size
@@ -455,7 +461,7 @@ where
 pub struct AnyElement(ArenaBox<dyn ElementObject>);
 
 impl AnyElement {
-    pub(crate) fn new<E>(element: E) -> Self
+    fn new<E>(element: E) -> Self
     where
         E: 'static + Element,
         E::RequestLayoutState: Any,

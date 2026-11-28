@@ -208,7 +208,7 @@ impl EditorElement {
                 mouse_context_menu::MenuPosition::PinnedToScreen(point) => (None, point),
                 mouse_context_menu::MenuPosition::PinnedToEditor { source, offset } => {
                     let source_display_point = source.to_display_point(editor_snapshot);
-                    let source_point = editor.to_pixel_point(source, editor_snapshot, window, cx)?;
+                    let source_point = editor.pixel_point(source, editor_snapshot, window, cx)?;
                     let position = content_origin + source_point + offset;
                     (Some(source_display_point), position)
                 }

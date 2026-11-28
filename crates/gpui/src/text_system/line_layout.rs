@@ -145,7 +145,7 @@ impl LineLayout {
     /// - `suffix` contains glyphs for bytes `[byte_index, len)` with positions
     ///   shifted left so the first glyph starts at x=0, and byte indices rebased to 0.
     /// - `font_size`, `ascent`, and `descent` are copied to both halves.
-    pub fn split_at(&self, byte_index: usize) -> (LineLayout, LineLayout) {
+    pub(crate) fn split_at(&self, byte_index: usize) -> (LineLayout, LineLayout) {
         let x_offset = self.x_for_index(byte_index);
 
         // Partition glyph runs. A single run may contribute glyphs to both halves.
@@ -274,10 +274,10 @@ pub struct WrappedLineLayout {
     pub unwrapped_layout: Arc<LineLayout>,
 
     /// The boundaries at which the line was wrapped.
-    pub wrap_boundaries: SmallVec<[WrapBoundary; 1]>,
+    pub(crate) wrap_boundaries: SmallVec<[WrapBoundary; 1]>,
 
     /// The width of the line, if it was wrapped.
-    pub wrap_width: Option<Pixels>,
+    pub(crate) wrap_width: Option<Pixels>,
 }
 
 /// A boundary at which a line was wrapped.
@@ -297,7 +297,7 @@ impl WrappedLineLayout {
     }
 
     /// The width of this line, in pixels, whether or not it was wrapped.
-    pub fn width(&self) -> Pixels {
+    fn width(&self) -> Pixels {
         self.wrap_width.unwrap_or(Pixels::MAX).min(self.unwrapped_layout.width)
     }
 
@@ -335,7 +335,7 @@ impl WrappedLineLayout {
     /// The index corresponding to a given position in this layout for the given line height.
     ///
     /// See also [`Self::closest_index_for_position`].
-    pub fn index_for_position(&self, position: Point<Pixels>, line_height: Pixels) -> Result<usize, usize> {
+    pub(crate) fn index_for_position(&self, position: Point<Pixels>, line_height: Pixels) -> Result<usize, usize> {
         self.index_for_position_inner(position, line_height, false)
     }
 
@@ -384,7 +384,7 @@ impl WrappedLineLayout {
     }
 
     /// Returns the pixel position for the given byte index.
-    pub fn position_for_index(&self, index: usize, line_height: Pixels) -> Option<Point<Pixels>> {
+    pub(crate) fn position_for_index(&self, index: usize, line_height: Pixels) -> Option<Point<Pixels>> {
         let mut line_start_ix = 0;
         let line_end_indices = self
             .wrap_boundaries

@@ -48,7 +48,7 @@ pub(crate) type MeasureFn =
 
 /// What a measure function kept between frames shares with the element it
 /// measures for (see [`Window::request_retained_measured_layout`]).
-pub trait MeasureState: 'static {
+pub(crate) trait MeasureState: 'static {
     /// Whether measuring writes to the state, so that what a measurement
     /// leaves behind depends on the ones before it.
     const RESETS: bool = false;

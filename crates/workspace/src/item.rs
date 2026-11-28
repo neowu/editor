@@ -24,7 +24,6 @@ use gpui::TaskExt as _;
 use gpui::WeakEntity;
 use gpui::Window;
 use language::Capability;
-pub use language::HighlightedText;
 use project::Project;
 use project::ProjectEntryId;
 use project::ProjectPath;
@@ -413,7 +412,7 @@ impl dyn ItemHandle {
 
     /// The project path of the file this item stands for. `None` for a
     /// multibuffer, whose project path is only the file under its cursor.
-    pub fn single_file_project_path(&self, cx: &App) -> Option<ProjectPath> {
+    pub(crate) fn single_file_project_path(&self, cx: &App) -> Option<ProjectPath> {
         if self.buffer_kind(cx) == ItemBufferKind::Multibuffer { None } else { self.project_path(cx) }
     }
 }

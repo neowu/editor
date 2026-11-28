@@ -231,7 +231,7 @@ impl DiffMultibuffer {
         });
     }
 
-    pub(crate) fn move_to_path(&mut self, path_key: PathKey, window: &mut Window, cx: &mut Context<Self>) {
+    fn move_to_path(&mut self, path_key: PathKey, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(position) = self.multibuffer.read(cx).location_for_path(&path_key, cx) {
             self.editor.update(cx, |editor, cx| {
                 editor.rhs_editor().update(cx, |editor, cx| {
@@ -361,6 +361,7 @@ impl DiffMultibuffer {
                 self._task = cx.spawn_in(window, async move |this, cx| Self::refresh(this, cx).await);
             }
 
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
         if editor.focus_handle(cx).contains_focused(window, cx) && self.multibuffer.read(cx).is_empty() {
@@ -531,7 +532,7 @@ impl DiffMultibuffer {
         );
     }
 
-    pub(crate) async fn refresh(this: WeakEntity<Self>, cx: &mut AsyncWindowContext) -> Result<()> {
+    async fn refresh(this: WeakEntity<Self>, cx: &mut AsyncWindowContext) -> Result<()> {
         let entries = this.update(cx, |this, cx| {
             let (repo, buffers_to_load) = this.branch_diff.update(cx, |branch_diff, cx| {
                 let load_buffers = branch_diff.load_buffers(cx);
@@ -785,7 +786,7 @@ const NEW_SORT_PREFIX: u64 = 3;
 /// ordering reproduces the git panel's order. The path here is only ever used
 /// for sorting and multibuffer identity; the path shown in the UI comes from the
 /// buffer's own `File`.
-pub(crate) fn project_diff_path_key(repo: &Repository, repo_path: &RepoPath, status: FileStatus, cx: &App) -> PathKey {
+fn project_diff_path_key(repo: &Repository, repo_path: &RepoPath, status: FileStatus, cx: &App) -> PathKey {
     let view_options = GitPanelViewOptions::get(cx);
     let sort_prefix = if view_options.group_by != GitPanelGroupBy::Status {
         TRACKED_SORT_PREFIX

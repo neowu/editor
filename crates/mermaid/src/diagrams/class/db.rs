@@ -42,18 +42,18 @@ impl<V> Ordered<V> {
     }
 
     /// The record for `key`, to change.
-    pub(crate) fn get_mut(&mut self, key: &str) -> Option<&mut V> {
+    fn get_mut(&mut self, key: &str) -> Option<&mut V> {
         let &at = self.index.get(key)?;
         self.values.get_mut(at)
     }
 
     /// The position of the record for `key`.
-    pub(crate) fn position(&self, key: &str) -> Option<usize> {
+    fn position(&self, key: &str) -> Option<usize> {
         self.index.get(key).copied()
     }
 
     /// The number of records.
-    pub(crate) const fn len(&self) -> usize {
+    const fn len(&self) -> usize {
         self.values.len()
     }
 
@@ -70,7 +70,7 @@ impl<V> Ordered<V> {
 const DOM_ID_PREFIX: &str = "classId-";
 
 /// Splits `Name~T~` into the class name and its generic type.
-pub(crate) fn split_name(id: &str) -> (&str, &str) {
+fn split_name(id: &str) -> (&str, &str) {
     match id.find('~') {
         Some(at) if at > 0 => {
             let rest = id.get(at + 1..).unwrap_or("");
@@ -96,9 +96,9 @@ fn lookup_id(id: &str) -> String {
 #[derive(Debug)]
 pub(crate) struct ClassDb {
     /// The accessible description.
-    pub(crate) acc_descr: Option<String>,
+    acc_descr: Option<String>,
     /// The accessible title.
-    pub(crate) acc_title: Option<String>,
+    acc_title: Option<String>,
     /// Classes by name.
     pub(crate) classes: Ordered<ClassNode>,
     /// The flow direction: `TB`, `BT`, `LR`, or `RL`.
@@ -474,7 +474,7 @@ impl ClassDb {
 }
 
 /// `text.replace(from, to)` with a string pattern: the first occurrence only.
-pub(crate) fn replace_first(text: &str, from: &str, to: &str) -> String {
+fn replace_first(text: &str, from: &str, to: &str) -> String {
     match text.find(from) {
         Some(at) => {
             let mut out = String::with_capacity(text.len() + to.len());

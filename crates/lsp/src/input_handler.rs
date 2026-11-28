@@ -32,7 +32,7 @@ const HEADER_DELIMITER: &[u8; 4] = b"\r\n\r\n";
 /// stops reading the server's stdout, letting the OS pipe apply backpressure
 /// to the server instead of buffering messages in memory without limit while
 /// the foreground thread is unresponsive.
-pub(crate) const INCOMING_MESSAGE_QUEUE_CAPACITY: usize = 128;
+const INCOMING_MESSAGE_QUEUE_CAPACITY: usize = 128;
 
 /// Handler for stdout of language server.
 pub(crate) struct LspStdoutHandler {

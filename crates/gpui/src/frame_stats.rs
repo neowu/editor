@@ -35,8 +35,8 @@ pub struct FrameStatsSummary {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct CountSummary {
     pub total: usize,
-    pub mean: f64,
-    pub p95: usize,
+    mean: f64,
+    p95: usize,
     pub max: usize,
 }
 

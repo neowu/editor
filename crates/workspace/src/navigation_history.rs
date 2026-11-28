@@ -71,7 +71,7 @@ impl Workspace {
         recent_item
     }
 
-    pub fn recent_navigation_history_iter(
+    pub(crate) fn recent_navigation_history_iter(
         &self,
         cx: &App,
     ) -> impl Iterator<Item = (ProjectPath, Option<PathBuf>)> + use<> {
@@ -147,7 +147,7 @@ impl Workspace {
         self.recent_navigation_history_iter(cx).take(limit.unwrap_or(usize::MAX)).collect()
     }
 
-    pub fn clear_navigation_history(&mut self, window: &mut Window, cx: &mut Context<Workspace>) {
+    pub(crate) fn clear_navigation_history(&mut self, window: &Window, cx: &mut Context<Workspace>) {
         for pane in &self.panes {
             pane.update(cx, |pane, cx| pane.nav_history_mut().clear(cx));
         }
@@ -449,23 +449,23 @@ impl Workspace {
         }
     }
 
-    pub fn can_go_back(&self) -> bool {
+    pub(crate) fn can_go_back(&self) -> bool {
         self.nav_history.can_go_back()
     }
 
-    pub fn can_go_forward(&self) -> bool {
+    pub(crate) fn can_go_forward(&self) -> bool {
         self.nav_history.can_go_forward()
     }
 
-    pub fn go_back(&mut self, window: &mut Window, cx: &mut Context<Workspace>) -> Task<Result<()>> {
+    pub(crate) fn go_back(&mut self, window: &mut Window, cx: &mut Context<Workspace>) -> Task<Result<()>> {
         self.navigate_history(NavigationMode::GoingBack, window, cx)
     }
 
-    pub fn go_forward(&mut self, window: &mut Window, cx: &mut Context<Workspace>) -> Task<Result<()>> {
+    pub(crate) fn go_forward(&mut self, window: &mut Window, cx: &mut Context<Workspace>) -> Task<Result<()>> {
         self.navigate_history(NavigationMode::GoingForward, window, cx)
     }
 
-    pub fn reopen_closed_item(&mut self, window: &mut Window, cx: &mut Context<Workspace>) -> Task<Result<()>> {
+    pub(crate) fn reopen_closed_item(&mut self, window: &mut Window, cx: &mut Context<Workspace>) -> Task<Result<()>> {
         self.navigate_history(NavigationMode::ReopeningClosedItem, window, cx)
     }
 }

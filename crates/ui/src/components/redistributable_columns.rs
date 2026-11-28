@@ -30,16 +30,16 @@ use crate::div;
 use crate::h_flex;
 use crate::px;
 
-pub(crate) const RESIZE_COLUMN_WIDTH: f32 = 8.0;
-pub(crate) const RESIZE_DIVIDER_WIDTH: f32 = 1.0;
+const RESIZE_COLUMN_WIDTH: f32 = 8.0;
+const RESIZE_DIVIDER_WIDTH: f32 = 1.0;
 
 /// Drag payload for column resize handles.
 /// Includes the `EntityId` of the owning column state so that
 /// `on_drag_move` handlers on unrelated tables ignore the event.
 #[derive(Debug)]
-pub(crate) struct DraggedColumn {
-    pub(crate) col_idx: usize,
-    pub(crate) state_id: EntityId,
+struct DraggedColumn {
+    col_idx: usize,
+    state_id: EntityId,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -50,23 +50,23 @@ pub enum TableResizeBehavior {
 }
 
 impl TableResizeBehavior {
-    pub fn is_resizable(&self) -> bool {
-        *self != TableResizeBehavior::None
+    pub(crate) fn is_resizable(self) -> bool {
+        self != TableResizeBehavior::None
     }
 
-    pub const fn min_size(&self) -> Option<f32> {
+    const fn min_size(self) -> Option<f32> {
         match self {
             TableResizeBehavior::None => None,
             TableResizeBehavior::Resizable => Some(0.05),
-            TableResizeBehavior::MinSize(min_size) => Some(*min_size),
+            TableResizeBehavior::MinSize(min_size) => Some(min_size),
         }
     }
 }
 
 #[derive(Clone)]
 pub struct HeaderResizeInfo {
-    pub(crate) columns_state: WeakEntity<RedistributableColumnsState>,
-    pub resize_behavior: TableRow<TableResizeBehavior>,
+    columns_state: WeakEntity<RedistributableColumnsState>,
+    pub(crate) resize_behavior: TableRow<TableResizeBehavior>,
 }
 
 impl HeaderResizeInfo {
@@ -75,7 +75,7 @@ impl HeaderResizeInfo {
         Self { columns_state: columns_state.downgrade(), resize_behavior }
     }
 
-    pub fn reset_column(&self, col_idx: usize, window: &mut Window, cx: &mut App) {
+    pub(crate) fn reset_column(&self, col_idx: usize, window: &Window, cx: &mut App) {
         self.columns_state
             .update(cx, |state, cx| {
                 state.reset_column_to_initial_width(col_idx, window);
@@ -86,11 +86,11 @@ impl HeaderResizeInfo {
 }
 
 pub struct RedistributableColumnsState {
-    pub(crate) initial_widths: TableRow<DefiniteLength>,
-    pub(crate) committed_widths: TableRow<DefiniteLength>,
-    pub(crate) preview_widths: TableRow<DefiniteLength>,
-    pub(crate) resize_behavior: TableRow<TableResizeBehavior>,
-    pub(crate) cached_container_width: Pixels,
+    initial_widths: TableRow<DefiniteLength>,
+    committed_widths: TableRow<DefiniteLength>,
+    preview_widths: TableRow<DefiniteLength>,
+    resize_behavior: TableRow<TableResizeBehavior>,
+    cached_container_width: Pixels,
 }
 
 impl RedistributableColumnsState {
@@ -114,7 +114,7 @@ impl RedistributableColumnsState {
         self.committed_widths.cols()
     }
 
-    pub const fn resize_behavior(&self) -> &TableRow<TableResizeBehavior> {
+    const fn resize_behavior(&self) -> &TableRow<TableResizeBehavior> {
         &self.resize_behavior
     }
 
@@ -133,15 +133,15 @@ impl RedistributableColumnsState {
         }
     }
 
-    pub const fn set_cached_container_width(&mut self, width: Pixels) {
+    const fn set_cached_container_width(&mut self, width: Pixels) {
         self.cached_container_width = width;
     }
 
-    pub fn commit_preview(&mut self) {
+    fn commit_preview(&mut self) {
         self.committed_widths = self.preview_widths.clone();
     }
 
-    pub fn reset_column_to_initial_width(&mut self, column_index: usize, window: &Window) {
+    fn reset_column_to_initial_width(&mut self, column_index: usize, window: &Window) {
         let bounds_width = self.cached_container_width;
         if bounds_width <= px(0.) {
             return;
@@ -164,7 +164,7 @@ impl RedistributableColumnsState {
         }
     }
 
-    pub(crate) fn reset_to_initial_size(
+    fn reset_to_initial_size(
         col_idx: usize,
         mut widths: TableRow<f32>,
         initial_sizes: TableRow<f32>,
@@ -240,7 +240,7 @@ impl RedistributableColumnsState {
     ///
     /// Extracted as a pure function so the drag math can be unit tested, mirroring the
     /// `drag_column_handle` / `propagate_resize_diff` helpers.
-    pub(crate) fn compute_drag_preview(
+    fn compute_drag_preview(
         mut widths: TableRow<f32>,
         resize_behavior: &TableRow<TableResizeBehavior>,
         hidden: Option<&TableRow<bool>>,
@@ -291,7 +291,7 @@ impl RedistributableColumnsState {
         widths
     }
 
-    pub(crate) fn drag_column_handle(
+    fn drag_column_handle(
         diff: f32,
         col_idx: usize,
         widths: &mut TableRow<f32>,
@@ -304,7 +304,7 @@ impl RedistributableColumnsState {
         }
     }
 
-    pub(crate) fn propagate_resize_diff(
+    fn propagate_resize_diff(
         diff: f32,
         col_idx: usize,
         widths: &mut TableRow<f32>,
@@ -356,7 +356,7 @@ impl RedistributableColumnsState {
 }
 
 /// Returns `true` when the column at `idx` is hidden by `hidden`.
-pub(super) fn is_column_hidden(hidden: Option<&TableRow<bool>>, idx: usize) -> bool {
+fn is_column_hidden(hidden: Option<&TableRow<bool>>, idx: usize) -> bool {
     hidden.and_then(|mask| mask.get(idx).copied()).unwrap_or(false)
 }
 
@@ -389,6 +389,7 @@ pub fn redistribute_hidden_widths(widths: &TableRow<Length>, hidden: Option<&Tab
             Length::Definite(DefiniteLength::Fraction(fraction)) if !is_column_hidden(hidden, idx) => {
                 Length::Definite(DefiniteLength::Fraction(fraction * scale))
             }
+            // lint: expect(wildcard_match) only some variants matter here
             other => *other,
         })
         .collect();
@@ -524,7 +525,7 @@ pub fn render_redistributable_columns_resize_handles(
 /// - `on_reset`: called on double-click to reset the column to its initial width
 /// - `on_drag_end`: called when the drag ends (e.g. to commit preview widths)
 #[allow(clippy::type_complexity)]
-pub(crate) fn render_column_resize_divider(
+fn render_column_resize_divider(
     divider: Stateful<Div>,
     col_idx: usize,
     is_resizable: bool,

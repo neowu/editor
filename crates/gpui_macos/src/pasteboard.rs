@@ -283,30 +283,30 @@ impl From<ImageFormat> for UTType {
 }
 
 // See https://developer.apple.com/documentation/uniformtypeidentifiers/uttype-swift.struct/
-pub(crate) struct UTType(id);
+struct UTType(id);
 
 impl UTType {
-    pub(crate) fn png() -> Self {
+    fn png() -> Self {
         // https://developer.apple.com/documentation/uniformtypeidentifiers/uttype-swift.struct/png
         Self(unsafe { NSPasteboardTypePNG }) // This is a rare case where there's a built-in NSPasteboardType
     }
 
-    pub(crate) fn jpeg() -> Self {
+    fn jpeg() -> Self {
         // https://developer.apple.com/documentation/uniformtypeidentifiers/uttype-swift.struct/jpeg
         Self(unsafe { ns_string("public.jpeg") })
     }
 
-    pub(crate) fn gif() -> Self {
+    fn gif() -> Self {
         // https://developer.apple.com/documentation/uniformtypeidentifiers/uttype-swift.struct/gif
         Self(unsafe { ns_string("com.compuserve.gif") })
     }
 
-    pub(crate) fn webp() -> Self {
+    fn webp() -> Self {
         // https://developer.apple.com/documentation/uniformtypeidentifiers/uttype-swift.struct/webp
         Self(unsafe { ns_string("org.webmproject.webp") })
     }
 
-    pub(crate) fn svg() -> Self {
+    fn svg() -> Self {
         // https://developer.apple.com/documentation/uniformtypeidentifiers/uttype-swift.struct/svg
         Self(unsafe { ns_string("public.svg-image") })
     }
@@ -315,7 +315,7 @@ impl UTType {
         self.0
     }
 
-    pub(crate) const fn inner_mut(&self) -> *mut AnyObject {
+    const fn inner_mut(&self) -> *mut AnyObject {
         self.0
     }
 }

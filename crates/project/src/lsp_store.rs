@@ -12,7 +12,7 @@ use lsp_types::request::Request;
 use lsp_types::request::WorkspaceSymbolRequest;
 mod capabilities;
 mod code_actions;
-pub mod code_lens;
+mod code_lens;
 mod completions;
 mod definition_symbols;
 mod diagnostics;
@@ -56,22 +56,16 @@ use capabilities::document_selector_matches;
 use capabilities::lsp_command_allowed_for_buffer;
 use clock::Global;
 pub use completions::CompletionDocumentation;
-pub use completions::ensure_uniform_list_compatible_label;
 pub use diagnostics::DiagnosticSummary;
-pub use diagnostics::DocumentDiagnostics;
-pub use diagnostics::DocumentDiagnosticsUpdate;
-pub use diagnostics::WorkspaceRefreshTask;
+pub(crate) use diagnostics::WorkspaceRefreshTask;
 use diagnostics::lsp_workspace_diagnostics_refresh;
-pub use document_colors::DocumentColors;
 pub use document_links::BufferDocumentLinks;
 pub use document_links::DocumentLinkId;
 pub use document_links::LspDocumentLink;
 pub use document_links::ResolvedDocumentLink;
 use file_watchers::LanguageServerWatchedPaths;
 use file_watchers::RenamePathsWatchedForServer;
-pub use file_watchers::glob_literal_prefix;
 pub use folding_ranges::LspFoldingRange;
-pub use formatting::FormattableBuffer;
 pub use formatting::LspFormatTarget;
 use fs::Fs;
 use futures::FutureExt as _;
@@ -121,7 +115,7 @@ use lsp::LanguageServerName;
 use lsp::LanguageServerSelector;
 use lsp::LspRequestFuture as _;
 pub use lsp_store::inlay_hints::CacheInlayHints;
-pub use lsp_store::inlay_hints::CacheInlayHintsTask;
+pub(crate) use lsp_store::inlay_hints::CacheInlayHintsTask;
 pub use lsp_store::inlay_hints::InvalidationStrategy;
 use lsp_types::MessageActionItem;
 use lsp_types::MessageType;
@@ -194,7 +188,7 @@ use crate::worktree_store::WorktreeStore;
 use crate::worktree_store::WorktreeStoreEvent;
 
 const SERVER_LAUNCHING_BEFORE_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
-pub const SERVER_PROGRESS_THROTTLE_TIMEOUT: Duration = Duration::from_millis(100);
+const SERVER_PROGRESS_THROTTLE_TIMEOUT: Duration = Duration::from_millis(100);
 const WORKSPACE_DIAGNOSTICS_TOKEN_START: &str = "id:";
 const WORKSPACE_DIAGNOSTICS_REPULL_DELAY: Duration = Duration::from_secs(2);
 const CROSS_BUFFER_DIAGNOSTICS_PULL_DELAY: Duration = Duration::from_millis(100);
@@ -252,14 +246,14 @@ struct LanguageServerSeed {
     name: LanguageServerName,
 }
 
-pub struct LocalLspStore {
+pub(crate) struct LocalLspStore {
     weak: WeakEntity<LspStore>,
-    pub worktree_store: Entity<WorktreeStore>,
+    worktree_store: Entity<WorktreeStore>,
     environment: Entity<ProjectEnvironment>,
     fs: Arc<Fs>,
     languages: Arc<LanguageRegistry>,
     language_server_ids: FxHashMap<LanguageServerSeed, UnifiedLanguageServer>,
-    pub language_servers: FxHashMap<LanguageServerId, LanguageServerState>,
+    language_servers: FxHashMap<LanguageServerId, LanguageServerState>,
     buffers_being_formatted: FxHashSet<BufferId>,
     last_workspace_edits_by_language_server: FxHashMap<LanguageServerId, ProjectTransaction>,
     language_server_watched_paths: FxHashMap<LanguageServerId, LanguageServerWatchedPaths>,
@@ -410,7 +404,7 @@ impl LocalLspStore {
         }
     }
 
-    pub(crate) fn reset_buffer(&self, buffer: &Entity<Buffer>, old_file: &File, cx: &mut App) {
+    fn reset_buffer(&self, buffer: &Entity<Buffer>, old_file: &File, cx: &mut App) {
         buffer.update(cx, |buffer, cx| {
             let Some(language) = buffer.language() else {
                 return;
@@ -647,7 +641,7 @@ impl LocalLspStore {
         Some((delegate, apply))
     }
 
-    pub(crate) fn unregister_old_buffer_from_language_servers(
+    fn unregister_old_buffer_from_language_servers(
         &mut self,
         buffer: &Entity<Buffer>,
         old_file: &File,
@@ -661,7 +655,7 @@ impl LocalLspStore {
         self.unregister_buffer_from_language_servers(buffer, &file_url, cx)
     }
 
-    pub(crate) fn unregister_buffer_from_language_servers(
+    fn unregister_buffer_from_language_servers(
         &mut self,
         buffer: &Entity<Buffer>,
         file_url: &Uri,
@@ -847,7 +841,7 @@ pub struct LspStore {
     last_formatting_failure: Option<String>,
     buffer_store: Entity<BufferStore>,
     worktree_store: Entity<WorktreeStore>,
-    pub languages: Arc<LanguageRegistry>,
+    pub(crate) languages: Arc<LanguageRegistry>,
     pub language_server_statuses: BTreeMap<LanguageServerId, LanguageServerStatus>,
     active_entry: Option<ProjectEntryId>,
     _maintain_workspace_config: (Task<Result<()>>, watch::Sender<()>),
@@ -863,7 +857,7 @@ pub struct LspStore {
 }
 
 #[derive(Debug)]
-pub struct BufferLspData {
+struct BufferLspData {
     buffer_version: Global,
     document_colors: Option<DocumentColorData>,
     code_lens: Option<CodeLensData>,
@@ -1009,14 +1003,14 @@ pub struct LanguageServerStatus {
 
 #[derive(Clone, Debug)]
 struct CoreSymbol {
-    pub language_server_name: LanguageServerName,
-    pub source_worktree_id: WorktreeId,
-    pub source_language_server_id: LanguageServerId,
-    pub path: SymbolLocation,
-    pub name: String,
-    pub kind: language::SymbolKind,
-    pub range: Range<Unclipped<PointUtf16>>,
-    pub container_name: Option<String>,
+    language_server_name: LanguageServerName,
+    source_worktree_id: WorktreeId,
+    source_language_server_id: LanguageServerId,
+    path: SymbolLocation,
+    name: String,
+    kind: language::SymbolKind,
+    range: Range<Unclipped<PointUtf16>>,
+    container_name: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1053,7 +1047,7 @@ fn lsp_pull_cancelled_with_retrigger(error: &anyhow::Error) -> bool {
 
 impl LspStore {
     // todo: always `Some`; inline `self.local` at call sites
-    pub fn new_local(
+    pub(crate) fn new_local(
         buffer_store: Entity<BufferStore>,
         worktree_store: Entity<WorktreeStore>,
         environment: Entity<ProjectEnvironment>,
@@ -1129,10 +1123,10 @@ impl LspStore {
 
     fn on_buffer_store_event(&mut self, _: Entity<BufferStore>, event: &BufferStoreEvent, cx: &mut Context<Self>) {
         match event {
-            BufferStoreEvent::BufferAdded(buffer) => {
+            BufferStoreEvent::Added(buffer) => {
                 self.on_buffer_added(buffer, cx);
             }
-            BufferStoreEvent::BufferChangedFilePath { buffer, old_file } => {
+            BufferStoreEvent::ChangedFilePath { buffer, old_file } => {
                 let buffer_id = buffer.read(cx).buffer_id();
                 let local = &mut self.local;
                 if let Some(old_file) = File::from_dyn(old_file.as_ref()) {
@@ -1157,7 +1151,7 @@ impl LspStore {
                     }
                 }
             }
-            BufferStoreEvent::BufferDropped(_) => {}
+            BufferStoreEvent::Dropped(_) => {}
         }
     }
 
@@ -1168,7 +1162,7 @@ impl LspStore {
         cx: &mut Context<Self>,
     ) {
         match event {
-            WorktreeStoreEvent::WorktreeAdded(worktree) => cx
+            WorktreeStoreEvent::Added(worktree) => cx
                 .subscribe(worktree, |this, worktree, event, cx| match event {
                     worktree::Event::UpdatedEntries(changes) => {
                         this.update_local_worktree_language_servers(&worktree, changes, cx);
@@ -1178,10 +1172,11 @@ impl LspStore {
                     | worktree::Event::Deleted => {}
                 })
                 .detach(),
-            WorktreeStoreEvent::WorktreeRemoved(_, id) => self.remove_worktree(*id, cx),
-            WorktreeStoreEvent::WorktreeUpdatedEntries(worktree_id, changes) => {
+            WorktreeStoreEvent::Removed(_, id) => self.remove_worktree(*id, cx),
+            WorktreeStoreEvent::UpdatedEntries(worktree_id, changes) => {
                 self.invalidate_diagnostic_summaries_for_removed_entries(*worktree_id, changes, cx);
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }
@@ -1208,6 +1203,7 @@ impl LspStore {
                 self.on_buffer_reloaded(buffer, cx);
             }
 
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }
@@ -1506,11 +1502,11 @@ impl LspStore {
         cx.emit(LspStoreEvent::LanguageDetected { buffer: buffer_entity.clone(), new_language: Some(new_language) });
     }
 
-    pub fn buffer_store(&self) -> Entity<BufferStore> {
+    fn buffer_store(&self) -> Entity<BufferStore> {
         self.buffer_store.clone()
     }
 
-    pub const fn set_active_entry(&mut self, active_entry: Option<ProjectEntryId>) {
+    pub(crate) const fn set_active_entry(&mut self, active_entry: Option<ProjectEntryId>) {
         self.active_entry = active_entry;
     }
 
@@ -1527,8 +1523,8 @@ impl LspStore {
         cx.emit(LspStoreEvent::RefreshDocumentHighlights { server_id: for_server });
     }
 
-    pub fn request_lsp<R>(
-        &mut self,
+    pub(crate) fn request_lsp<R>(
+        &self,
         buffer: Entity<Buffer>,
         server: LanguageServerToQuery,
         request: R,
@@ -1704,7 +1700,7 @@ impl LspStore {
     }
 
     pub(crate) fn linked_edits(
-        &mut self,
+        &self,
         buffer: &Entity<Buffer>,
         position: Anchor,
         cx: &mut Context<Self>,
@@ -1726,8 +1722,8 @@ impl LspStore {
         self.request_lsp(buffer.clone(), server_id, LinkedEditingRange { position }, cx)
     }
 
-    pub fn definitions(
-        &mut self,
+    pub(crate) fn definitions(
+        &self,
         buffer: &Entity<Buffer>,
         position: PointUtf16,
         cx: &mut Context<Self>,
@@ -1749,8 +1745,8 @@ impl LspStore {
         })
     }
 
-    pub fn declarations(
-        &mut self,
+    pub(crate) fn declarations(
+        &self,
         buffer: &Entity<Buffer>,
         position: PointUtf16,
         cx: &mut Context<Self>,
@@ -1761,8 +1757,8 @@ impl LspStore {
         })
     }
 
-    pub fn type_definitions(
-        &mut self,
+    pub(crate) fn type_definitions(
+        &self,
         buffer: &Entity<Buffer>,
         position: PointUtf16,
         cx: &mut Context<Self>,
@@ -1780,8 +1776,8 @@ impl LspStore {
         })
     }
 
-    pub fn implementations(
-        &mut self,
+    pub(crate) fn implementations(
+        &self,
         buffer: &Entity<Buffer>,
         position: PointUtf16,
         cx: &mut Context<Self>,
@@ -1799,8 +1795,8 @@ impl LspStore {
         })
     }
 
-    pub fn references(
-        &mut self,
+    pub(crate) fn references(
+        &self,
         buffer: &Entity<Buffer>,
         position: PointUtf16,
         cx: &mut Context<Self>,
@@ -1983,7 +1979,7 @@ impl LspStore {
     }
 
     fn fetch_inlay_hints(
-        &mut self,
+        &self,
         for_servers: Option<FxHashSet<LanguageServerId>>,
         buffer: &Entity<Buffer>,
         range: Range<Anchor>,
@@ -2008,8 +2004,8 @@ impl LspStore {
         })
     }
 
-    pub fn hover(
-        &mut self,
+    pub(crate) fn hover(
+        &self,
         buffer: &Entity<Buffer>,
         position: PointUtf16,
         cx: &mut Context<Self>,
@@ -2026,7 +2022,7 @@ impl LspStore {
         })
     }
 
-    pub fn symbols(&self, query: &str, cx: &mut Context<Self>) -> Task<Result<Vec<Symbol>>> {
+    pub(crate) fn symbols(&self, query: &str, cx: &Context<Self>) -> Task<Result<Vec<Symbol>>> {
         let language_registry = Arc::clone(&self.languages);
 
         {
@@ -2186,7 +2182,7 @@ impl LspStore {
         }
     }
 
-    pub fn on_buffer_edited(&mut self, buffer: Entity<Buffer>, cx: &mut Context<Self>) -> Option<()> {
+    fn on_buffer_edited(&mut self, buffer: Entity<Buffer>, cx: &mut Context<Self>) -> Option<()> {
         let language_servers: Vec<_> = buffer.update(cx, |buffer, cx| {
             Some(self.local.language_servers_for_buffer(buffer, cx).map(|i| Arc::clone(i.1)).collect())
         })?;
@@ -2273,7 +2269,7 @@ impl LspStore {
         None
     }
 
-    pub fn on_buffer_saved(&mut self, buffer: Entity<Buffer>, cx: &mut Context<Self>) -> Option<()> {
+    fn on_buffer_saved(&mut self, buffer: Entity<Buffer>, cx: &mut Context<Self>) -> Option<()> {
         let file = File::from_dyn(buffer.read(cx).file())?;
         let worktree_id = file.worktree_id(cx);
         let abs_path = file.abs_path(cx);
@@ -2300,7 +2296,7 @@ impl LspStore {
         None
     }
 
-    pub fn running_language_servers_for_local_buffer<'a>(
+    fn running_language_servers_for_local_buffer<'a>(
         &'a self,
         buffer: &Buffer,
         cx: &mut App,
@@ -2318,7 +2314,7 @@ impl LspStore {
         self.local.buffers_opened_in_servers.get(&buffer_id)
     }
 
-    pub fn language_server_for_local_buffer<'a>(
+    pub(crate) fn language_server_for_local_buffer<'a>(
         &'a self,
         buffer: &'a Buffer,
         server_id: LanguageServerId,
@@ -2355,7 +2351,7 @@ impl LspStore {
         }
     }
 
-    pub fn open_buffer_for_symbol(&mut self, symbol: &Symbol, cx: &mut Context<Self>) -> Task<Result<Entity<Buffer>>> {
+    pub(crate) fn open_buffer_for_symbol(&self, symbol: &Symbol, cx: &Context<Self>) -> Task<Result<Entity<Buffer>>> {
         {
             let local = &self.local;
             let is_valid = local.language_server_ids.iter().any(|(seed, state)| {
@@ -2450,7 +2446,7 @@ impl LspStore {
     }
 
     fn request_multiple_lsp_locally<R>(
-        &mut self,
+        &self,
         buffer: &Entity<Buffer>,
         request: R,
         cx: &mut Context<Self>,
@@ -2464,7 +2460,7 @@ impl LspStore {
     }
 
     fn request_filtered_lsp_locally<R>(
-        &mut self,
+        &self,
         buffer: &Entity<Buffer>,
         request: R,
         only_servers: Option<&FxHashSet<LanguageServerId>>,
@@ -2532,7 +2528,7 @@ impl LspStore {
         self.local.language_server_for_id(id)
     }
 
-    pub fn environment_for_buffer(
+    fn environment_for_buffer(
         &self,
         buffer: &Entity<Buffer>,
         cx: &mut Context<Self>,
@@ -2572,13 +2568,13 @@ impl LspStore {
     }
 
     /// Gets what's stored in the LSP data for the given buffer.
-    pub fn current_lsp_data(&mut self, buffer_id: BufferId) -> Option<&mut BufferLspData> {
+    fn current_lsp_data(&mut self, buffer_id: BufferId) -> Option<&mut BufferLspData> {
         self.lsp_data.get_mut(&buffer_id)
     }
 
     /// Gets the most recent LSP data for the given buffer: if the data is absent or out of date,
     /// new [`BufferLspData`] will be created to replace the previous state.
-    pub fn latest_lsp_data(&mut self, buffer: &Entity<Buffer>, cx: &mut App) -> &mut BufferLspData {
+    fn latest_lsp_data(&mut self, buffer: &Entity<Buffer>, cx: &App) -> &mut BufferLspData {
         let (buffer_id, buffer_version) = buffer.read_with(cx, |buffer, _| (buffer.buffer_id(), buffer.version()));
         let lsp_data = self.lsp_data.entry(buffer_id).or_insert_with(|| BufferLspData::new(buffer, cx));
         if buffer_version.changed_since(&lsp_data.buffer_version) {
@@ -2731,11 +2727,11 @@ pub struct LanguageServerPromptRequest {
     pub message: String,
     pub actions: Vec<MessageActionItem>,
     pub lsp_name: String,
-    pub(crate) response_channel: async_channel::Sender<MessageActionItem>,
+    response_channel: async_channel::Sender<MessageActionItem>,
 }
 
 impl LanguageServerPromptRequest {
-    pub fn new(
+    fn new(
         level: PromptLevel,
         message: String,
         actions: Vec<MessageActionItem>,
@@ -2775,7 +2771,7 @@ pub struct LanguageServerShowDocumentRequest {
     pub external: bool,
     pub take_focus: bool,
     pub selection: Option<lsp_types::Range>,
-    pub(crate) response_channel: async_channel::Sender<bool>,
+    response_channel: async_channel::Sender<bool>,
 }
 
 impl LanguageServerShowDocumentRequest {
@@ -2799,7 +2795,7 @@ pub enum LanguageServerLogType {
     Trace { verbose_info: Option<String> },
 }
 
-pub enum LanguageServerState {
+enum LanguageServerState {
     Starting {
         startup: Task<Option<Arc<LanguageServer>>>,
         /// List of language servers that will be added to the workspace once it's initialization completes.
@@ -2846,7 +2842,7 @@ impl fmt::Debug for LanguageServerState {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct LanguageServerProgress {
-    pub is_disk_based_diagnostics_progress: bool,
+    is_disk_based_diagnostics_progress: bool,
     pub is_cancellable: bool,
     pub title: Option<String>,
     pub message: Option<String>,

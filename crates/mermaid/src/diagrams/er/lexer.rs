@@ -241,6 +241,7 @@ impl<'a> Lexer<'a> {
         let next = match self.dir_next {
             Ahead::Gone => return false,
             Ahead::At(next) if next >= p => next,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {
                 let Some(next) = find_direction(self.src, p) else {
                     self.dir_next = Ahead::Gone;
@@ -555,6 +556,7 @@ impl<'a> Lexer<'a> {
         let tilde_next = match self.tilde_next {
             Ahead::Gone => return false,
             Ahead::At(next) if next >= p => next,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {
                 let Some(next) = find(self.src, p, b'~') else {
                     self.tilde_next = Ahead::Gone;

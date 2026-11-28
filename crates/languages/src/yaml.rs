@@ -21,7 +21,7 @@ use serde_json::Value;
 use crate::LanguageDef;
 use crate::npx;
 
-pub(crate) struct YamlLspAdapter;
+struct YamlLspAdapter;
 
 impl YamlLspAdapter {
     const SERVER_NAME: LanguageServerName = LanguageServerName::new_static("yaml-language-server");

@@ -13,7 +13,7 @@ use workspace::WorkspaceActions;
 use crate::BufferSearchBar;
 
 /// Registrar inverts the dependency between search and its downstream user, allowing said downstream user to register search action without knowing exactly what those actions are.
-pub trait SearchActionsRegistrar {
+pub(crate) trait SearchActionsRegistrar {
     fn register_handler<A: Action>(&mut self, callback: impl ActionExecutor<A>);
 }
 
@@ -77,7 +77,7 @@ impl SearchActionsRegistrar for WorkspaceActions {
 
 type DidHandleAction = bool;
 /// Potentially executes the underlying action if some preconditions are met (e.g. buffer search bar is visible).
-pub trait ActionExecutor<A: Action>: 'static + Clone + Send + Sync {
+pub(crate) trait ActionExecutor<A: Action>: 'static + Clone + Send + Sync {
     fn execute(
         &self,
         search_bar: &mut BufferSearchBar,

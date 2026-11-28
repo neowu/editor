@@ -51,6 +51,7 @@ const fn signal_of(kind: T) -> Option<u8> {
         T::SolidArrowBottomReverseDotted => line::SOLID_ARROW_BOTTOM_REVERSE_DOTTED,
         T::StickArrowTopReverseDotted => line::STICK_ARROW_TOP_REVERSE_DOTTED,
         T::StickArrowBottomReverseDotted => line::STICK_ARROW_BOTTOM_REVERSE_DOTTED,
+        // lint: expect(wildcard_match) only a few variants of `T` matter here
         _ => return None,
     })
 }
@@ -369,6 +370,7 @@ pub(crate) fn parse_sequence(src: &str, db: &mut SeqDb) -> Result<(), Error> {
                     stack.pop();
                     p.close(K::Box);
                 }
+                // lint: expect(wildcard_match) only a few variants of `T` matter here
                 _ => {
                     return Err(p.fail("'end', 'NEWLINE', 'participant', 'participant_actor', 'destroy'"));
                 }
@@ -453,6 +455,7 @@ pub(crate) fn parse_sequence(src: &str, db: &mut SeqDb) -> Result<(), Error> {
                     T::Alt => K::Alt,
                     T::Par | T::ParOver => K::Par,
                     T::Critical => K::Critical,
+                    // lint: expect(wildcard_match) only a few variants of `T` matter here
                     _ => K::Box,
                 };
                 p.open(kind, t, text);
@@ -462,6 +465,7 @@ pub(crate) fn parse_sequence(src: &str, db: &mut SeqDb) -> Result<(), Error> {
                 let (wanted, signal_type) = match t {
                     T::Else => (K::Alt, line::ALT_ELSE),
                     T::And => (K::Par, line::PAR_AND),
+                    // lint: expect(wildcard_match) only a few variants of `T` matter here
                     _ => (K::Critical, line::CRITICAL_OPTION),
                 };
                 if frame != Some(wanted) {
@@ -485,6 +489,7 @@ pub(crate) fn parse_sequence(src: &str, db: &mut SeqDb) -> Result<(), Error> {
                 }
                 return db.apply(p.out);
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => return Err(p.fail("'NEWLINE', 'ACTOR', 'participant', 'note', 'end'")),
         }
     }

@@ -102,7 +102,7 @@ impl<T: Clone> DiagnosticEntryRef<'_, T> {
 
 impl<'a> DiagnosticEntryRef<'a, Anchor> {
     /// Converts the [DiagnosticEntry] to a different buffer coordinate type.
-    pub fn resolve<O: FromAnchor>(&self, buffer: &text::BufferSnapshot) -> DiagnosticEntryRef<'a, O> {
+    fn resolve<O: FromAnchor>(&self, buffer: &text::BufferSnapshot) -> DiagnosticEntryRef<'a, O> {
         DiagnosticEntryRef {
             range: O::from_anchor(&self.range.start, buffer)..O::from_anchor(&self.range.end, buffer),
             diagnostic: self.diagnostic,
@@ -115,9 +115,9 @@ impl<'a> DiagnosticEntryRef<'a, Anchor> {
 #[derive(Debug, Serialize)]
 pub struct DiagnosticGroup<'a, T> {
     /// The diagnostics.
-    pub entries: Vec<DiagnosticEntryRef<'a, T>>,
+    entries: Vec<DiagnosticEntryRef<'a, T>>,
     /// The index into `entries` where the primary diagnostic is stored.
-    pub primary_ix: usize,
+    primary_ix: usize,
 }
 
 impl<'a> DiagnosticGroup<'a, Anchor> {
@@ -196,16 +196,16 @@ impl DiagnosticSet {
     }
 
     /// Returns the number of diagnostics in the set.
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         self.diagnostics.summary().count
     }
     /// Returns true when there are no diagnostics in this diagnostic set.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Returns an iterator over the diagnostic entries in the set.
-    pub fn iter(&self) -> impl Iterator<Item = &DiagnosticEntry<Anchor>> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &DiagnosticEntry<Anchor>> {
         self.diagnostics.iter()
     }
 
@@ -227,7 +227,7 @@ impl DiagnosticSet {
 
     /// Returns an iterator over the stored entries that intersect the given range of
     /// the buffer, with their ranges left in the buffer's own coordinates.
-    pub fn entries_in_range<'a, T>(
+    pub(crate) fn entries_in_range<'a, T>(
         &'a self,
         range: Range<T>,
         buffer: &'a text::BufferSnapshot,
@@ -303,7 +303,7 @@ impl DiagnosticSet {
 
     /// Returns all of the diagnostics in a particular diagnostic group,
     /// in order of their position in the buffer.
-    pub fn group<'a, O: FromAnchor>(
+    pub(crate) fn group<'a, O: FromAnchor>(
         &'a self,
         group_id: usize,
         buffer: &'a text::BufferSnapshot,
@@ -328,7 +328,7 @@ impl sum_tree::Item for DiagnosticEntry<Anchor> {
 
 impl DiagnosticEntry<Anchor> {
     /// Converts the [DiagnosticEntry] to a different buffer coordinate type.
-    pub fn resolve<'a, O: FromAnchor>(&'a self, buffer: &text::BufferSnapshot) -> DiagnosticEntryRef<'a, O> {
+    pub(crate) fn resolve<'a, O: FromAnchor>(&'a self, buffer: &text::BufferSnapshot) -> DiagnosticEntryRef<'a, O> {
         DiagnosticEntryRef {
             range: O::from_anchor(&self.range.start, buffer)..O::from_anchor(&self.range.end, buffer),
             diagnostic: &self.diagnostic,

@@ -28,6 +28,7 @@ const fn end_type(t: T) -> Option<u8> {
         T::Composition => Some(2),
         T::Dependency => Some(3),
         T::Lollipop => Some(4),
+        // lint: expect(wildcard_match) only a few variants of `T` matter here
         _ => None,
     }
 }
@@ -202,6 +203,7 @@ impl<'s> Parser<'s, '_> {
                     }
                 }
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => {}
         }
         Ok(id)
@@ -444,6 +446,7 @@ impl<'s> Parser<'s, '_> {
                     T::DirectionTb => "TB",
                     T::DirectionBt => "BT",
                     T::DirectionRl => "RL",
+                    // lint: expect(wildcard_match) only a few variants of `T` matter here
                     _ => "LR",
                 });
                 Ok(())
@@ -465,6 +468,7 @@ impl<'s> Parser<'s, '_> {
                 db.set_acc_description(trim(value));
                 Ok(())
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => Err(self.fail(
                 "'acc_title', 'acc_descr', 'acc_descr_multiline_value', 'NAMESPACE', 'ANNOTATION_START', 'CLASS', 'MEMBER', 'NOTE_FOR', 'NOTE', 'CLASSDEF', 'direction_tb', 'CALLBACK', 'LINK', 'CLICK', 'STYLE', 'CSSCLASS', 'ALPHA', 'MINUS', 'BQUOTE_STR'",
             )),

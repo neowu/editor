@@ -41,7 +41,7 @@ actions!(
     encoding_selector,
     [
         /// Toggles the encoding selector modal.
-        Toggle
+        pub(crate) Toggle
     ]
 );
 
@@ -49,7 +49,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions) {
     EncodingSelector::register(workspace_actions);
 }
 
-pub struct EncodingSelector {
+struct EncodingSelector {
     picker: Entity<Picker<EncodingSelectorDelegate>>,
 }
 
@@ -60,7 +60,7 @@ impl EncodingSelector {
         });
     }
 
-    pub fn toggle(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> Option<()> {
+    fn toggle(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> Option<()> {
         let buffer = workspace.active_item(cx)?.act_as::<Editor>(cx)?.read(cx).active_buffer(cx)?;
 
         let buffer_handle = buffer.read(cx);
@@ -99,7 +99,7 @@ impl Focusable for EncodingSelector {
 impl EventEmitter<DismissEvent> for EncodingSelector {}
 impl ModalView for EncodingSelector {}
 
-pub struct EncodingSelectorDelegate {
+struct EncodingSelectorDelegate {
     encoding_selector: WeakEntity<EncodingSelector>,
     buffer: Entity<Buffer>,
     encodings: Vec<&'static Encoding>,

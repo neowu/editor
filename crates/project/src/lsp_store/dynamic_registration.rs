@@ -30,13 +30,13 @@ use crate::lsp_store::completion_trigger_characters_for_buffer;
 use crate::lsp_store::lsp_workspace_diagnostics_refresh;
 
 #[derive(Debug)]
-pub(super) enum RegistrationSource {
+enum RegistrationSource {
     Static,
     Dynamic(String),
 }
 
 impl RegistrationSource {
-    pub(super) fn registration_id(&self) -> Option<&str> {
+    fn registration_id(&self) -> Option<&str> {
         match self {
             RegistrationSource::Static => None,
             RegistrationSource::Dynamic(id) => Some(id),
@@ -44,7 +44,7 @@ impl RegistrationSource {
     }
 }
 
-pub(super) type CapabilityRegistrations<T> = Vec<(RegistrationSource, T)>;
+type CapabilityRegistrations<T> = Vec<(RegistrationSource, T)>;
 
 #[derive(Debug, Clone, Copy)]
 struct CapabilityRegistrationChange {

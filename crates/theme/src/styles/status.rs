@@ -41,7 +41,7 @@ pub struct StatusColors {
     pub modified: Hsla,
 
     /// Represents a renamed status, such as a file that has been renamed.
-    pub renamed: Hsla,
+    pub(crate) renamed: Hsla,
 
     /// Indicates a successful operation or task completion.
     pub success: Hsla,
@@ -49,22 +49,10 @@ pub struct StatusColors {
     pub success_border: Hsla,
 
     /// Indicates some kind of unreachable status, like a block of code that can never be reached.
-    pub unreachable: Hsla,
+    pub(crate) unreachable: Hsla,
 
     /// Represents a warning status, like an operation that is about to fail.
     pub warning: Hsla,
     pub warning_background: Hsla,
     pub warning_border: Hsla,
-}
-
-pub struct DiagnosticColors {
-    pub error: Hsla,
-    pub warning: Hsla,
-    pub info: Hsla,
-}
-
-impl StatusColors {
-    pub const fn diagnostic(&self) -> DiagnosticColors {
-        DiagnosticColors { error: self.error, warning: self.warning, info: self.info }
-    }
 }

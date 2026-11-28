@@ -44,8 +44,8 @@ impl Request for LspExtExpandMacro {
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ExpandMacroParams {
-    pub text_document: lsp_types::TextDocumentIdentifier,
-    pub position: lsp_types::Position,
+    text_document: lsp_types::TextDocumentIdentifier,
+    position: lsp_types::Position,
 }
 
 #[derive(Default, Deserialize, Serialize, Debug)]
@@ -112,8 +112,8 @@ impl Request for LspOpenDocs {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenDocsParams {
-    pub text_document: lsp_types::TextDocumentIdentifier,
-    pub position: lsp_types::Position,
+    text_document: lsp_types::TextDocumentIdentifier,
+    position: lsp_types::Position,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -173,8 +173,8 @@ impl LspCommand for OpenDocs {
 
 /// A rust-analyzer request that takes a position and whose result is used as is.
 pub struct PositionRequest<R> {
-    pub position: PointUtf16,
-    pub server_id: LanguageServerId,
+    position: PointUtf16,
+    server_id: LanguageServerId,
     request: PhantomData<fn() -> R>,
 }
 
@@ -286,7 +286,7 @@ impl Request for LspRelatedTests {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TestInfo {
-    pub runnable: Runnable,
+    runnable: Runnable,
 }
 
 /// Locations of the tests that exercise the item at `position`.
@@ -387,19 +387,19 @@ impl Request for Runnables {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RunnablesParams {
-    pub text_document: lsp_types::TextDocumentIdentifier,
+    text_document: lsp_types::TextDocumentIdentifier,
     #[serde(default)]
-    pub position: Option<lsp_types::Position>,
+    position: Option<lsp_types::Position>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Runnable {
-    pub label: String,
+    label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub location: Option<lsp_types::LocationLink>,
+    location: Option<lsp_types::LocationLink>,
     #[serde(flatten)]
-    pub args: RunnableArgs,
+    args: RunnableArgs,
 }
 
 /// The `kind` field in the JSON determines which variant is deserialized; see
@@ -407,39 +407,39 @@ pub struct Runnable {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "kind", content = "args")]
 #[serde(rename_all = "lowercase")]
-pub enum RunnableArgs {
+enum RunnableArgs {
     Cargo(CargoRunnableArgs),
     Shell(ShellRunnableArgs),
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct CargoRunnableArgs {
+struct CargoRunnableArgs {
     #[serde(default, skip_serializing_if = "FxHashMap::is_empty")]
-    pub environment: FxHashMap<String, String>,
-    pub cwd: PathBuf,
+    environment: FxHashMap<String, String>,
+    cwd: PathBuf,
     /// Command to be executed instead of cargo.
     #[serde(default)]
-    pub override_cargo: Option<String>,
+    override_cargo: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub workspace_root: Option<PathBuf>,
+    workspace_root: Option<PathBuf>,
     // command, --package and --lib stuff
     #[serde(default)]
-    pub cargo_args: Vec<String>,
+    cargo_args: Vec<String>,
     // stuff after --
     #[serde(default)]
-    pub executable_args: Vec<String>,
+    executable_args: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct ShellRunnableArgs {
+struct ShellRunnableArgs {
     #[serde(default, skip_serializing_if = "FxHashMap::is_empty")]
-    pub environment: FxHashMap<String, String>,
-    pub cwd: PathBuf,
-    pub program: String,
+    environment: FxHashMap<String, String>,
+    cwd: PathBuf,
+    program: String,
     #[serde(default)]
-    pub args: Vec<String>,
+    args: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -454,7 +454,7 @@ pub struct LspRunnables {
     pub runnables: Vec<(LocationLink, SpawnInTerminal)>,
 }
 
-pub fn runnable_to_spawn(label: String, args: RunnableArgs) -> SpawnInTerminal {
+fn runnable_to_spawn(label: String, args: RunnableArgs) -> SpawnInTerminal {
     let (command, args, env, cwd) = match args {
         RunnableArgs::Cargo(cargo) => {
             let mut task_args = Vec::new();
@@ -536,7 +536,7 @@ impl LspCommand for GetLspRunnables {
 }
 
 #[derive(Debug)]
-pub struct LspExtRunFlycheck;
+pub(crate) struct LspExtRunFlycheck;
 
 impl Notification for LspExtRunFlycheck {
     type Params = RunFlycheckParams;
@@ -545,8 +545,8 @@ impl Notification for LspExtRunFlycheck {
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct RunFlycheckParams {
-    pub text_document: Option<lsp_types::TextDocumentIdentifier>,
+pub(crate) struct RunFlycheckParams {
+    pub(crate) text_document: Option<lsp_types::TextDocumentIdentifier>,
 }
 
 #[cfg(test)]

@@ -126,7 +126,7 @@ impl<T> Receiver<T> {
     ///
     /// The snapshot remains valid after further sends or after the channel is
     /// dropped, and does not prevent either operation.
-    pub fn snapshot(&mut self) -> Snapshot<T> {
+    fn snapshot(&mut self) -> Snapshot<T> {
         let snapshot = self.state.latest.load_full();
         self.version = snapshot.version;
         Snapshot(snapshot)
@@ -141,12 +141,12 @@ impl<T> Receiver<T> {
     ///
     /// Returns [`NoSenderError`] after the sender is dropped and the final
     /// publication has been seen.
-    pub fn changed(&mut self) -> impl Future<Output = Result<(), NoSenderError>> {
+    fn changed(&mut self) -> impl Future<Output = Result<(), NoSenderError>> {
         Changed { receiver: self }
     }
 
     /// Creates a fixed-value receiver whose change futures remain pending forever.
-    pub fn constant(value: T) -> Self {
+    fn constant(value: T) -> Self {
         Arc::new(State {
             latest: ArcSwap::from_pointee(Versioned { value, version: 0 }),
             receivers: ArcSwap::from_pointee(Vec::new()),
@@ -170,7 +170,7 @@ impl<T: Clone> Receiver<T> {
 }
 
 /// Owns an immutable channel value independently of its receiver.
-pub struct Snapshot<T>(Arc<Versioned<T>>);
+struct Snapshot<T>(Arc<Versioned<T>>);
 
 impl<T> Clone for Snapshot<T> {
     fn clone(&self) -> Self {

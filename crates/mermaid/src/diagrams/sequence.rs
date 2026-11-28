@@ -1,14 +1,14 @@
 //! Sequence diagrams: participants on lifelines, the messages between them, notes, and blocks.
 //! Port of Pele's `src/diagrams/sequence/index.ts`.
 
-pub(crate) mod actors;
-pub(crate) mod colors;
-pub(crate) mod db;
-pub(crate) mod lexer;
-pub(crate) mod parser;
-pub(crate) mod render;
-pub(crate) mod tokens;
-pub(crate) mod types;
+mod actors;
+mod colors;
+mod db;
+mod lexer;
+mod parser;
+mod render;
+mod tokens;
+mod types;
 
 use super::Diagram;
 use super::Input;
@@ -37,7 +37,7 @@ pub(crate) use db::SeqDb as Model;
 /// Returns a syntax error for input Mermaid rejects or a participant config that is not valid
 /// YAML, and a semantic error for a participant in two boxes, a misplaced `create` or `destroy`,
 /// and a deactivation of an inactive participant.
-pub(crate) fn parse(source: &str, config: &Value, title: Option<&str>) -> Result<Model, Error> {
+fn parse(source: &str, config: &Value, title: Option<&str>) -> Result<Model, Error> {
     let wrap = match member(config, "wrap") {
         Some(Value::Bool(wrap)) => Some(*wrap),
         _ => None,
@@ -57,6 +57,7 @@ pub(crate) fn parse(source: &str, config: &Value, title: Option<&str>) -> Result
 fn member<'v>(value: &'v Value, key: &str) -> Option<&'v Value> {
     match value {
         Value::Object(entries) => entries.iter().find(|(own, _)| own == key).map(|(_, v)| v),
+        // lint: expect(wildcard_match) only a few variants of `Value` matter here
         _ => None,
     }
 }

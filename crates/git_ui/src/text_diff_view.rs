@@ -50,7 +50,7 @@ use workspace::item::ItemEvent;
 use workspace::item::SaveOptions;
 use workspace::searchable::SearchableItemHandle;
 
-pub struct TextDiffView {
+pub(crate) struct TextDiffView {
     diff_editor: Entity<SplittableEditor>,
     title: SharedString,
     path: Option<SharedString>,
@@ -61,7 +61,7 @@ pub struct TextDiffView {
 const RECALCULATE_DIFF_DEBOUNCE: Duration = Duration::from_millis(250);
 
 impl TextDiffView {
-    pub fn open(
+    pub(crate) fn open(
         diff_data: &DiffClipboardWithSelectionData,
         workspace: &Workspace,
         window: &mut Window,
@@ -171,7 +171,7 @@ impl TextDiffView {
         Some(task)
     }
 
-    pub fn new(
+    fn new(
         clipboard_buffer: Entity<Buffer>,
         source_editor: Entity<Editor>,
         source_buffer: Entity<Buffer>,
@@ -208,6 +208,7 @@ impl TextDiffView {
             | language::BufferEvent::Reparsed => {
                 this.buffer_changes_tx.send(()).ok();
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         })
         .detach();
@@ -394,7 +395,7 @@ impl Item for TextDiffView {
     }
 }
 
-pub fn selection_location_text(editor: &Editor, cx: &App) -> Option<String> {
+fn selection_location_text(editor: &Editor, cx: &App) -> Option<String> {
     let buffer = editor.buffer().read(cx);
     let buffer_snapshot = buffer.snapshot(cx);
     let first_selection = editor.selections.disjoint_anchors().first()?;

@@ -23,7 +23,7 @@ impl ToggleState {
     /// Returns the inverse of the current selection status.
     ///
     /// Indeterminate states become selected if inverted.
-    pub const fn inverse(&self) -> Self {
+    pub(crate) const fn inverse(self) -> Self {
         match self {
             Self::Unselected | Self::Indeterminate => Self::Selected,
             Self::Selected => Self::Unselected,

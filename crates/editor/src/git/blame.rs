@@ -42,13 +42,13 @@ use workspace::Workspace;
 use crate::Editor;
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct GitBlameEntry {
-    pub rows: u32,
-    pub blame: Option<BlameEntry>,
+struct GitBlameEntry {
+    rows: u32,
+    blame: Option<BlameEntry>,
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct GitBlameEntrySummary {
+struct GitBlameEntrySummary {
     rows: u32,
 }
 
@@ -197,12 +197,12 @@ impl BlameRenderer for () {
     }
 }
 
-pub(crate) struct GlobalBlameRenderer(pub Arc<dyn BlameRenderer>);
+pub(crate) struct GlobalBlameRenderer(pub(crate) Arc<dyn BlameRenderer>);
 
 impl gpui::Global for GlobalBlameRenderer {}
 
 impl GitBlame {
-    pub fn new(
+    pub(crate) fn new(
         multi_buffer: Entity<MultiBuffer>,
         project: Entity<Project>,
         user_triggered: bool,
@@ -218,6 +218,7 @@ impl GitBlame {
             multi_buffer::Event::BufferRangesUpdated { .. } | multi_buffer::Event::BuffersEdited { .. } => {
                 git_blame.regenerate_on_edit(cx);
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         });
 
@@ -246,6 +247,7 @@ impl GitBlame {
                 log::debug!("Status of git repositories updated. Regenerating blame data...");
                 this.generate(cx);
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         });
 
@@ -299,7 +301,7 @@ impl GitBlame {
         }
     }
 
-    pub const fn is_static(&self) -> bool {
+    pub(crate) const fn is_static(&self) -> bool {
         matches!(self.kind, GitBlameKind::Static { .. })
     }
 
@@ -317,15 +319,15 @@ impl GitBlame {
         self.project.read(cx).git_store().read(cx).repository_and_path_for_buffer_id(id, cx).map(|(repo, _)| repo)
     }
 
-    pub fn has_generated_entries(&self) -> bool {
+    pub(crate) fn has_generated_entries(&self) -> bool {
         !self.buffers.is_empty()
     }
 
-    pub fn details_for_entry(&self, buffer: BufferId, entry: &BlameEntry) -> Option<ParsedCommitMessage> {
+    pub(crate) fn details_for_entry(&self, buffer: BufferId, entry: &BlameEntry) -> Option<ParsedCommitMessage> {
         self.buffers.get(&buffer)?.commit_details.get(&entry.sha).cloned()
     }
 
-    pub fn tag_names_for_entry(&self, buffer: BufferId, entry: &BlameEntry) -> Vec<SharedString> {
+    pub(crate) fn tag_names_for_entry(&self, buffer: BufferId, entry: &BlameEntry) -> Vec<SharedString> {
         self.buffers
             .get(&buffer)
             .and_then(|buffer| buffer.commit_tag_names.get(&entry.sha))
@@ -333,7 +335,7 @@ impl GitBlame {
             .unwrap_or_default()
     }
 
-    pub fn blame_for_rows<'a>(
+    pub(crate) fn blame_for_rows<'a>(
         &'a mut self,
         rows: &'a [RowInfo],
         cx: &'a mut App,
@@ -349,7 +351,7 @@ impl GitBlame {
         })
     }
 
-    pub fn max_author_length(&mut self, cx: &mut App) -> usize {
+    pub(crate) fn max_author_length(&mut self, cx: &App) -> usize {
         let mut max_author_length = 0;
         self.sync_all(cx);
 
@@ -368,11 +370,11 @@ impl GitBlame {
         max_author_length
     }
 
-    pub const fn blur(&mut self, _: &mut Context<Self>) {
+    pub(crate) const fn blur(&mut self, _: &mut Context<Self>) {
         self.focused = false;
     }
 
-    pub fn focus(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn focus(&mut self, cx: &mut Context<Self>) {
         if self.focused {
             return;
         }

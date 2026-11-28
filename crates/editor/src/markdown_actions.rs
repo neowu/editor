@@ -7,7 +7,12 @@ use super::ToggleBlockQuote;
 use super::Window;
 
 impl Editor {
-    pub fn toggle_markdown_block_quote(&mut self, _: &ToggleBlockQuote, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_markdown_block_quote(
+        &mut self,
+        _: &ToggleBlockQuote,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.manipulate_mutable_lines_in_markdown(window, cx, |lines| {
             let all_lines_quoted = lines.iter().all(|line| line.starts_with('>'));
 

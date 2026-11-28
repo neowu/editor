@@ -268,11 +268,15 @@ impl Editor {
         resolved
     }
 
-    pub fn diff_hunk_renderer(&self) -> Arc<dyn DiffHunkRenderer> {
+    pub(crate) fn diff_hunk_renderer(&self) -> Arc<dyn DiffHunkRenderer> {
         self.diff_hunk_renderer.clone().unwrap_or_else(|| Arc::new(DefaultDiffHunkRenderer))
     }
 
-    pub fn set_diff_hunk_renderer(&mut self, renderer: Option<Arc<dyn DiffHunkRenderer>>, cx: &mut Context<Self>) {
+    pub(crate) fn set_diff_hunk_renderer(
+        &mut self,
+        renderer: Option<Arc<dyn DiffHunkRenderer>>,
+        cx: &mut Context<Self>,
+    ) {
         let had_renderer = self.diff_hunk_renderer.is_some();
         let has_renderer = renderer.is_some();
         self.diff_hunk_renderer = renderer;
@@ -302,12 +306,12 @@ impl Editor {
         self.blame.as_ref()
     }
 
-    pub fn expand_selected_diff_hunks(&mut self, cx: &mut Context<Self>) {
+    fn expand_selected_diff_hunks(&self, cx: &mut Context<Self>) {
         let ranges: Vec<_> = self.selections.disjoint_anchors().iter().map(|s| s.range()).collect();
         self.buffer.update(cx, |buffer, cx| buffer.expand_diff_hunks(ranges, cx));
     }
 
-    pub fn toggle_git_blame(&mut self, _: &::git::Blame, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_git_blame(&mut self, _: &::git::Blame, window: &mut Window, cx: &mut Context<Self>) {
         self.show_git_blame_gutter = !self.show_git_blame_gutter;
 
         if self.show_git_blame_gutter && !self.has_blame_entries(cx) {
@@ -317,7 +321,7 @@ impl Editor {
         cx.notify();
     }
 
-    pub fn git_restore(&mut self, _: &Restore, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn git_restore(&mut self, _: &Restore, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -325,7 +329,7 @@ impl Editor {
         self.restore_hunks_in_ranges(selections, window, cx);
     }
 
-    pub fn status_for_buffer_id(&self, buffer_id: BufferId, cx: &App) -> Option<FileStatus> {
+    pub(crate) fn status_for_buffer_id(&self, buffer_id: BufferId, cx: &App) -> Option<FileStatus> {
         if let Some(status) =
             self.addons.iter().find_map(|(_, addon)| addon.override_status_for_buffer_id(buffer_id, cx))
         {
@@ -360,13 +364,18 @@ impl Editor {
         }
     }
 
-    pub fn set_expand_all_diff_hunks(&mut self, cx: &mut App) {
+    pub(crate) fn set_expand_all_diff_hunks(&self, cx: &mut App) {
         self.buffer.update(cx, |buffer, cx| {
             buffer.set_all_diff_hunks_expanded(cx);
         });
     }
 
-    pub fn expand_all_diff_hunks(&mut self, _: &ExpandAllDiffHunks, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn expand_all_diff_hunks(
+        &mut self,
+        _: &ExpandAllDiffHunks,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.buffer.update(cx, |buffer, cx| buffer.expand_diff_hunks(vec![Anchor::Min..Anchor::Max], cx));
     }
 
@@ -457,7 +466,12 @@ impl Editor {
         self.buffer.update(cx, |buffer, cx| buffer.collapse_diff_hunks(vec![Anchor::Min..Anchor::Max], cx));
     }
 
-    pub fn toggle_all_diff_hunks(&mut self, _: &ToggleAllDiffHunks, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_all_diff_hunks(
+        &mut self,
+        _: &ToggleAllDiffHunks,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.has_any_expanded_diff_hunks(cx) {
             self.collapse_all_diff_hunks(&CollapseAllDiffHunks, window, cx);
         } else {
@@ -502,7 +516,7 @@ impl Editor {
         self.do_stage_or_unstage_and_next(false, window, cx);
     }
 
-    pub fn apply_toggle(&mut self, hunks: Vec<MultiBufferDiffHunk>, _window: &mut Window, cx: &mut Context<Self>) {
+    fn apply_toggle(&self, hunks: Vec<MultiBufferDiffHunk>, _window: &mut Window, cx: &mut Context<Self>) {
         let hunks = self.resolve_diff_hunks(hunks, cx);
         if hunks.is_empty() {
             return;
@@ -539,8 +553,8 @@ impl Editor {
         }
     }
 
-    pub fn apply_stage_or_unstage(
-        &mut self,
+    fn apply_stage_or_unstage(
+        &self,
         stage: bool,
         hunks: Vec<MultiBufferDiffHunk>,
         _window: &mut Window,
@@ -816,7 +830,7 @@ impl Editor {
         Some((blame_entry, repository))
     }
 
-    pub(crate) fn blame_revision_target(
+    fn blame_revision_target(
         &self,
         window: &Window,
         cx: &mut Context<Self>,
@@ -827,7 +841,7 @@ impl Editor {
         Some((path, revision, repository))
     }
 
-    pub(crate) fn blame_previous_revision_target(
+    fn blame_previous_revision_target(
         &self,
         window: &Window,
         cx: &mut Context<Self>,
@@ -1035,7 +1049,7 @@ pub fn set_blame_renderer(renderer: impl BlameRenderer + 'static, cx: &mut App) 
     cx.set_global(GlobalBlameRenderer(Arc::new(renderer)));
 }
 
-pub(crate) fn render_diff_hunk_controls(
+fn render_diff_hunk_controls(
     row: u32,
     status: DiffHunkStatus,
     hunk_range: Range<Anchor>,

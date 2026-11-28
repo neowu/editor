@@ -96,7 +96,7 @@ use crate::git_status_icon;
 
 const COPIED_STATE_DURATION: Duration = Duration::from_secs(2);
 
-pub enum CommitDetailsEvent {
+pub(crate) enum CommitDetailsEvent {
     /// A changed file was clicked.
     OpenFile(RepoPath),
     /// "Open Revision" on a changed file's context menu.
@@ -110,7 +110,7 @@ pub enum CommitDetailsEvent {
 /// The commit card: author, refs, SHA, message and changed files of one commit.
 /// Shown beside the git graph for the selected row and as the side card of a
 /// commit view.
-pub struct CommitDetailsPanel {
+pub(crate) struct CommitDetailsPanel {
     repository: WeakEntity<Repository>,
     languages: Option<Arc<LanguageRegistry>>,
     sha: Option<Oid>,
@@ -139,7 +139,7 @@ pub struct CommitDetailsPanel {
 impl EventEmitter<CommitDetailsEvent> for CommitDetailsPanel {}
 
 impl CommitDetailsPanel {
-    pub fn new(languages: Option<Arc<LanguageRegistry>>) -> Self {
+    pub(crate) fn new(languages: Option<Arc<LanguageRegistry>>) -> Self {
         Self {
             repository: WeakEntity::new_invalid(),
             languages,
@@ -165,13 +165,13 @@ impl CommitDetailsPanel {
         }
     }
 
-    pub const fn sha(&self) -> Option<Oid> {
+    pub(crate) const fn sha(&self) -> Option<Oid> {
         self.sha
     }
 
     /// Shows `sha`, loading its message. Changed files come from `set_diff` or
     /// `load_diff`. View mode and collapsed sections are kept.
-    pub fn set_commit(
+    pub(crate) fn set_commit(
         &mut self,
         repository: &Entity<Repository>,
         sha: Oid,
@@ -217,7 +217,7 @@ impl CommitDetailsPanel {
     }
 
     /// Loads the changed files of the current commit from the repository.
-    pub fn load_diff(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn load_diff(&mut self, cx: &mut Context<Self>) {
         let (Some(sha), Some(repository)) = (self.sha, self.repository.upgrade()) else {
             return;
         };
@@ -234,7 +234,7 @@ impl CommitDetailsPanel {
         }));
     }
 
-    pub fn set_diff(&mut self, diff: Arc<CommitDiff>, cx: &mut Context<Self>) {
+    pub(crate) fn set_diff(&mut self, diff: Arc<CommitDiff>, cx: &mut Context<Self>) {
         self.files = Some(diff.files.iter().map(ChangedFileEntry::from_commit_file).collect());
         self.diff_stats = compute_diff_stats(&diff);
         self.diff = Some(diff);
@@ -242,18 +242,18 @@ impl CommitDetailsPanel {
     }
 
     /// The repository of the shown commit, while it is still open.
-    pub fn repository_id(&self, cx: &App) -> Option<RepositoryId> {
+    pub(crate) fn repository_id(&self, cx: &App) -> Option<RepositoryId> {
         self.repository.upgrade().map(|repository| repository.read(cx).id)
     }
 
     /// The current commit's loaded diff, if it has finished loading.
-    pub fn diff(&self) -> Option<Arc<CommitDiff>> {
+    pub(crate) fn diff(&self) -> Option<Arc<CommitDiff>> {
         self.diff.clone()
     }
 
     /// Highlights `repo_path` in the changed files, expanding its folders and
     /// scrolling it into view.
-    pub fn reveal_file(&mut self, repo_path: &RepoPath, cx: &mut Context<Self>) {
+    pub(crate) fn reveal_file(&mut self, repo_path: &RepoPath, cx: &mut Context<Self>) {
         for dir in ancestor_dirs(repo_path) {
             self.expanded_dirs.insert(dir, true);
         }
@@ -263,12 +263,12 @@ impl CommitDetailsPanel {
     }
 
     /// Highlights `query` matches in the commit message.
-    pub fn set_search_highlight(&mut self, query: Option<&str>, case_sensitive: bool, cx: &mut Context<Self>) {
+    pub(crate) fn set_search_highlight(&mut self, query: Option<&str>, case_sensitive: bool, cx: &mut Context<Self>) {
         self.search_highlight = query.map(|query| (query.to_owned(), case_sensitive));
         self.apply_search_highlight(cx);
     }
 
-    pub fn toggle_view_mode(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_view_mode(&mut self, cx: &mut Context<Self>) {
         self.view_mode = self.view_mode.toggled();
         self.files_scroll_handle.scroll_to_item(0, ScrollStrategy::Top);
         cx.notify();

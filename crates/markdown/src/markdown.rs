@@ -26,7 +26,7 @@ use base64::Engine as _;
 use builder::MarkdownElementBuilder;
 use builder::MarkdownHighlights;
 use builder::MetadataCellStyle;
-pub use element::AnyDiv;
+pub(crate) use element::AnyDiv;
 use element::CheckboxToggleCallback;
 pub use element::MarkdownElement;
 pub use element::MarkdownListState;
@@ -181,7 +181,6 @@ pub struct CodeBlock<'a> {
     /// the block itself is unchanged.
     pub source_offset: usize,
     pub kind: &'a CodeBlockKind,
-    pub content_range: Range<usize>,
     /// The block's contents, without the trailing newline.
     pub contents: &'a str,
 }
@@ -196,7 +195,6 @@ impl<'a> CodeBlock<'a> {
         metadata.is_fenced_closed.then(|| Self {
             source_offset,
             kind,
-            content_range: metadata.content_range.clone(),
             contents: source[metadata.content_range.clone()].trim_end_matches('\n'),
         })
     }
@@ -206,9 +204,9 @@ actions!(
     markdown,
     [
         /// Copies the selected text to the clipboard.
-        Copy,
+        pub Copy,
         /// Copies the selected text as markdown to the clipboard.
-        CopyAsMarkdown
+        pub CopyAsMarkdown
     ]
 );
 
@@ -801,15 +799,15 @@ impl Selection {
 
 #[derive(Debug, Clone, Default)]
 pub struct ParsedMarkdown {
-    pub source: SharedString,
-    pub events: Arc<[(Range<usize>, MarkdownEvent)]>,
+    source: SharedString,
+    events: Arc<[(Range<usize>, MarkdownEvent)]>,
     blocks: Arc<[RenderBlock]>,
-    pub languages_by_name: TreeMap<SharedString, Arc<Language>>,
-    pub languages_by_path: TreeMap<Arc<str>, Arc<Language>>,
-    pub root_block_starts: Arc<[usize]>,
+    languages_by_name: TreeMap<SharedString, Arc<Language>>,
+    languages_by_path: TreeMap<Arc<str>, Arc<Language>>,
+    root_block_starts: Arc<[usize]>,
     metadata_blocks: BTreeMap<usize, ParsedMetadataBlock>,
-    pub heading_slugs: FxHashMap<SharedString, usize>,
-    pub footnote_definitions: FxHashMap<SharedString, usize>,
+    heading_slugs: FxHashMap<SharedString, usize>,
+    footnote_definitions: FxHashMap<SharedString, usize>,
     link_definition_spans: Arc<[Range<usize>]>,
     fallback_code_block_language: Option<Arc<Language>>,
     code_block_highlights: Arc<CodeBlockHighlights>,
@@ -875,7 +873,7 @@ struct MarkdownEventIndex(usize);
 type CodeBlockHighlights = FxHashMap<MarkdownEventIndex, ResolvedHighlights>;
 
 impl ParsedMarkdown {
-    pub const fn source(&self) -> &SharedString {
+    const fn source(&self) -> &SharedString {
         &self.source
     }
 
@@ -889,6 +887,7 @@ impl ParsedMarkdown {
             MarkdownEvent::Start(MarkdownTag::CodeBlock { kind, metadata }) => {
                 CodeBlock::new(range.start, kind, metadata, &self.source)
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => None,
         })
     }
@@ -910,6 +909,7 @@ impl ParsedMarkdown {
                 }
                 MarkdownEvent::End(MarkdownTagEnd::HtmlBlock) if in_comment_block => in_comment_block = false,
                 _ if in_comment_block => {}
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => return range.start,
             }
         }
@@ -964,6 +964,7 @@ impl ParsedMarkdown {
                         ranges.push(cursor..link_range.end);
                     }
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => {}
             }
         }
@@ -1033,6 +1034,7 @@ impl ParsedMarkdown {
                     pending_newline = true;
                     None
                 }
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => None,
             };
             if let Some(fragment) = fragment {
@@ -1056,7 +1058,7 @@ impl ParsedMarkdown {
         Some(partition.saturating_sub(1))
     }
 
-    pub fn root_block_for_source_index(&self, source_index: usize) -> Option<usize> {
+    fn root_block_for_source_index(&self, source_index: usize) -> Option<usize> {
         if self.root_block_starts.is_empty() {
             return None;
         }
@@ -1072,7 +1074,7 @@ impl ParsedMarkdown {
     ///
     /// With an exception of a single inline code span, which is returned as plain
     /// text, since copying a command or identifier is the dominant use case there.
-    pub fn rebalanced_markdown_for_selection(&self, selection: Range<usize>) -> String {
+    fn rebalanced_markdown_for_selection(&self, selection: Range<usize>) -> String {
         selection::rebalanced_markdown_for_selection(&self.source, &self.events, &self.root_block_starts, selection)
     }
 
@@ -1116,6 +1118,7 @@ fn compute_code_block_highlights(parsed: &ParsedMarkdown) -> CodeBlockHighlights
                     block.texts.push((event_index, text.as_str()));
                 }
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }

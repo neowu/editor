@@ -60,7 +60,7 @@ impl KeyBinding {
     }
 
     /// Check if the given keystrokes match this binding.
-    pub fn match_keystrokes(&self, typed: &[impl AsKeystroke]) -> Option<bool> {
+    pub(crate) fn match_keystrokes(&self, typed: &[impl AsKeystroke]) -> Option<bool> {
         if self.keystrokes.len() < typed.len() {
             return None;
         }
@@ -109,10 +109,9 @@ impl Debug for KeyBinding {
 /// Intended to be used as an index or key into a user-defined store of metadata
 /// associated with the binding, such as the source of the binding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct KeyBindingMetaIndex(pub u32);
+pub struct KeyBindingMetaIndex(pub(crate) u32);
 
 #[cfg(test)]
-#[allow(unreachable_pub, reason = "actions! emits pub structs")]
 mod tests {
     use super::*;
 

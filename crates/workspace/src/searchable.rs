@@ -28,7 +28,7 @@ pub struct AnyMatches {
 }
 
 impl AnyMatches {
-    pub fn new<T: Any + Send>(matches: Vec<T>) -> Self {
+    fn new<T: Any + Send>(matches: Vec<T>) -> Self {
         Self { len: matches.len(), matches: Box::new(matches) }
     }
 
@@ -40,7 +40,7 @@ impl AnyMatches {
         self.len == 0
     }
 
-    pub fn downcast_ref<T: Any>(&self) -> Option<&[T]> {
+    fn downcast_ref<T: Any>(&self) -> Option<&[T]> {
         self.matches.downcast_ref::<Vec<T>>().map(Vec::as_slice)
     }
 }
@@ -103,7 +103,7 @@ pub struct SearchOptions {
 
 impl SearchOptions {
     /// Replace edits the item, so it is only offered on editable items.
-    pub const fn for_capability(self, capability: Capability) -> SearchOptions {
+    const fn for_capability(self, capability: Capability) -> SearchOptions {
         SearchOptions { replacement: self.replacement && capability.editable(), ..self }
     }
 }

@@ -42,7 +42,7 @@ pub enum DiffBase {
 }
 
 impl DiffBase {
-    pub const fn is_merge_base(&self) -> bool {
+    const fn is_merge_base(&self) -> bool {
         matches!(self, DiffBase::Merge { .. })
     }
 }
@@ -85,6 +85,7 @@ impl DiffBufferList {
                     | RepositoryEvent::BranchListChanged,
                     _,
                 ) => this.repo.as_ref().is_some_and(|repo| repo.read(cx).snapshot().id == *event_repo_id),
+                // lint: expect(wildcard_match) only some variants matter here
                 _ => false,
             };
 
@@ -154,7 +155,7 @@ impl DiffBufferList {
         self.update_needed.send(()).ok();
     }
 
-    pub async fn handle_status_updates(this: WeakEntity<Self>, mut recv: watch::Receiver<()>, cx: &mut AsyncApp) {
+    async fn handle_status_updates(this: WeakEntity<Self>, mut recv: watch::Receiver<()>, cx: &mut AsyncApp) {
         this.update(cx, DiffBufferList::spawn_reload_tree_diff).log_err();
         while recv.changed().await.is_ok() {
             let Ok(()) = this.update(cx, |this, cx| {
@@ -174,7 +175,7 @@ impl DiffBufferList {
         (self.repo() == Some(&repo)).then(|| self.status_for_path(&path, cx)).flatten()
     }
 
-    pub fn status_for_path(&self, path: &RepoPath, cx: &App) -> Option<FileStatus> {
+    fn status_for_path(&self, path: &RepoPath, cx: &App) -> Option<FileStatus> {
         let repo_status =
             self.repo.as_ref().and_then(|repo| repo.read(cx).status_for_path(path)).map(|entry| entry.status);
         if repo_status.is_some_and(|status| {
@@ -206,7 +207,7 @@ impl DiffBufferList {
         self.tree_diff_base_task.as_ref().is_some_and(|task| !task.is_ready())
     }
 
-    pub async fn reload_tree_diff(this: WeakEntity<Self>, cx: &mut AsyncApp) -> Result<()> {
+    async fn reload_tree_diff(this: WeakEntity<Self>, cx: &mut AsyncApp) -> Result<()> {
         let tasks = this.update(cx, |this, cx| {
             let DiffBase::Merge { base_ref } = this.diff_base.clone() else {
                 return None;

@@ -36,7 +36,7 @@ pub(crate) struct GraphNode<'m> {
     /// Index of the namespace node this one is drawn in, or -1.
     pub(crate) parent: i32,
     /// The id of the namespace this one is drawn in.
-    pub(crate) parent_id: Option<String>,
+    parent_id: Option<String>,
     /// What it is drawn as.
     pub(crate) shape: NodeShape,
 }

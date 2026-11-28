@@ -60,7 +60,6 @@ use crate::CodeAction;
 use crate::ProjectItem as _;
 use crate::ProjectTransaction;
 use crate::biome;
-use crate::lsp_command;
 use crate::lsp_command::GetCodeActions;
 use crate::lsp_command::OnTypeFormatting;
 use crate::lsp_command::file_path_to_lsp_url;
@@ -71,11 +70,22 @@ pub enum LspFormatTarget {
 }
 
 #[derive(Debug)]
-pub struct FormattableBuffer {
+struct FormattableBuffer {
     handle: Entity<Buffer>,
     abs_path: Option<PathBuf>,
     env: Option<FxHashMap<String, String>>,
     ranges: Option<Vec<Range<Anchor>>>,
+}
+
+fn lsp_formatting_options(settings: &LanguageSettings) -> lsp_types::FormattingOptions {
+    lsp_types::FormattingOptions {
+        tab_size: settings.tab_size.into(),
+        insert_spaces: !settings.hard_tabs,
+        trim_trailing_whitespace: Some(settings.remove_trailing_whitespace_on_save),
+        trim_final_newlines: Some(settings.ensure_final_newline_on_save),
+        insert_final_newline: Some(settings.ensure_final_newline_on_save),
+        ..lsp_types::FormattingOptions::default()
+    }
 }
 
 fn buffer_supports_lsp_formatting(
@@ -760,7 +770,7 @@ impl LocalLspStore {
         Ok(())
     }
 
-    pub async fn format_ranges_via_lsp(
+    async fn format_ranges_via_lsp(
         this: &WeakEntity<LspStore>,
         buffer_handle: &Entity<Buffer>,
         ranges: &[Range<Anchor>],
@@ -818,7 +828,7 @@ impl LocalLspStore {
                         lsp_types::DocumentRangeFormattingParams {
                             text_document: text_document.clone(),
                             range,
-                            options: lsp_command::lsp_formatting_options(settings),
+                            options: lsp_formatting_options(settings),
                             work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
                         },
                         request_timeout,
@@ -907,7 +917,7 @@ impl LocalLspStore {
                 .request::<Formatting>(
                     lsp_types::DocumentFormattingParams {
                         text_document,
-                        options: lsp_command::lsp_formatting_options(settings),
+                        options: lsp_formatting_options(settings),
                         work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
                     },
                     request_timeout,
@@ -954,7 +964,7 @@ impl LocalLspStore {
                     lsp_types::DocumentRangeFormattingParams {
                         text_document: text_document.clone(),
                         range: lsp_types::Range::new(buffer_start, buffer_end),
-                        options: lsp_command::lsp_formatting_options(settings),
+                        options: lsp_formatting_options(settings),
                         work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
                     },
                     request_timeout,
@@ -1040,7 +1050,7 @@ impl LocalLspStore {
 }
 
 impl LspStore {
-    pub fn supports_range_formatting(&self, buffer: &Entity<Buffer>, cx: &App) -> bool {
+    pub(crate) fn supports_range_formatting(&self, buffer: &Entity<Buffer>, cx: &App) -> bool {
         let settings = LanguageSettings::for_buffer(buffer.read(cx), cx);
         {
             match &settings.formatter {
@@ -1082,8 +1092,8 @@ impl LspStore {
         }
     }
 
-    pub fn on_type_format<T: ToPointUtf16>(
-        &mut self,
+    pub(crate) fn on_type_format<T: ToPointUtf16>(
+        &self,
         buffer: Entity<Buffer>,
         position: T,
         trigger: String,
@@ -1117,7 +1127,7 @@ impl LspStore {
     ) -> Task<Result<Option<Transaction>>> {
         let autoindent_applied = buffer.update(cx, |buffer, _| buffer.wait_for_autoindent_applied());
         let options = buffer.update(cx, |buffer, cx| {
-            lsp_command::lsp_formatting_options(LanguageSettings::for_buffer_at(buffer, position, cx).as_ref())
+            lsp_formatting_options(LanguageSettings::for_buffer_at(buffer, position, cx).as_ref())
         });
 
         cx.spawn(async move |this, cx| {
@@ -1150,20 +1160,20 @@ impl LspStore {
         })
     }
 
-    pub fn last_formatting_failure(&self) -> Option<&str> {
+    pub(crate) fn last_formatting_failure(&self) -> Option<&str> {
         self.last_formatting_failure.as_deref()
     }
 
-    pub fn reset_last_formatting_failure(&mut self) {
+    pub(crate) fn reset_last_formatting_failure(&mut self) {
         self.last_formatting_failure = None;
     }
 
-    pub fn format(
-        &mut self,
+    pub(crate) fn format(
+        &self,
         buffers: FxHashSet<Entity<Buffer>>,
         target: LspFormatTarget,
         push_to_history: bool,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Task<Result<ProjectTransaction>> {
         {
             let buffers = buffers

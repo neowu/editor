@@ -27,7 +27,7 @@ pub fn unified_diff_with_offsets(old_text: &str, new_text: &str, old_start_line:
 /// Computes a diff between two strings, returning a unified diff string with
 /// hunk headers adjusted to reflect the given starting line numbers (zero-indexed),
 /// and a configurable number of context lines around changes.
-pub(crate) fn unified_diff_with_context(
+fn unified_diff_with_context(
     old_text: &str,
     new_text: &str,
     old_start_line: u32,

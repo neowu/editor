@@ -4,7 +4,6 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::PartialResultParams;
-use crate::Range;
 use crate::StaticRegistrationOptions;
 use crate::TextDocumentIdentifier;
 use crate::TextDocumentRegistrationOptions;
@@ -113,12 +112,8 @@ pub struct TokenFormat(Cow<'static, str>);
 impl TokenFormat {
     pub const RELATIVE: TokenFormat = TokenFormat::new("relative");
 
-    pub const fn new(tag: &'static str) -> Self {
+    const fn new(tag: &'static str) -> Self {
         TokenFormat(Cow::Borrowed(tag))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
     }
 }
 
@@ -166,7 +161,7 @@ pub struct SemanticTokens {
 #[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SemanticTokensPartialResult {
-    pub data: Vec<u32>,
+    data: Vec<u32>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
@@ -324,7 +319,7 @@ pub enum SemanticTokensFullOptions {
 #[serde(rename_all = "camelCase")]
 pub struct SemanticTokensOptions {
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 
     /// The legend used by the server.
     pub legend: SemanticTokensLegend,
@@ -332,7 +327,7 @@ pub struct SemanticTokensOptions {
     /// Server supports providing semantic tokens for a specific range
     /// of a document.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub range: Option<bool>,
+    range: Option<bool>,
 
     /// Server supports providing semantic tokens for a full document.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -343,13 +338,13 @@ pub struct SemanticTokensOptions {
 #[serde(rename_all = "camelCase")]
 pub struct SemanticTokensRegistrationOptions {
     #[serde(flatten)]
-    pub text_document_registration_options: TextDocumentRegistrationOptions,
+    text_document_registration_options: TextDocumentRegistrationOptions,
 
     #[serde(flatten)]
     pub semantic_tokens_options: SemanticTokensOptions,
 
     #[serde(flatten)]
-    pub static_registration_options: StaticRegistrationOptions,
+    static_registration_options: StaticRegistrationOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
@@ -414,42 +409,6 @@ pub struct SemanticTokensDeltaParams {
     /// The result id of a previous response. The result Id can either point to a full response
     /// or a delta response depending on what was received last.
     pub previous_result_id: String,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SemanticTokensRangeParams {
-    #[serde(flatten)]
-    pub work_done_progress_params: WorkDoneProgressParams,
-
-    #[serde(flatten)]
-    pub partial_result_params: PartialResultParams,
-
-    /// The text document.
-    pub text_document: TextDocumentIdentifier,
-
-    /// The range the semantic tokens are requested for.
-    pub range: Range,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-#[serde(untagged)]
-pub enum SemanticTokensRangeResult {
-    Tokens(SemanticTokens),
-    Partial(SemanticTokensPartialResult),
-}
-
-impl From<SemanticTokens> for SemanticTokensRangeResult {
-    fn from(tokens: SemanticTokens) -> Self {
-        SemanticTokensRangeResult::Tokens(tokens)
-    }
-}
-
-impl From<SemanticTokensPartialResult> for SemanticTokensRangeResult {
-    fn from(partial: SemanticTokensPartialResult) -> Self {
-        SemanticTokensRangeResult::Partial(partial)
-    }
 }
 
 #[cfg(test)]

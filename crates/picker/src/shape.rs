@@ -13,7 +13,7 @@ const MIN_HEIGHT: Rems = Rems(20.0);
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Shape {
     pub(crate) width: Rems,
-    pub(crate) max_height: Rems,
+    max_height: Rems,
     pub(crate) fixed_height: bool,
 }
 

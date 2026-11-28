@@ -30,7 +30,7 @@ where
         publish(&mut self.0.lock(), edits);
     }
 
-    pub fn publish_mut(&mut self, edits: impl Clone + IntoIterator<Item = Edit<T>>) {
+    pub(crate) fn publish_mut(&mut self, edits: impl Clone + IntoIterator<Item = Edit<T>>) {
         publish(self.0.get_mut(), edits);
     }
 }

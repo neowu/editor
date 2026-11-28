@@ -275,6 +275,7 @@ impl Workspace {
             pane::Event::ChangeItemTitle | pane::Event::ActivateItem { .. } | pane::Event::RemovedItem { .. } => {
                 self.notify_mode(WorkspaceMode::GitHistory, cx);
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }

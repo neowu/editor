@@ -319,7 +319,7 @@ pub enum LogKind {
 }
 
 impl LogStore {
-    pub fn new(cx: &mut Context<Self>) -> Self {
+    fn new(cx: &mut Context<Self>) -> Self {
         let (io_tx, mut io_rx) = mpsc::unbounded();
 
         let log_store = Self {
@@ -403,6 +403,7 @@ impl LogStore {
                                     }
                                 }
                             }
+                            // lint: expect(wildcard_match) only some variants matter here
                             _ => {}
                         }
                     }),
@@ -415,7 +416,7 @@ impl LogStore {
         self.language_servers.get_mut(key)
     }
 
-    pub fn add_language_server(
+    fn add_language_server(
         &mut self,
         project: WeakEntity<Project>,
         server_id: LanguageServerId,
@@ -423,7 +424,7 @@ impl LogStore {
         worktree_id: Option<WorktreeId>,
         server: Option<Arc<LanguageServer>>,
         cx: &mut Context<Self>,
-    ) -> Option<&mut LanguageServerState> {
+    ) {
         let server_key = LanguageServerLogKey::new(project, server_id);
         let server_state = self.language_servers.entry(server_key.clone()).or_insert_with(|| {
             let generation = self.next_server_generation;
@@ -468,11 +469,9 @@ impl LogStore {
                 }));
             }
         }
-
-        Some(server_state)
     }
 
-    pub fn add_language_server_log(
+    fn add_language_server_log(
         &mut self,
         key: &LanguageServerLogKey,
         typ: MessageType,
@@ -567,7 +566,7 @@ impl LogStore {
         cx.emit(Event::NewServerLogEntry { key: key.clone(), kind: LogKind::Rpc, text: message.to_owned() });
     }
 
-    pub fn remove_language_server(&mut self, key: &LanguageServerLogKey, cx: &mut Context<Self>) {
+    fn remove_language_server(&mut self, key: &LanguageServerLogKey, cx: &mut Context<Self>) {
         self.language_servers.remove(key);
         cx.notify();
     }

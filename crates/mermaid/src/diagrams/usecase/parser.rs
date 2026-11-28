@@ -33,7 +33,6 @@ use super::lexer::push_usize;
 use super::lexer::tokenize;
 use super::lexer::utf16;
 use super::tokens::T;
-use super::tokens::name;
 use super::types::RelationshipType;
 use super::types::Shape;
 use super::types::UsecaseModel;
@@ -170,6 +169,79 @@ fn generated_id(label: &str) -> String {
         }
     }
     out
+}
+
+/// Mermaid's name for `t`, as its errors print it.
+const fn name(t: T) -> &'static str {
+    match t {
+        T::Eof => "EOF",
+        T::Usecase => "USECASE",
+        T::Actor => "ACTOR",
+        T::SystemBoundary => "SYSTEM_BOUNDARY",
+        T::End => "END",
+        T::Direction => "DIRECTION",
+        T::Td => "TD",
+        T::Tb => "TB",
+        T::Bt => "BT",
+        T::Lr => "LR",
+        T::Rl => "RL",
+        T::Note => "NOTE",
+        T::For => "FOR",
+        T::Json => "JSON",
+        T::ClassDef => "CLASS_DEF",
+        T::Class => "CLASS",
+        T::Style => "STYLE",
+        T::Include => "INCLUDE",
+        T::Extend => "EXTEND",
+        T::True => "TRUE",
+        T::False => "FALSE",
+        T::Identifier => "IDENTIFIER",
+        T::Number => "NUMBER",
+        T::At => "AT",
+        T::Comma => "COMMA",
+        T::Colon => "COLON",
+        T::HashColor => "HASH_COLOR",
+        T::CssIdentifier => "CSS_IDENTIFIER",
+        T::CssEscapedComma => "CSS_ESCAPED_COMMA",
+        T::Dash => "DASH",
+        T::Dot => "DOT",
+        T::Percent => "PERCENT",
+        T::CssPunctuation => "CSS_PUNCTUATION",
+        T::LabelPunctuation => "LABEL_PUNCTUATION",
+        T::LabelSymbol => "LABEL_SYMBOL",
+        T::PlainString => "PLAIN_STRING",
+        T::MarkdownString => "MARKDOWN_STRING",
+        T::UnclosedMarkdownString => "UNCLOSED_MARKDOWN_STRING",
+        T::Comment => "COMMENT",
+        T::Newline => "NEWLINE",
+        T::AccDescrBlock => "ACC_DESCR_BLOCK",
+        T::AccTitleLine => "ACC_TITLE_LINE",
+        T::AccDescrLine => "ACC_DESCR_LINE",
+        T::JsonDeclarationStart => "JSON_DECLARATION_START",
+        T::JsonObjectLiteral => "JSON_OBJECT_LITERAL",
+        T::UnclosedJsonObjectLiteral => "UNCLOSED_JSON_OBJECT_LITERAL",
+        T::Generalization => "GENERALIZATION",
+        T::DependencyArrow => "DEPENDENCY_ARROW",
+        T::StereotypeStart => "STEREOTYPE_START",
+        T::StereotypeEnd => "STEREOTYPE_END",
+        T::StereotypeText => "STEREOTYPE_TEXT",
+        T::UnclosedStereotypeText => "UNCLOSED_STEREOTYPE_TEXT",
+        T::ClassSeparator => "CLASS_SEPARATOR",
+        T::ForwardSolid => "FORWARD_SOLID",
+        T::BackwardSolid => "BACKWARD_SOLID",
+        T::ForwardCircle => "FORWARD_CIRCLE",
+        T::BackwardCircle => "BACKWARD_CIRCLE",
+        T::ForwardCross => "FORWARD_CROSS",
+        T::BackwardCross => "BACKWARD_CROSS",
+        T::MarkerlessSolid => "MARKERLESS_SOLID",
+        T::MetadataStart => "METADATA_START",
+        T::LBrace => "LBRACE",
+        T::RBrace => "RBRACE",
+        T::LBracket => "LBRACKET",
+        T::RBracket => "RBRACKET",
+        T::LParen => "LPAREN",
+        T::RParen => "RPAREN",
+    }
 }
 
 /// Every token sequence that may start a statement, as Chevrotain lists them.
@@ -362,6 +434,7 @@ impl Parser<'_> {
                 Ok(())
             }
             T::Eof => Ok(()),
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => Err(self.no_token(&[T::Newline, T::Eof])),
         }
     }
@@ -371,6 +444,7 @@ impl Parser<'_> {
         let trim = match self.kind(k) {
             T::MarkdownString => 2,
             T::PlainString => 1,
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => 0,
         };
         (self.start(k) + trim, self.end(k) - trim)
@@ -421,6 +495,7 @@ impl Parser<'_> {
             value: match t {
                 T::True => PropValue::Bool(true),
                 T::False => PropValue::Bool(false),
+                // lint: expect(wildcard_match) only a few variants of `T` matter here
                 _ => PropValue::Str(self.slice(self.content(value)).to_owned()),
             },
         })
@@ -633,6 +708,7 @@ impl Parser<'_> {
                         T::ForwardCircle => arrow_type = arrow::CIRCLE_ARROW,
                         T::ForwardCross => arrow_type = arrow::CROSS_ARROW,
                         T::MarkerlessSolid => {}
+                        // lint: expect(wildcard_match) only a few variants of `T` matter here
                         _ => {
                             return Err(self.no_token(&[
                                 T::ForwardSolid,
@@ -660,6 +736,7 @@ impl Parser<'_> {
                     self.expect(T::MarkerlessSolid)?;
                 }
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => {
                 self.p -= 1;
                 return Err(self.no_token(&ARROWS));
@@ -869,6 +946,7 @@ impl Parser<'_> {
                     T::Bt => "BT",
                     T::Lr => "LR",
                     T::Rl => "RL",
+                    // lint: expect(wildcard_match) only a few variants of `T` matter here
                     _ => return Err(self.no_token(&[T::Td, T::Tb, T::Bt, T::Lr, T::Rl])),
                 });
                 self.p += 1;
@@ -935,6 +1013,7 @@ impl Parser<'_> {
                     target: self.image(target).to_owned(),
                 });
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => {
                 let next = self.kind(self.p + 1);
                 if next == T::MetadataStart {
@@ -976,6 +1055,7 @@ impl Parser<'_> {
             }
             T::Actor if !top => self.actors(false),
             _ if top => self.top_statement(),
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => self.entity(false),
         }
     }

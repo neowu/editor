@@ -48,7 +48,7 @@ pub struct SelectToBeginningOfLine {
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
 pub struct DeleteToBeginningOfLine {
-    pub stop_at_indent: bool,
+    pub(crate) stop_at_indent: bool,
 }
 
 /// Moves the cursor up by one page.
@@ -90,13 +90,13 @@ pub struct SelectToEndOfLine {
 #[action(namespace = editor)]
 pub struct ToggleCodeActions {
     // Source from which the action was deployed.
-    pub deployed_from: Option<CodeActionSource>,
+    pub(crate) deployed_from: Option<CodeActionSource>,
     // Run first available task if there is only one.
-    pub quick_launch: bool,
+    pub(crate) quick_launch: bool,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub enum CodeActionSource {
+pub(crate) enum CodeActionSource {
     Indicator(DisplayRow),
     RunMenu(DisplayRow),
 }
@@ -105,21 +105,21 @@ pub enum CodeActionSource {
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
 pub struct ConfirmCompletion {
-    pub item_ix: Option<usize>,
+    pub(crate) item_ix: Option<usize>,
 }
 
 /// Composes multiple completion suggestions into a single completion.
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
 pub struct ComposeCompletion {
-    pub item_ix: Option<usize>,
+    pub(crate) item_ix: Option<usize>,
 }
 
 /// Confirms and applies the currently selected code action.
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
 pub struct ConfirmCodeAction {
-    pub item_ix: Option<usize>,
+    pub(crate) item_ix: Option<usize>,
 }
 
 /// Toggles comment markers for the selected lines.
@@ -149,28 +149,28 @@ pub struct ToggleBlockComments;
 /// Moves the cursor up by a specified number of lines.
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-pub struct MoveUpByLines {
+pub(crate) struct MoveUpByLines {
     pub(super) lines: u32,
 }
 
 /// Moves the cursor down by a specified number of lines.
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-pub struct MoveDownByLines {
+pub(crate) struct MoveDownByLines {
     pub(super) lines: u32,
 }
 
 /// Extends selection up by a specified number of lines.
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-pub struct SelectUpByLines {
+pub(crate) struct SelectUpByLines {
     pub(super) lines: u32,
 }
 
 /// Extends selection down by a specified number of lines.
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-pub struct SelectDownByLines {
+pub(crate) struct SelectDownByLines {
     pub(super) lines: u32,
 }
 
@@ -184,21 +184,21 @@ pub struct ExpandExcerpts {
 /// Expands excerpts above the current position.
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-pub struct ExpandExcerptsUp {
+pub(crate) struct ExpandExcerptsUp {
     pub(super) lines: u32,
 }
 
 /// Expands excerpts below the current position.
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-pub struct ExpandExcerptsDown {
+pub(crate) struct ExpandExcerptsDown {
     pub(super) lines: u32,
 }
 
 /// Handles text input in the editor.
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor, no_build)]
-pub struct HandleInput(pub String);
+pub(crate) struct HandleInput(pub(crate) String);
 
 /// Deletes from the cursor to the end of the next word.
 /// Stops before the end of the next word, if whitespace sequences of length >= 2 are encountered.
@@ -225,9 +225,9 @@ pub struct DeleteToPreviousWordStart {
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
 pub struct DeleteToNextSubwordEnd {
-    pub ignore_newlines: bool,
+    pub(crate) ignore_newlines: bool,
     // Whether to stop before the start of the previous word, if language-defined bracket is encountered.
-    pub ignore_brackets: bool,
+    pub(crate) ignore_brackets: bool,
 }
 
 /// Deletes from the cursor to the start of the previous subword.
@@ -235,22 +235,22 @@ pub struct DeleteToNextSubwordEnd {
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
 pub struct DeleteToPreviousSubwordStart {
-    pub ignore_newlines: bool,
+    pub(crate) ignore_newlines: bool,
     // Whether to stop before the start of the previous word, if language-defined bracket is encountered.
-    pub ignore_brackets: bool,
+    pub(crate) ignore_brackets: bool,
 }
 
 /// Cuts from cursor to end of line.
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-pub struct CutToEndOfLine {
-    pub stop_at_newlines: bool,
+pub(crate) struct CutToEndOfLine {
+    pub(crate) stop_at_newlines: bool,
 }
 
 /// Folds all code blocks at the specified indentation level.
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor, no_build)]
-pub struct FoldAtLevel(pub u32);
+pub(crate) struct FoldAtLevel(pub(crate) u32);
 
 #[derive(Clone, PartialEq, Eq, Action)]
 #[action(no_build, no_register)]
@@ -260,7 +260,7 @@ pub struct DiffClipboardWithSelectionData {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
-pub enum UuidVersion {
+pub(crate) enum UuidVersion {
     #[default]
     V4,
     V7,
@@ -269,9 +269,9 @@ pub enum UuidVersion {
 /// Splits selection into individual lines.
 #[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-pub struct SplitSelectionIntoLines {
+pub(crate) struct SplitSelectionIntoLines {
     /// Keep the text selected after splitting instead of collapsing to cursors.
-    pub keep_selections: bool,
+    pub(crate) keep_selections: bool,
 }
 
 /// Expands the diagnostic under the cursor, if any, in case diagnostics are not
@@ -319,17 +319,17 @@ impl Default for AddSelectionBelow {
 /// Inserts a snippet at the cursor.
 #[derive(PartialEq, Eq, Clone, Default, Debug, Action)]
 #[action(namespace = editor)]
-pub struct InsertSnippet {
+pub(crate) struct InsertSnippet {
     /// Language name if using a named snippet, or `None` for a global snippet.
     ///
     /// This is typically lowercase and matches the filename containing the snippet, without the `.json` extension.
-    pub language: Option<String>,
+    pub(crate) language: Option<String>,
     /// Name if using a named snippet.
-    pub name: Option<String>,
+    pub(crate) name: Option<String>,
 
     /// Snippet body, if not using a named snippet.
     // todo(andrew): use `ListOrDirect` or similar for multiline snippet body
-    pub snippet: Option<String>,
+    pub(crate) snippet: Option<String>,
 }
 
 actions!(
@@ -337,7 +337,7 @@ actions!(
     [
         /// Toggles the go to line dialog.
         #[action(name = "Toggle")]
-        ToggleGoToLine
+        pub ToggleGoToLine
     ]
 );
 
@@ -346,7 +346,7 @@ actions!(
     [
         /// Toggles a block quote (`> `) prefix on the selected lines (or the
         /// current line) while in Markdown files.
-        ToggleBlockQuote,
+        pub(crate) ToggleBlockQuote,
     ]
 );
 
@@ -355,17 +355,17 @@ actions!(
     rust,
     [
         /// Expands macros recursively at cursor position.
-        ExpandMacroRecursively,
+        pub(crate) ExpandMacroRecursively,
         /// Goes to the tests that exercise the item at cursor position.
-        GoToRelatedTests,
+        pub(crate) GoToRelatedTests,
         /// Opens the documentation of the symbol at cursor position.
-        OpenDocs,
+        pub OpenDocs,
         /// Shows the HIR of the function at cursor position.
-        ViewHir,
+        pub(crate) ViewHir,
         /// Shows the size, alignment and field offsets of the type at cursor position.
-        ViewMemoryLayout,
+        pub(crate) ViewMemoryLayout,
         /// Shows the MIR of the function at cursor position.
-        ViewMir,
+        pub(crate) ViewMir,
     ]
 );
 
@@ -373,144 +373,144 @@ actions!(
     editor,
     [
         /// Amends the editor text with hint's edit (if sent).
-        AcceptInlayHint,
+        pub(crate) AcceptInlayHint,
         /// Deletes the character before the cursor.
-        Backspace,
+        pub Backspace,
         /// Cancels the current operation.
-        Cancel,
+        pub Cancel,
         /// Cancels pending language server work.
-        CancelLanguageServerWork,
+        pub(crate) CancelLanguageServerWork,
         /// Confirms the rename operation.
-        ConfirmRename,
+        pub ConfirmRename,
         /// Confirms completion by inserting at cursor.
-        ConfirmCompletionInsert,
+        pub(crate) ConfirmCompletionInsert,
         /// Confirms completion by replacing existing text.
-        ConfirmCompletionReplace,
+        pub ConfirmCompletionReplace,
         /// Navigates to the first item in the context menu.
-        ContextMenuFirst,
+        pub ContextMenuFirst,
         /// Navigates to the last item in the context menu.
-        ContextMenuLast,
+        pub ContextMenuLast,
         /// Navigates to the next item in the context menu.
-        ContextMenuNext,
+        pub ContextMenuNext,
         /// Navigates to the previous item in the context menu.
-        ContextMenuPrevious,
+        pub ContextMenuPrevious,
         /// Converts indentation from tabs to spaces.
-        ConvertIndentationToSpaces,
+        pub(crate) ConvertIndentationToSpaces,
         /// Converts indentation from spaces to tabs.
-        ConvertIndentationToTabs,
+        pub(crate) ConvertIndentationToTabs,
         /// Converts selected text to kebab-case.
-        ConvertToKebabCase,
+        pub(crate) ConvertToKebabCase,
         /// Converts selected text to lowerCamelCase.
-        ConvertToLowerCamelCase,
+        pub(crate) ConvertToLowerCamelCase,
         /// Converts selected text to lowercase.
-        ConvertToLowerCase,
+        pub(crate) ConvertToLowerCase,
         /// Toggles the case of selected text.
-        ConvertToOppositeCase,
+        pub(crate) ConvertToOppositeCase,
         /// Converts selected text to sentence case.
-        ConvertToSentenceCase,
+        pub(crate) ConvertToSentenceCase,
         /// Converts selected text to snake_case.
-        ConvertToSnakeCase,
+        pub(crate) ConvertToSnakeCase,
         /// Converts selected text to Title Case.
-        ConvertToTitleCase,
+        pub(crate) ConvertToTitleCase,
         /// Converts selected text to UpperCamelCase.
-        ConvertToUpperCamelCase,
+        pub(crate) ConvertToUpperCamelCase,
         /// Converts selected text to UPPERCASE.
-        ConvertToUpperCase,
+        pub(crate) ConvertToUpperCase,
         /// Applies ROT13 cipher to selected text.
-        ConvertToRot13,
+        pub(crate) ConvertToRot13,
         /// Applies ROT47 cipher to selected text.
-        ConvertToRot47,
+        pub(crate) ConvertToRot47,
         /// Base64-encodes the selected text or word under cursor.
-        ConvertToBase64,
+        pub(crate) ConvertToBase64,
         /// Base64-decodes the selected text or word under cursor.
-        ConvertFromBase64,
+        pub(crate) ConvertFromBase64,
         /// Copies selected text to the clipboard.
-        Copy,
+        pub Copy,
         /// Copies the current file location to the clipboard.
-        CopyFileLocation,
+        pub(crate) CopyFileLocation,
         /// Copies the highlighted text as JSON.
-        CopyHighlightJson,
+        pub(crate) CopyHighlightJson,
         /// Copies the current file name to the clipboard.
-        CopyFileName,
+        pub(crate) CopyFileName,
         /// Copies the file name without extension to the clipboard.
-        CopyFileNameWithoutExtension,
+        pub(crate) CopyFileNameWithoutExtension,
         /// Cuts selected text to the clipboard.
-        Cut,
+        pub Cut,
         /// Deletes the character after the cursor.
-        Delete,
+        pub Delete,
         /// Deletes the current line.
-        DeleteLine,
+        pub DeleteLine,
         /// Deletes from cursor to end of line.
-        DeleteToEndOfLine,
+        pub DeleteToEndOfLine,
         /// Diffs the text stored in the clipboard against the current selection.
-        DiffClipboardWithSelection,
+        pub(crate) DiffClipboardWithSelection,
         /// Displays names of all active cursors.
         /// Duplicates the current line below.
-        DuplicateLineDown,
+        pub DuplicateLineDown,
         /// Duplicates the current line above.
-        DuplicateLineUp,
+        pub DuplicateLineUp,
         /// Duplicates the current selection.
-        DuplicateSelection,
+        pub(crate) DuplicateSelection,
         /// Expands all diff hunks in the editor.
-        ExpandAllDiffHunks,
+        pub ExpandAllDiffHunks,
         /// Collapses all diff hunks in the editor.
-        CollapseAllDiffHunks,
+        pub(crate) CollapseAllDiffHunks,
         /// Toggles all diff hunks in the editor. Collapses all hunks if any are
         /// currently expanded, otherwise expands all hunks.
-        ToggleAllDiffHunks,
+        pub(crate) ToggleAllDiffHunks,
         /// Finds the next match in the search.
-        FindNextMatch,
+        pub(crate) FindNextMatch,
         /// Finds the previous match in the search.
-        FindPreviousMatch,
+        pub(crate) FindPreviousMatch,
         /// Folds the current code block.
-        Fold,
+        pub Fold,
         /// Folds all foldable regions in the editor.
-        FoldAll,
+        pub FoldAll,
         /// Folds all code blocks at indentation level 1.
         #[action(name = "FoldAtLevel_1")]
-        FoldAtLevel1,
+        pub(crate) FoldAtLevel1,
         /// Folds all code blocks at indentation level 2.
         #[action(name = "FoldAtLevel_2")]
-        FoldAtLevel2,
+        pub(crate) FoldAtLevel2,
         /// Folds all code blocks at indentation level 3.
         #[action(name = "FoldAtLevel_3")]
-        FoldAtLevel3,
+        pub(crate) FoldAtLevel3,
         /// Folds all code blocks at indentation level 4.
         #[action(name = "FoldAtLevel_4")]
-        FoldAtLevel4,
+        pub(crate) FoldAtLevel4,
         /// Folds all code blocks at indentation level 5.
         #[action(name = "FoldAtLevel_5")]
-        FoldAtLevel5,
+        pub(crate) FoldAtLevel5,
         /// Folds all code blocks at indentation level 6.
         #[action(name = "FoldAtLevel_6")]
-        FoldAtLevel6,
+        pub(crate) FoldAtLevel6,
         /// Folds all code blocks at indentation level 7.
         #[action(name = "FoldAtLevel_7")]
-        FoldAtLevel7,
+        pub(crate) FoldAtLevel7,
         /// Folds all code blocks at indentation level 8.
         #[action(name = "FoldAtLevel_8")]
-        FoldAtLevel8,
+        pub(crate) FoldAtLevel8,
         /// Folds all code blocks at indentation level 9.
         #[action(name = "FoldAtLevel_9")]
-        FoldAtLevel9,
+        pub(crate) FoldAtLevel9,
         /// Folds all function bodies in the editor.
-        FoldFunctionBodies,
+        pub(crate) FoldFunctionBodies,
         /// Folds the current code block and all its children.
-        FoldRecursive,
+        pub(crate) FoldRecursive,
         /// Folds the selected ranges.
-        FoldSelectedRanges,
+        pub(crate) FoldSelectedRanges,
         /// Toggles focus back to the last active buffer.
-        ToggleFocus,
+        pub(crate) ToggleFocus,
         /// Toggles folding at the current position.
-        ToggleFold,
+        pub(crate) ToggleFold,
         /// Toggles recursive folding at the current position.
-        ToggleFoldRecursive,
+        pub(crate) ToggleFoldRecursive,
         /// Toggles all folds in a buffer or all excerpts in multibuffer.
-        ToggleFoldAll,
+        pub(crate) ToggleFoldAll,
         /// Hides or shows the references in test code in find-references results.
-        ToggleTestReferences,
+        pub(crate) ToggleTestReferences,
         /// Formats the entire document.
-        Format,
+        pub Format,
         /// Formats only the selected text.
         ///
         /// This action is only available when the active formatter can format ranges.
@@ -519,275 +519,275 @@ actions!(
         /// not advertise range-formatting support. When using Biome, the whole buffer is
         /// formatted and resulting edits outside the selected ranges are discarded. External command formatters do not
         /// support range formatting and are skipped.
-        FormatSelections,
+        pub(crate) FormatSelections,
         /// Goes to the next diff hunk.
-        GoToHunk,
+        pub GoToHunk,
         /// Goes to the previous diff hunk.
-        GoToPreviousHunk,
+        pub GoToPreviousHunk,
         /// Goes to the next change in the file.
-        GoToNextChange,
+        pub GoToNextChange,
         /// Goes to the previous change in the file.
-        GoToPreviousChange,
+        pub GoToPreviousChange,
         /// Goes to the next symbol.
-        GoToNextSymbol,
+        pub(crate) GoToNextSymbol,
         /// Goes to the previous symbol.
-        GoToPreviousSymbol,
+        pub(crate) GoToPreviousSymbol,
         /// Goes to the next reference to the symbol under the cursor.
-        GoToNextReference,
+        pub(crate) GoToNextReference,
         /// Goes to the previous reference to the symbol under the cursor.
-        GoToPreviousReference,
+        pub(crate) GoToPreviousReference,
         /// Goes to the next document highlight.
-        GoToNextDocumentHighlight,
+        pub(crate) GoToNextDocumentHighlight,
         /// Goes to the previous document highlight.
-        GoToPreviousDocumentHighlight,
+        pub(crate) GoToPreviousDocumentHighlight,
         /// Scrolls down by half a page.
-        HalfPageDown,
+        pub(crate) HalfPageDown,
         /// Scrolls up by half a page.
-        HalfPageUp,
+        pub(crate) HalfPageUp,
         /// Shows hover information for the symbol at cursor.
-        Hover,
+        pub(crate) Hover,
         /// Increases indentation of selected lines.
-        Indent,
+        pub(crate) Indent,
         /// Inserts a UUID v4 at cursor position.
-        InsertUuidV4,
+        pub(crate) InsertUuidV4,
         /// Inserts a UUID v7 at cursor position.
-        InsertUuidV7,
+        pub(crate) InsertUuidV7,
         /// Joins the current line with the next line.
-        JoinLines,
+        pub JoinLines,
         /// Cuts to kill ring (Emacs-style).
-        KillRingCut,
+        pub(crate) KillRingCut,
         /// Yanks from kill ring (Emacs-style).
-        KillRingYank,
+        pub(crate) KillRingYank,
         /// Moves cursor down one line.
-        LineDown,
+        pub LineDown,
         /// Moves cursor up one line.
-        LineUp,
+        pub LineUp,
         /// Moves cursor left.
-        MoveLeft,
+        pub MoveLeft,
         /// Moves the current line down.
-        MoveLineDown,
+        pub MoveLineDown,
         /// Moves the current line up.
-        MoveLineUp,
+        pub MoveLineUp,
         /// Moves cursor right.
-        MoveRight,
+        pub MoveRight,
         /// Moves cursor to the beginning of the document.
-        MoveToBeginning,
+        pub MoveToBeginning,
         /// Moves cursor to the enclosing bracket.
-        MoveToEnclosingBracket,
+        pub MoveToEnclosingBracket,
         /// Selects the content within the nearest enclosing delimiters
         /// (brackets, braces, parentheses, or quotes), excluding the
         /// delimiters.
         /// Repeating the action expands the selection to the next enclosing
         /// pair.
-        SelectInsideDelimiters,
+        pub(crate) SelectInsideDelimiters,
         /// Selects the nearest enclosing delimiters (brackets, braces,
         /// parentheses, or quotes) together with the content between them.
         /// Repeating the action expands the selection to the next enclosing
         /// pair.
-        SelectAroundDelimiters,
+        pub(crate) SelectAroundDelimiters,
         /// Moves cursor to the end of the document.
-        MoveToEnd,
+        pub MoveToEnd,
         /// Moves cursor to the end of the paragraph.
-        MoveToEndOfParagraph,
+        pub MoveToEndOfParagraph,
         /// Moves cursor to the start of the next comment paragraph.
-        MoveToNextCommentParagraph,
+        pub(crate) MoveToNextCommentParagraph,
         /// Moves cursor to the end of the next subword.
-        MoveToNextSubwordEnd,
+        pub MoveToNextSubwordEnd,
         /// Moves cursor to the end of the next word.
-        MoveToNextWordEnd,
+        pub MoveToNextWordEnd,
         /// Moves cursor to the start of the previous comment paragraph.
-        MoveToPreviousCommentParagraph,
+        pub(crate) MoveToPreviousCommentParagraph,
         /// Moves cursor to the start of the previous subword.
-        MoveToPreviousSubwordStart,
+        pub MoveToPreviousSubwordStart,
         /// Moves cursor to the start of the previous word.
-        MoveToPreviousWordStart,
+        pub MoveToPreviousWordStart,
         /// Moves cursor to the start of the paragraph.
-        MoveToStartOfParagraph,
+        pub MoveToStartOfParagraph,
         /// Moves cursor to the start of the current excerpt.
-        MoveToStartOfExcerpt,
+        pub MoveToStartOfExcerpt,
         /// Moves cursor to the start of the next excerpt.
-        MoveToStartOfNextExcerpt,
+        pub MoveToStartOfNextExcerpt,
         /// Moves cursor to the end of the current excerpt.
-        MoveToEndOfExcerpt,
+        pub(crate) MoveToEndOfExcerpt,
         /// Moves cursor to the end of the previous excerpt.
-        MoveToEndOfPreviousExcerpt,
+        pub(crate) MoveToEndOfPreviousExcerpt,
         /// Moves cursor to the start of the next larger syntax node.
-        MoveToStartOfLargerSyntaxNode,
+        pub(crate) MoveToStartOfLargerSyntaxNode,
         /// Moves cursor to the end of the next larger syntax node.
-        MoveToEndOfLargerSyntaxNode,
+        pub(crate) MoveToEndOfLargerSyntaxNode,
         /// Inserts a new line and moves cursor to it.
-        Newline,
+        pub Newline,
         /// Inserts a new line above the current line.
-        NewlineAbove,
+        pub NewlineAbove,
         /// Inserts a new line below the current line.
-        NewlineBelow,
+        pub NewlineBelow,
         /// Scrolls to the next screen.
-        NextScreen,
+        pub(crate) NextScreen,
         /// Goes to the next snippet tabstop if one exists.
-        NextSnippetTabstop,
+        pub NextSnippetTabstop,
         /// Opens the context menu at cursor position.
-        OpenContextMenu,
+        pub(crate) OpenContextMenu,
         /// Opens the file whose name is selected in the editor.
-        OpenSelectedFilename,
+        pub(crate) OpenSelectedFilename,
         /// Opens all selections in a multibuffer.
-        OpenSelectionsInMultibuffer,
+        pub OpenSelectionsInMultibuffer,
         /// Opens the URL at cursor position.
-        OpenUrl,
+        pub(crate) OpenUrl,
         /// Organizes import statements.
-        OrganizeImports,
+        pub OrganizeImports,
         /// Decreases indentation of selected lines.
-        Outdent,
+        pub(crate) Outdent,
         /// Automatically adjusts indentation based on context.
-        AutoIndent,
+        pub(crate) AutoIndent,
         /// Scrolls down by one page.
-        PageDown,
+        pub PageDown,
         /// Scrolls up by one page.
-        PageUp,
+        pub PageUp,
         /// Pastes from clipboard.
-        Paste,
+        pub Paste,
         /// Goes to the previous snippet tabstop if one exists.
-        PreviousSnippetTabstop,
+        pub PreviousSnippetTabstop,
         /// Redoes the last undone edit.
-        Redo,
+        pub Redo,
         /// Redoes the last selection change.
-        RedoSelection,
+        pub(crate) RedoSelection,
         /// Renames the symbol at cursor.
-        Rename,
+        pub Rename,
         /// Restarts the language server for the current file.
-        RestartLanguageServer,
+        pub(crate) RestartLanguageServer,
         /// Reloads the file from disk.
-        ReloadFile,
+        pub(crate) ReloadFile,
         /// Rewraps text to fit within the preferred line length.
-        Rewrap,
+        pub(crate) Rewrap,
         /// Scrolls the cursor to the bottom of the viewport.
-        ScrollCursorBottom,
+        pub(crate) ScrollCursorBottom,
         /// Scrolls the cursor to the center of the viewport.
-        ScrollCursorCenter,
+        pub ScrollCursorCenter,
         /// Cycles cursor position between center, top, and bottom.
-        ScrollCursorCenterTopBottom,
+        pub(crate) ScrollCursorCenterTopBottom,
         /// Scrolls the cursor to the top of the viewport.
-        ScrollCursorTop,
+        pub(crate) ScrollCursorTop,
         /// Selects all text in the editor.
-        SelectAll,
+        pub SelectAll,
         /// Selects all matches of the current selection.
-        SelectAllMatches,
+        pub SelectAllMatches,
         /// Selects to the start of the current excerpt.
-        SelectToStartOfExcerpt,
+        pub SelectToStartOfExcerpt,
         /// Selects to the start of the next excerpt.
-        SelectToStartOfNextExcerpt,
+        pub SelectToStartOfNextExcerpt,
         /// Selects to the end of the current excerpt.
-        SelectToEndOfExcerpt,
+        pub(crate) SelectToEndOfExcerpt,
         /// Selects to the end of the previous excerpt.
-        SelectToEndOfPreviousExcerpt,
+        pub(crate) SelectToEndOfPreviousExcerpt,
         /// Extends selection down.
-        SelectDown,
+        pub SelectDown,
         /// Selects the enclosing symbol.
-        SelectEnclosingSymbol,
+        pub SelectEnclosingSymbol,
         /// Selects to the start of the next larger syntax node.
-        SelectToStartOfLargerSyntaxNode,
+        pub(crate) SelectToStartOfLargerSyntaxNode,
         /// Selects to the end of the next larger syntax node.
-        SelectToEndOfLargerSyntaxNode,
+        pub(crate) SelectToEndOfLargerSyntaxNode,
         /// Selects the next larger syntax node.
-        SelectLargerSyntaxNode,
+        pub SelectLargerSyntaxNode,
         /// Selects the next syntax node sibling.
-        SelectNextSyntaxNode,
+        pub SelectNextSyntaxNode,
         /// Selects the previous syntax node sibling.
-        SelectPreviousSyntaxNode,
+        pub SelectPreviousSyntaxNode,
         /// Extends selection left.
-        SelectLeft,
+        pub SelectLeft,
         /// Selects the current line.
-        SelectLine,
+        pub SelectLine,
         /// Extends selection down by one page.
-        SelectPageDown,
+        pub SelectPageDown,
         /// Extends selection up by one page.
-        SelectPageUp,
+        pub SelectPageUp,
         /// Extends selection right.
-        SelectRight,
+        pub SelectRight,
         /// Selects the next smaller syntax node.
-        SelectSmallerSyntaxNode,
+        pub SelectSmallerSyntaxNode,
         /// Selects to the beginning of the document.
-        SelectToBeginning,
+        pub SelectToBeginning,
         /// Selects to the end of the document.
-        SelectToEnd,
+        pub SelectToEnd,
         /// Selects to the end of the paragraph.
-        SelectToEndOfParagraph,
+        pub SelectToEndOfParagraph,
         /// Selects to the end of the next subword.
-        SelectToNextSubwordEnd,
+        pub SelectToNextSubwordEnd,
         /// Selects to the end of the next word.
-        SelectToNextWordEnd,
+        pub SelectToNextWordEnd,
         /// Selects to the start of the previous subword.
-        SelectToPreviousSubwordStart,
+        pub SelectToPreviousSubwordStart,
         /// Selects to the start of the previous word.
-        SelectToPreviousWordStart,
+        pub SelectToPreviousWordStart,
         /// Selects to the start of the paragraph.
-        SelectToStartOfParagraph,
+        pub SelectToStartOfParagraph,
         /// Extends selection up.
-        SelectUp,
+        pub SelectUp,
         /// Shows code completion suggestions at the cursor position.
-        ShowCompletions,
+        pub ShowCompletions,
         /// Shows the system character palette.
-        ShowCharacterPalette,
+        pub ShowCharacterPalette,
         /// Shows word completions.
-        ShowWordCompletions,
+        pub ShowWordCompletions,
         /// Sorts selected lines by length.
-        SortLinesByLength,
+        pub(crate) SortLinesByLength,
         /// Sorts selected lines case-insensitively.
-        SortLinesCaseInsensitive,
+        pub(crate) SortLinesCaseInsensitive,
         /// Sorts selected lines case-sensitively.
-        SortLinesCaseSensitive,
+        pub(crate) SortLinesCaseSensitive,
         /// Stops the language server for the current file.
-        StopLanguageServer,
+        pub(crate) StopLanguageServer,
         /// Inserts a tab character or indents.
-        Tab,
+        pub Tab,
         /// Removes a tab character or outdents.
-        Backtab,
+        pub Backtab,
         /// Toggles the case of selected text.
-        ToggleCase,
+        pub ToggleCase,
         /// Opens the git commit for the blame at cursor.
-        OpenGitBlameCommit,
+        pub(crate) OpenGitBlameCommit,
         /// Opens a blame of the file at the revision of the blame entry at cursor.
-        BlameRevision,
+        pub(crate) BlameRevision,
         /// Opens a blame of the file at the revision preceding the blame entry at cursor.
-        BlamePreviousRevision,
+        pub(crate) BlamePreviousRevision,
         /// Toggles all diagnostics in this editor: underlines, inline messages, and navigation.
-        ToggleDiagnostics,
+        pub(crate) ToggleDiagnostics,
         /// Toggles indent guides display.
-        ToggleIndentGuides,
+        pub(crate) ToggleIndentGuides,
         /// Toggles the minimap display.
-        ToggleMinimap,
+        pub(crate) ToggleMinimap,
         /// Swaps the start and end of the current selection.
-        SwapSelectionEnds,
+        pub(crate) SwapSelectionEnds,
         /// Sets a mark at the current position.
-        SetMark,
+        pub(crate) SetMark,
         /// Toggles diff display for selected hunks.
-        ToggleSelectedDiffHunks,
+        pub ToggleSelectedDiffHunks,
         /// Toggles soft wrap mode.
-        ToggleSoftWrap,
+        pub(crate) ToggleSoftWrap,
         /// Transposes characters around cursor.
-        Transpose,
+        pub(crate) Transpose,
         /// Undoes the last edit.
-        Undo,
+        pub Undo,
         /// Undoes the last selection change.
-        UndoSelection,
+        pub UndoSelection,
         /// Unfolds all folded regions.
-        UnfoldAll,
+        pub UnfoldAll,
         /// Unfolds lines at cursor.
-        UnfoldLines,
+        pub UnfoldLines,
         /// Unfolds recursively at cursor.
-        UnfoldRecursive,
+        pub(crate) UnfoldRecursive,
         /// Removes duplicate lines (case-insensitive).
-        UniqueLinesCaseInsensitive,
+        pub(crate) UniqueLinesCaseInsensitive,
         /// Removes duplicate lines (case-sensitive).
-        UniqueLinesCaseSensitive,
+        pub(crate) UniqueLinesCaseSensitive,
         /// Removes the surrounding syntax node (for example brackets, or closures)
         /// from the current selections.
-        UnwrapSyntaxNode,
+        pub(crate) UnwrapSyntaxNode,
         /// Wraps selections in tag specified by language.
-        WrapSelectionsInTag,
+        pub(crate) WrapSelectionsInTag,
         /// Aligns selections from different rows into the same column
-        AlignSelections,
+        pub(crate) AlignSelections,
         /// Saves the current location to navigation history.
-        SaveLocation,
+        pub(crate) SaveLocation,
     ]
 );
 
@@ -830,7 +830,7 @@ pub struct GoToTypeDefinition {
 #[derive(PartialEq, Eq, Clone, Action)]
 #[action(namespace = editor)]
 pub struct FindAllReferences {
-    pub always_open_multibuffer: bool,
+    pub(crate) always_open_multibuffer: bool,
     /// Where to show the references. Defaults to a multibuffer
     /// when omitted. A single result is always opened directly.
     pub open_results_in: Option<OpenResultsIn>,

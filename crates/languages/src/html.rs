@@ -19,7 +19,7 @@ use serde_json::json;
 use crate::LanguageDef;
 use crate::npx;
 
-pub(crate) struct HtmlLspAdapter;
+struct HtmlLspAdapter;
 
 #[async_trait(?Send)]
 impl LspAdapter for HtmlLspAdapter {
@@ -57,7 +57,7 @@ impl LspAdapter for HtmlLspAdapter {
 }
 
 /// Settings for HTML.
-pub(crate) fn settings() -> LanguageSettings {
+fn settings() -> LanguageSettings {
     LanguageSettings {
         tab_size: NonZeroU32::new(4).expect("non-zero"),
         hard_tabs: false,

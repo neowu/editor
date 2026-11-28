@@ -226,7 +226,7 @@ mod tests {
         assert_eq!(deserialized.uri, expected_encoded_uri, "Deserialized URI should have encoded brackets");
 
         // Test Location with brackets
-        let location = Location::new(uri, Range::new(Position::new(0, 0), Position::new(0, 10)));
+        let location = Location { uri, range: Range::new(Position::new(0, 0), Position::new(0, 10)) };
         let location_serialized = serde_json::to_string(&location).expect("Should serialize Location");
 
         let location_deserialized: Location =
@@ -243,10 +243,15 @@ mod tests {
         let uri = Uri::from_str(file_path).expect("Should parse URI with brackets");
 
         let mut changes = HashMap::new();
-        changes
-            .insert(uri, vec![TextEdit::new(Range::new(Position::new(0, 0), Position::new(0, 5)), "Hello".to_owned())]);
+        changes.insert(
+            uri,
+            vec![TextEdit {
+                range: Range::new(Position::new(0, 0), Position::new(0, 5)),
+                new_text: "Hello".to_owned(),
+            }],
+        );
 
-        let workspace_edit = WorkspaceEdit::new(changes);
+        let workspace_edit = WorkspaceEdit { changes: Some(changes), ..Default::default() };
         let serialized = serde_json::to_string(&workspace_edit).expect("Should serialize WorkspaceEdit");
 
         // Verify encoded brackets in serialized form

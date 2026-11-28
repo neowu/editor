@@ -128,7 +128,7 @@ impl Render for StashMessageModal {
 }
 
 impl GitPanel {
-    pub fn stash_pop(&mut self, _: &StashPop, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn stash_pop(&mut self, _: &StashPop, _window: &mut Window, cx: &mut Context<Self>) {
         let Some(active_repository) = self.active_repository.clone() else {
             return;
         };
@@ -152,7 +152,7 @@ impl GitPanel {
         .detach();
     }
 
-    pub fn stash_apply(&mut self, _: &StashApply, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn stash_apply(&self, _: &StashApply, _window: &mut Window, cx: &Context<Self>) {
         let Some(active_repository) = self.active_repository.clone() else {
             return;
         };
@@ -176,15 +176,15 @@ impl GitPanel {
         .detach();
     }
 
-    pub fn stash_all(&mut self, _: &StashAll, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn stash_all(&mut self, _: &StashAll, window: &mut Window, cx: &mut Context<Self>) {
         self.prompt_for_stash_message(StashKind::All, window, cx);
     }
 
-    pub fn stash_tracked(&mut self, _: &StashTracked, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn stash_tracked(&mut self, _: &StashTracked, window: &mut Window, cx: &mut Context<Self>) {
         self.prompt_for_stash_message(StashKind::Tracked, window, cx);
     }
 
-    pub fn stash_staged(&mut self, _: &StashStaged, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn stash_staged(&mut self, _: &StashStaged, window: &mut Window, cx: &mut Context<Self>) {
         self.prompt_for_stash_message(StashKind::Staged, window, cx);
     }
 

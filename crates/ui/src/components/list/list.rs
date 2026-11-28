@@ -16,12 +16,12 @@ use crate::prelude::v_flex;
 
 /// Vertical list that shows "No items" when it has no children.
 #[derive(IntoElement, Default)]
-pub struct List {
+pub(crate) struct List {
     children: SmallVec<[AnyElement; 2]>,
 }
 
 impl List {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 }

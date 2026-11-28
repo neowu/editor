@@ -92,8 +92,8 @@ use gpui::Entity;
 use gpui::EventEmitter;
 use gpui::Priority;
 use gpui::Task;
-pub use ignore::IgnoreKind;
-pub use ignore::IgnoreStack;
+pub(crate) use ignore::IgnoreKind;
+pub(crate) use ignore::IgnoreStack;
 use language::DiskState;
 pub use language::WorktreeId;
 use rustc_hash::FxHashMap;
@@ -124,7 +124,7 @@ pub const FS_WATCH_LATENCY: Duration = Duration::from_millis(100);
 /// exists at its recorded path. Native watchers report the root itself being
 /// renamed or deleted, but not a rename of one of its ancestors, which leaves
 /// the watcher silently attached to a path that no longer exists.
-pub const ROOT_PATH_CHECK_INTERVAL: Duration = Duration::from_secs(5);
+const ROOT_PATH_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 
 /// A set of files that are being opened as part of a project.
 /// Responsible for tracking related filesystem events and corresponding updates.
@@ -186,7 +186,7 @@ pub struct Worktree {
     scanning_enabled: bool,
 }
 
-pub struct PathPrefixScanRequest {
+struct PathPrefixScanRequest {
     path: Arc<RelPath>,
     done: SmallVec<[oneshot::Sender<()>; 1]>,
 }
@@ -229,7 +229,7 @@ pub struct Snapshot {
 /// But if a sub-folder of a git repository is opened, this corresponds to the
 /// project root and the .git folder is located in a parent directory.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub enum WorkDirectory {
+enum WorkDirectory {
     InProject { relative_path: Arc<RelPath> },
     AboveProject { absolute_path: Arc<Path>, location_in_repo: Arc<Path> },
 }
@@ -248,7 +248,7 @@ impl WorkDirectory {
     /// is a repository in a directory between these two paths
     /// external .git folder in a parent folder of the project root.
     #[track_caller]
-    pub fn directory_contains(&self, path: &RelPath) -> bool {
+    fn directory_contains(&self, path: &RelPath) -> bool {
         match self {
             WorkDirectory::InProject { relative_path } => path.starts_with(relative_path),
             WorkDirectory::AboveProject { .. } => true,
@@ -656,7 +656,7 @@ impl Worktree {
 
     /// For visible worktrees, returns the path with the worktree name as the first component.
     /// Otherwise, returns an absolute path.
-    pub fn full_path(&self, worktree_relative_path: &RelPath) -> PathBuf {
+    fn full_path(&self, worktree_relative_path: &RelPath) -> PathBuf {
         if self.is_visible() {
             self.root_name().join(worktree_relative_path).display().to_owned().into()
         } else {
@@ -939,7 +939,7 @@ impl Worktree {
         }
     }
 
-    pub fn local_snapshot(&self) -> LocalSnapshot {
+    fn local_snapshot(&self) -> LocalSnapshot {
         self.snapshot.clone()
     }
 
@@ -1340,7 +1340,7 @@ impl Worktree {
 }
 
 impl Snapshot {
-    pub fn new(id: WorktreeId, root_name: Arc<RelPath>, abs_path: Arc<Path>) -> Self {
+    fn new(id: WorktreeId, root_name: Arc<RelPath>, abs_path: Arc<Path>) -> Self {
         Snapshot {
             id,
             abs_path: SanitizedPath::from_arc(abs_path),
@@ -1383,7 +1383,7 @@ impl Snapshot {
         self.root_repo_is_linked_worktree
     }
 
-    pub fn work_directory_abs_path(&self, work_directory: &WorkDirectory) -> PathBuf {
+    fn work_directory_abs_path(&self, work_directory: &WorkDirectory) -> PathBuf {
         match work_directory {
             WorkDirectory::InProject { relative_path } => self.absolutize(relative_path),
             WorkDirectory::AboveProject { absolute_path, .. } => absolute_path.as_ref().to_owned(),
@@ -1496,7 +1496,7 @@ impl Snapshot {
         self.child_entries_with_options(parent_path, options)
     }
 
-    pub fn child_entries_with_options<'a>(
+    fn child_entries_with_options<'a>(
         &'a self,
         parent_path: &'a RelPath,
         options: ChildEntriesOptions,
@@ -2200,7 +2200,7 @@ impl language::LocalFile for File {
 }
 
 impl File {
-    pub fn for_entry(entry: Entry, worktree: Entity<Worktree>) -> Arc<Self> {
+    fn for_entry(entry: Entry, worktree: Entity<Worktree>) -> Arc<Self> {
         Arc::new(Self {
             worktree,
             path: Arc::clone(&entry.path),
@@ -2227,6 +2227,7 @@ impl File {
     pub const fn project_entry_id(&self) -> Option<ProjectEntryId> {
         match self.disk_state {
             DiskState::Deleted => None,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => self.entry_id,
         }
     }
@@ -2303,7 +2304,7 @@ pub struct UpdatedGitRepository {
     ///
     /// For a repo that's above the worktree root, this is the ID of the worktree root, and hence not unique.
     /// It's included here to aid the GitStore in detecting when a repository's working directory is renamed.
-    pub work_directory_id: ProjectEntryId,
+    work_directory_id: ProjectEntryId,
     pub old_work_directory_abs_path: Option<Arc<Path>>,
     pub new_work_directory_abs_path: Option<Arc<Path>>,
     /// For a normal git repository checkout, the absolute path to the .git directory.
@@ -2318,7 +2319,7 @@ pub type UpdatedGitRepositoriesSet = Arc<[UpdatedGitRepository]>;
 
 #[derive(Clone, Debug)]
 pub struct PathProgress<'a> {
-    pub max_path: &'a RelPath,
+    max_path: &'a RelPath,
 }
 
 #[derive(Clone, Debug)]
@@ -4460,10 +4461,6 @@ struct UpdateIgnoreStatusJob {
     scan_queue: Sender<ScanJob>,
 }
 
-pub trait WorktreeModelHandle {}
-
-impl WorktreeModelHandle for Entity<Worktree> {}
-
 #[derive(Clone, Debug)]
 struct TraversalProgress<'a> {
     max_path: &'a RelPath,
@@ -4533,7 +4530,7 @@ impl<'a> Traversal<'a> {
         traversal
     }
 
-    pub fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> bool {
         self.advance_by(1)
     }
 
@@ -4670,10 +4667,10 @@ impl<'a> SeekTarget<'a, PathSummary<sum_tree::NoSummary>, TraversalProgress<'a>>
     }
 }
 
-pub struct ChildEntriesOptions {
-    pub include_files: bool,
-    pub include_dirs: bool,
-    pub include_ignored: bool,
+struct ChildEntriesOptions {
+    include_files: bool,
+    include_dirs: bool,
+    include_ignored: bool,
 }
 
 pub struct ChildEntriesIter<'a> {
@@ -4702,7 +4699,7 @@ impl ProjectEntryId {
     pub const MAX: Self = Self(usize::MAX);
     pub const MIN: Self = Self(usize::MIN);
 
-    pub fn new(counter: &AtomicUsize) -> Self {
+    fn new(counter: &AtomicUsize) -> Self {
         Self(counter.fetch_add(1, SeqCst))
     }
 
@@ -4792,7 +4789,7 @@ const STREAM_BLOCK_BYTES: usize = 1024 * 1024;
 /// Reads and decodes a file straight into a [`Rope`].
 /// The returned rope has already had its line endings normalized, the
 /// [`LineEnding`] detected before normalizing is returned alongside it.
-pub async fn decode_file_text_to_rope(fs: &Fs, abs_path: &Path) -> Result<(Rope, LineEnding, &'static Encoding, bool)> {
+async fn decode_file_text_to_rope(fs: &Fs, abs_path: &Path) -> Result<(Rope, LineEnding, &'static Encoding, bool)> {
     let mut file = fs.open_sync(abs_path).with_context(|| format!("opening file {abs_path:?}"))?;
 
     let (prefix, reached_eof) =

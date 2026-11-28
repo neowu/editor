@@ -149,7 +149,7 @@ const fn word(text: &'static str) -> TokenType {
 }
 
 /// Pele's `RADAR_TOKENS`, in matching order.
-pub(crate) const RADAR_TOKENS: &[TokenType] = &[
+const RADAR_TOKENS: &[TokenType] = &[
     literal("radar-beta:"),
     TokenType { longer: &[t::ID], ..keyword("radar-beta") },
     word("showLegend"),

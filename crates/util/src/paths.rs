@@ -621,7 +621,7 @@ where
 /// 3. Comparing numbers by their numeric value rather than lexicographically
 /// 4. For non-numeric characters, using case-insensitive comparison
 /// 5. If everything is equal case-insensitively, using case-sensitive comparison as final tie-breaker
-pub fn natural_sort(a: &str, b: &str) -> Ordering {
+fn natural_sort(a: &str, b: &str) -> Ordering {
     if a == b {
         return Ordering::Equal;
     }
@@ -738,6 +738,7 @@ fn case_group_key(name: &str, order: SortOrder) -> u8 {
             }
         }
         SortOrder::Lower if first.is_uppercase() => 1,
+        // lint: expect(wildcard_match) only some variants matter here
         _ => 0,
     }
 }
@@ -745,14 +746,14 @@ fn case_group_key(name: &str, order: SortOrder) -> u8 {
 fn compare_strings(a: &str, b: &str, order: SortOrder) -> Ordering {
     match order {
         SortOrder::Unicode => a.cmp(b),
-        _ => natural_sort(a, b),
+        SortOrder::Default | SortOrder::Upper | SortOrder::Lower => natural_sort(a, b),
     }
 }
 
 fn compare_strings_no_tiebreak(a: &str, b: &str, order: SortOrder) -> Ordering {
     match order {
         SortOrder::Unicode => a.cmp(b),
-        _ => natural_sort_no_tiebreak(a, b),
+        SortOrder::Default | SortOrder::Upper | SortOrder::Lower => natural_sort_no_tiebreak(a, b),
     }
 }
 
@@ -793,7 +794,7 @@ pub fn compare_rel_paths_by(
                         let name_cmp =
                             case_group_key(a, order).cmp(&case_group_key(b, order)).then_with(|| match mode {
                                 SortMode::DirectoriesFirst => compare_strings(a, b, order),
-                                _ => compare_strings_no_tiebreak(a, b, order),
+                                SortMode::Mixed | SortMode::FilesFirst => compare_strings_no_tiebreak(a, b, order),
                             });
 
                         let name_cmp = if mode == SortMode::Mixed {
@@ -810,7 +811,9 @@ pub fn compare_rel_paths_by(
                             if a_leaf_file && b_leaf_file {
                                 match order {
                                     SortOrder::Unicode => a_ext.unwrap_or_default().cmp(b_ext.unwrap_or_default()),
-                                    _ => compare_lowercase(a_ext.unwrap_or_default(), b_ext.unwrap_or_default()),
+                                    SortOrder::Default | SortOrder::Upper | SortOrder::Lower => {
+                                        compare_lowercase(a_ext.unwrap_or_default(), b_ext.unwrap_or_default())
+                                    }
                                 }
                             } else {
                                 Ordering::Equal

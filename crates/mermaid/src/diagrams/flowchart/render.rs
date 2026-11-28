@@ -38,8 +38,7 @@ use crate::svg::edges::route_path;
 use crate::svg::root::svg_document;
 use crate::svg::shapes::draw_shape;
 use crate::svg::shapes::end_side;
-use crate::svg::shapes::inset_route;
-use crate::svg::shapes::shape_has_label;
+use crate::svg::shapes::shape_inset;
 use crate::svg::shapes::shape_size;
 use crate::svg::shapes::shape_span;
 use crate::svg::theme::RADIUS;
@@ -76,6 +75,7 @@ struct NodeView<'g> {
 fn get<'v>(value: &'v Value, key: &str) -> Option<&'v Value> {
     match value {
         Value::Object(entries) => entries.iter().find(|(own, _)| own == key).map(|(_, v)| v),
+        // lint: expect(wildcard_match) only a few variants of `Value` matter here
         _ => None,
     }
 }
@@ -91,6 +91,34 @@ fn asset_size(value: Option<f64>, fallback: f64) -> f64 {
     match value {
         Some(value) if value > 0.0 && value <= 4000.0 => value,
         _ => fallback,
+    }
+}
+
+/// Whether `shape` holds a label.
+fn shape_has_label(shape: &str) -> bool {
+    !matches!(shape, "sm-circ" | "f-circ" | "fr-circ" | "fork" | "hourglass" | "cross-circ" | "bolt")
+}
+
+/// Moves a route end at `at` from node `c`'s layout box onto the outline of `shape`, drawn `w` by
+/// `h` in it. Groups have no outline to move onto.
+fn inset_route(route: &mut [f64], at: usize, shape: &str, w: f64, h: f64, c: &CNode) {
+    if c.is_group {
+        return;
+    }
+
+    let side = end_side(route, at, c);
+    if side == 0 || side == 2 {
+        let t = route.get(at).copied().unwrap_or(f64::NAN) - c.x;
+        let amount = shape_inset(shape, w, h, if side == 0 { 0 } else { 2 }, t) + (c.h - h) / 2.0;
+        if let Some(y) = route.get_mut(at + 1) {
+            *y += if side == 0 { amount } else { -amount };
+        }
+    } else if side >= 0 {
+        let t = route.get(at + 1).copied().unwrap_or(f64::NAN) - c.y;
+        let amount = shape_inset(shape, w, h, if side == 3 { 3 } else { 1 }, t) + (c.w - w) / 2.0;
+        if let Some(x) = route.get_mut(at) {
+            *x += if side == 3 { amount } else { -amount };
+        }
     }
 }
 

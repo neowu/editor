@@ -4,7 +4,7 @@ use std::time::Instant;
 
 pub use easing::ease_in_out;
 pub use easing::ease_out_quint;
-pub use easing::linear;
+pub(crate) use easing::linear;
 pub use easing::pulsating_between;
 use smallvec::SmallVec;
 
@@ -21,14 +21,14 @@ use crate::Window;
 #[derive(Clone)]
 pub struct Animation {
     /// The amount of time for which this animation should run.
-    pub duration: Duration,
+    duration: Duration,
     /// Whether to repeat this animation when it finishes.
-    pub oneshot: bool,
+    oneshot: bool,
     /// Whether to derive the phase from a shared clock. See [`Animation::repeat_synced`].
-    pub synced: bool,
+    synced: bool,
     /// A function that maps normalized time to an animated value.
     /// The result may exceed 0..1 for easing functions that overshoot.
-    pub easing: Rc<dyn Fn(f32) -> f32>,
+    easing: Rc<dyn Fn(f32) -> f32>,
 }
 
 impl Animation {
@@ -218,7 +218,7 @@ mod easing {
     use std::f32::consts::PI;
 
     /// The linear easing function, or delta itself.
-    pub const fn linear(delta: f32) -> f32 {
+    pub(crate) const fn linear(delta: f32) -> f32 {
         delta
     }
 

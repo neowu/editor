@@ -2,8 +2,8 @@
 //! an outline running down. Port of Pele's `src/diagrams/mindmap/index.ts`. Pele's
 //! `parser.ts` only forwards to the shared outline grammar, so [`parse`] calls it directly.
 
-pub(crate) mod db;
-pub(crate) mod render;
+mod db;
+mod render;
 
 use super::Diagram;
 use super::Input;
@@ -30,7 +30,7 @@ pub(crate) use db::MindmapDb as Model;
 /// # Errors
 ///
 /// Returns a syntax error for input Mermaid rejects, and a semantic error for a second root.
-pub(crate) fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
+fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
     let mut db = Model::default();
     db.title = title.map(str::to_owned);
     let parsed = parse_outline(source, &mut db, false);

@@ -639,6 +639,7 @@ fn push_leaf(out: &mut String, item: &LaidOut, x: f64, y: f64, leaves: &Leaves<'
             out.push_str(&esc(text));
             out.push_str("</text></g>");
         }
+        // lint: expect(wildcard_match) only a few variants of `Kind` matter here
         _ => {
             // The shown text is `? {text} ?`, with ASCII marks at both ends.
             let inner = text.get(2..text.len().saturating_sub(2)).unwrap_or("");

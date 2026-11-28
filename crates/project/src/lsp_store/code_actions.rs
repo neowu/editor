@@ -150,7 +150,7 @@ impl LocalLspStore {
         Ok(actions)
     }
 
-    pub async fn execute_code_actions_on_server(
+    async fn execute_code_actions_on_server(
         lsp_store: &WeakEntity<LspStore>,
         language_server: &Arc<LanguageServer>,
         buffer: &Entity<Buffer>,
@@ -368,12 +368,12 @@ impl LspStore {
         })
     }
 
-    pub fn apply_code_action_kind(
-        &mut self,
+    pub(crate) fn apply_code_action_kind(
+        &self,
         buffers: FxHashSet<Entity<Buffer>>,
         kind: CodeActionKind,
         push_to_history: bool,
-        cx: &mut Context<Self>,
+        cx: &Context<Self>,
     ) -> Task<Result<ProjectTransaction>> {
         {
             cx.spawn(async move |lsp_store, cx| {
@@ -394,8 +394,8 @@ impl LspStore {
         }
     }
 
-    pub fn code_actions(
-        &mut self,
+    pub(crate) fn code_actions(
+        &self,
         buffer: &Entity<Buffer>,
         range: Range<Anchor>,
         kinds: Option<Vec<CodeActionKind>>,

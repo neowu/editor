@@ -40,7 +40,7 @@ impl From<std::process::Command> for Command {
 
 impl Command {
     #[inline]
-    pub fn new(program: impl AsRef<OsStr>) -> Self {
+    fn new(program: impl AsRef<OsStr>) -> Self {
         std::process::Command::new(program).into()
     }
 

@@ -17,14 +17,14 @@ pub(crate) struct MindmapNode {
     /// The icon name from `::icon(...)`.
     pub(crate) icon: Option<String>,
     /// The node's index in [`MindmapDb::nodes`].
-    pub(crate) id: usize,
+    id: usize,
     /// Whether the node is the root.
-    pub(crate) is_root: bool,
+    is_root: bool,
     /// Mermaid's node type, which selects the shape.
     pub(crate) kind: u8,
     /// The indentation relative to the root's, in UTF-16 units. Negative when a node is indented
     /// less than the root.
-    pub(crate) level: i64,
+    level: i64,
     /// The authored id.
     pub(crate) node_id: String,
     /// Index of the first-level branch the node belongs to, wrapping after eleven as in Mermaid.

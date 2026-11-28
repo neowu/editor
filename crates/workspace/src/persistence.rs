@@ -36,14 +36,14 @@ use crate::path_list::PathList;
 /// marking the ones open when ed last quit.
 const PROJECTS_FILE_NAME: &str = "projects.json";
 /// Project-level folder holding per-project state.
-pub(crate) const WORKSPACE_STATE_DIR: &str = ".ed";
+const WORKSPACE_STATE_DIR: &str = ".ed";
 const WORKSPACE_STATE_FILE: &str = "workspace.json";
 const MAX_RECENT_PROJECTS: usize = 100;
 
 /// Where a project lives: its root folders, in the order they were opened.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectLocation {
-    pub paths: Vec<PathBuf>,
+    pub(crate) paths: Vec<PathBuf>,
 }
 
 impl ProjectLocation {
@@ -51,7 +51,7 @@ impl ProjectLocation {
         ProjectLocation { paths: paths.ordered_paths().cloned().collect() }
     }
 
-    pub fn path_list(&self) -> PathList {
+    fn path_list(&self) -> PathList {
         PathList::new(&self.paths)
     }
 }
@@ -59,28 +59,28 @@ impl ProjectLocation {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecentProject {
     #[serde(flatten)]
-    pub location: ProjectLocation,
+    location: ProjectLocation,
     /// Unix time, in seconds, the project was last opened or focused.
     #[serde(default)]
-    pub opened_at: i64,
+    opened_at: i64,
     /// Whether the project is open in a window. Kept across quitting so the
     /// next launch can reopen it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub open: bool,
+    open: bool,
 }
 
 /// Contents of `projects.json`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct ProjectsFile {
+struct ProjectsFile {
     /// Most recent first.
     #[serde(default)]
-    pub recent: Vec<RecentProject>,
+    recent: Vec<RecentProject>,
 }
 
 impl ProjectsFile {
     /// Parses `projects.json`, treating unreadable contents as an empty file.
     /// Entries of remote projects, written by older versions, are dropped.
-    pub(crate) fn parse(text: &str) -> ProjectsFile {
+    fn parse(text: &str) -> ProjectsFile {
         #[derive(Default, Deserialize)]
         struct Raw {
             #[serde(default)]
@@ -99,7 +99,7 @@ impl ProjectsFile {
     /// Moves `location` to the front of the recent list, keeping its open
     /// flag. Returns whether the list order changed, which is when the file
     /// needs rewriting.
-    pub(crate) fn record_recent(&mut self, location: ProjectLocation, now: i64) -> bool {
+    fn record_recent(&mut self, location: ProjectLocation, now: i64) -> bool {
         if location.paths.is_empty() {
             return false;
         }
@@ -119,7 +119,7 @@ impl ProjectsFile {
     }
 
     /// Drops every recent entry `remove` matches. Returns whether any was dropped.
-    pub(crate) fn remove_recent(&mut self, mut remove: impl FnMut(&ProjectLocation) -> bool) -> bool {
+    fn remove_recent(&mut self, mut remove: impl FnMut(&ProjectLocation) -> bool) -> bool {
         let len = self.recent.len();
         self.recent.retain(|project| !remove(&project.location));
         self.recent.len() != len
@@ -127,7 +127,7 @@ impl ProjectsFile {
 
     /// Marks exactly the recent entries in `open` as open. Returns whether
     /// any flag changed.
-    pub(crate) fn set_open(&mut self, open: &[ProjectLocation]) -> bool {
+    fn set_open(&mut self, open: &[ProjectLocation]) -> bool {
         let mut changed = false;
         for project in &mut self.recent {
             let is_open = open.contains(&project.location);
@@ -138,7 +138,7 @@ impl ProjectsFile {
     }
 
     /// Locations of the projects marked open, most recent first.
-    pub(crate) fn open_projects(&self) -> Vec<ProjectLocation> {
+    fn open_projects(&self) -> Vec<ProjectLocation> {
         self.recent.iter().filter(|project| project.open).map(|project| project.location.clone()).collect()
     }
 }
@@ -173,7 +173,7 @@ impl ProjectsStore {
         Arc::clone(&cx.global::<GlobalProjectsStore>().0)
     }
 
-    pub fn try_global(cx: &App) -> Option<Arc<ProjectsStore>> {
+    pub(crate) fn try_global(cx: &App) -> Option<Arc<ProjectsStore>> {
         cx.try_global::<GlobalProjectsStore>().map(|store| Arc::clone(&store.0))
     }
 
@@ -181,18 +181,18 @@ impl ProjectsStore {
         self.state.lock().recent.clone()
     }
 
-    pub fn last_session(&self) -> Vec<ProjectLocation> {
+    fn last_session(&self) -> Vec<ProjectLocation> {
         self.last_session.clone()
     }
 
-    pub fn record_recent(&self, location: ProjectLocation, cx: &App) {
+    pub(crate) fn record_recent(&self, location: ProjectLocation, cx: &App) {
         let now = OffsetDateTime::now_utc().unix_timestamp();
         if self.state.lock().record_recent(location, now) {
             self.save(cx).detach();
         }
     }
 
-    pub fn remove_recent(&self, remove: impl FnMut(&ProjectLocation) -> bool, cx: &App) -> Task<()> {
+    fn remove_recent(&self, remove: impl FnMut(&ProjectLocation) -> bool, cx: &App) -> Task<()> {
         if self.state.lock().remove_recent(remove) { self.save(cx) } else { Task::ready(()) }
     }
 
@@ -292,12 +292,12 @@ pub(crate) fn is_in_workspace_state_dir(path: &RelPath) -> bool {
 }
 
 /// Path of the state file for a project whose first root folder is `root`.
-pub(crate) fn workspace_state_path(root: &Path) -> PathBuf {
+fn workspace_state_path(root: &Path) -> PathBuf {
     root.join(WORKSPACE_STATE_DIR).join(WORKSPACE_STATE_FILE)
 }
 
 /// Parses a `workspace.json`, ignoring unreadable contents.
-pub(crate) fn parse_workspace_state(text: &str) -> Option<SerializedWorkspace> {
+fn parse_workspace_state(text: &str) -> Option<SerializedWorkspace> {
     serde_json::from_str(text).log_err()
 }
 
@@ -327,7 +327,7 @@ pub(crate) fn write_workspace_state(
 pub struct RecentWorkspace {
     pub paths: PathList,
     pub identity_paths: PathList,
-    pub timestamp: OffsetDateTime,
+    timestamp: OffsetDateTime,
 }
 
 async fn all_paths_exist_with_a_directory(paths: &[PathBuf], fs: &Fs) -> bool {

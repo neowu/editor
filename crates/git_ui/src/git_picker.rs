@@ -57,10 +57,10 @@ use crate::stash_picker::DropStashItem;
 use crate::stash_picker::ShowStashItem;
 use crate::stash_picker::StashList;
 
-actions!(git_picker, [ActivateBranchesTab, ActivateStashTab,]);
+actions!(git_picker, [ActivateBranchesTab, ActivateStashTab]);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum GitPickerTab {
+pub(crate) enum GitPickerTab {
     Branches,
     Stashes,
 }
@@ -75,7 +75,7 @@ impl Display for GitPickerTab {
     }
 }
 
-pub struct GitPicker {
+pub(crate) struct GitPicker {
     tab: GitPickerTab,
     workspace: WeakEntity<Workspace>,
     repository: Option<Entity<Repository>>,
@@ -87,7 +87,7 @@ pub struct GitPicker {
 }
 
 impl GitPicker {
-    pub fn new(
+    fn new(
         workspace: WeakEntity<Workspace>,
         repository: Option<Entity<Repository>>,
         initial_tab: GitPickerTab,
@@ -468,7 +468,7 @@ fn open_with_tab(workspace: &mut Workspace, tab: GitPickerTab, window: &mut Wind
     });
 }
 
-pub fn popover(
+pub(crate) fn popover(
     workspace: WeakEntity<Workspace>,
     repository: Option<Entity<Repository>>,
     initial_tab: GitPickerTab,
@@ -483,7 +483,7 @@ pub fn popover(
     })
 }
 
-pub fn register(workspace_actions: &mut WorkspaceActions) {
+pub(crate) fn register(workspace_actions: &mut WorkspaceActions) {
     workspace_actions.register_action(|workspace, _: &Branch, window, cx| {
         open_with_tab(workspace, GitPickerTab::Branches, window, cx);
     });

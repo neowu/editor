@@ -698,11 +698,6 @@ mod tests {
     }
 
     #[test]
-    fn all_keystrokes_and_contexts_parse() {
-        assert!(keymap().len() > 500);
-    }
-
-    #[test]
     fn bindings_carry_their_action_input() {
         let keymap = keymap();
         let action = |context_name: &str, keys: &str| {

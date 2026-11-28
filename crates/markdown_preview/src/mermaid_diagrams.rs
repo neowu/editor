@@ -403,6 +403,7 @@ fn diagram_contents(block: &CodeBlock) -> Option<DiagramContents> {
                 _ => return None,
             }
         }
+        // lint: expect(wildcard_match) only some variants matter here
         _ => return None,
     };
     Some(DiagramContents { contents: block.contents.to_owned().into(), scale })

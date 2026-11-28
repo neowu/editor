@@ -9,15 +9,11 @@ use super::CodeActionResponse;
 use super::CodeLens;
 use super::CodeLensParams;
 use super::ColorInformation;
-use super::ColorPresentation;
-use super::ColorPresentationParams;
 use super::CompletionItem;
 use super::CompletionParams;
 use super::CompletionResponse;
 use super::ConfigurationParams;
-use super::CreateFilesParams;
 use super::Debug;
-use super::DeleteFilesParams;
 use super::DocumentColorParams;
 use super::DocumentDiagnosticParams;
 use super::DocumentDiagnosticReportResult;
@@ -41,47 +37,31 @@ use super::InitializeParams;
 use super::InitializeResult;
 use super::InlayHint;
 use super::InlayHintParams;
-use super::InlineValue;
-use super::InlineValueParams;
 use super::LinkedEditingRangeParams;
 use super::LinkedEditingRanges;
 use super::Location;
 use super::MessageActionItem;
-use super::Moniker;
-use super::MonikerParams;
 use super::PrepareRenameResponse;
 use super::ReferenceParams;
 use super::RegistrationParams;
 use super::RenameFilesParams;
 use super::RenameParams;
-use super::SelectionRange;
-use super::SelectionRangeParams;
 use super::SemanticTokensDeltaParams;
 use super::SemanticTokensFullDeltaResult;
 use super::SemanticTokensParams;
-use super::SemanticTokensRangeParams;
-use super::SemanticTokensRangeResult;
 use super::SemanticTokensResult;
 use super::ShowDocumentParams;
 use super::ShowDocumentResult;
 use super::ShowMessageRequestParams;
-use super::SignatureHelp;
-use super::SignatureHelpParams;
 use super::TextDocumentPositionParams;
 use super::TextEdit;
-use super::TypeHierarchyItem;
-use super::TypeHierarchyPrepareParams;
-use super::TypeHierarchySubtypesParams;
-use super::TypeHierarchySupertypesParams;
 use super::UnregistrationParams;
 use super::Value;
-use super::WillSaveTextDocumentParams;
 use super::WorkDoneProgressCreateParams;
 use super::WorkspaceDiagnosticParams;
 use super::WorkspaceDiagnosticReportResult;
 use super::WorkspaceEdit;
 use super::WorkspaceFolder;
-use super::WorkspaceSymbol;
 use super::WorkspaceSymbolParams;
 use super::WorkspaceSymbolResponse;
 
@@ -114,15 +94,8 @@ macro_rules! lsp_request {
     ("workspace/symbol") => {
         $crate::request::WorkspaceSymbolRequest
     };
-    ("workspaceSymbol/resolve") => {
-        $crate::request::WorkspaceSymbolResolve
-    };
     ("workspace/executeCommand") => {
         $crate::request::ExecuteCommand
-    };
-
-    ("textDocument/willSaveWaitUntil") => {
-        $crate::request::WillSaveWaitUntil
     };
 
     ("textDocument/completion") => {
@@ -133,9 +106,6 @@ macro_rules! lsp_request {
     };
     ("textDocument/hover") => {
         $crate::request::HoverRequest
-    };
-    ("textDocument/signatureHelp") => {
-        $crate::request::SignatureHelpRequest
     };
     ("textDocument/declaration") => {
         $crate::request::GotoDeclaration
@@ -185,9 +155,6 @@ macro_rules! lsp_request {
     ("textDocument/documentColor") => {
         $crate::request::DocumentColor
     };
-    ("textDocument/colorPresentation") => {
-        $crate::request::ColorPresentationRequest
-    };
     ("textDocument/foldingRange") => {
         $crate::request::FoldingRangeRequest
     };
@@ -200,9 +167,6 @@ macro_rules! lsp_request {
     ("textDocument/typeDefinition") => {
         $crate::request::GotoTypeDefinition
     };
-    ("textDocument/selectionRange") => {
-        $crate::request::SelectionRangeRequest
-    };
     ("workspace/workspaceFolders") => {
         $crate::request::WorkspaceFoldersRequest
     };
@@ -212,14 +176,8 @@ macro_rules! lsp_request {
     ("window/workDoneProgress/create") => {
         $crate::request::WorkDoneProgressCreate
     };
-    ("textDocument/moniker") => {
-        $crate::request::MonikerRequest
-    };
     ("textDocument/linkedEditingRange") => {
         $crate::request::LinkedEditingRange
-    };
-    ("textDocument/prepareTypeHierarchy") => {
-        $crate::request::TypeHierarchyPrepare
     };
     ("textDocument/semanticTokens/full") => {
         $crate::request::SemanticTokensFullRequest
@@ -227,14 +185,8 @@ macro_rules! lsp_request {
     ("textDocument/semanticTokens/full/delta") => {
         $crate::request::SemanticTokensFullDeltaRequest
     };
-    ("textDocument/semanticTokens/range") => {
-        $crate::request::SemanticTokensRangeRequest
-    };
     ("textDocument/inlayHint") => {
         $crate::request::InlayHintRequest
-    };
-    ("textDocument/inlineValue") => {
-        $crate::request::InlineValueRequest
     };
     ("textDocument/diagnostic") => {
         $crate::request::DocumentDiagnosticRequest
@@ -245,20 +197,8 @@ macro_rules! lsp_request {
     ("workspace/diagnostic/refresh") => {
         $crate::request::WorkspaceDiagnosticRefresh
     };
-    ("typeHierarchy/supertypes") => {
-        $crate::request::TypeHierarchySupertypes
-    };
-    ("typeHierarchy/subtypes") => {
-        $crate::request::TypeHierarchySubtypes
-    };
-    ("workspace/willCreateFiles") => {
-        $crate::request::WillCreateFiles
-    };
     ("workspace/willRenameFiles") => {
         $crate::request::WillRenameFiles
-    };
-    ("workspace/willDeleteFiles") => {
-        $crate::request::WillDeleteFiles
     };
     ("workspace/semanticTokens/refresh") => {
         $crate::request::SemanticTokensRefresh
@@ -268,9 +208,6 @@ macro_rules! lsp_request {
     };
     ("workspace/inlayHint/refresh") => {
         $crate::request::InlayHintRefreshRequest
-    };
-    ("workspace/inlineValue/refresh") => {
-        $crate::request::InlineValueRefreshRequest
     };
     ("codeAction/resolve") => {
         $crate::request::CodeActionResolveRequest
@@ -384,17 +321,6 @@ impl Request for HoverRequest {
     const METHOD: &'static str = "textDocument/hover";
 }
 
-/// The signature help request is sent from the client to the server to request signature information at
-/// a given cursor position.
-#[derive(Debug)]
-pub struct SignatureHelpRequest(!);
-
-impl Request for SignatureHelpRequest {
-    type Params = SignatureHelpParams;
-    type Result = Option<SignatureHelp>;
-    const METHOD: &'static str = "textDocument/signatureHelp";
-}
-
 #[derive(Debug)]
 pub struct GotoDeclaration(!);
 pub type GotoDeclarationParams = GotoDefinitionParams;
@@ -498,17 +424,6 @@ impl Request for WorkspaceSymbolRequest {
     const METHOD: &'static str = "workspace/symbol";
 }
 
-/// The `workspaceSymbol/resolve` request is sent from the client to the server to resolve
-/// additional information for a given workspace symbol.
-#[derive(Debug)]
-pub struct WorkspaceSymbolResolve(!);
-
-impl Request for WorkspaceSymbolResolve {
-    type Params = WorkspaceSymbol;
-    type Result = WorkspaceSymbol;
-    const METHOD: &'static str = "workspaceSymbol/resolve";
-}
-
 /// The workspace/executeCommand request is sent from the client to the server to trigger command execution on the server.
 /// In most cases the server creates a WorkspaceEdit structure and applies the changes to the workspace using the request
 /// workspace/applyEdit which is sent from the server to the client.
@@ -519,20 +434,6 @@ impl Request for ExecuteCommand {
     type Params = ExecuteCommandParams;
     type Result = Option<Value>;
     const METHOD: &'static str = "workspace/executeCommand";
-}
-
-/// The document will save request is sent from the client to the server before the document is
-/// actually saved. The request can return an array of TextEdits which will be applied to the text
-/// document before it is saved. Please note that clients might drop results if computing the text
-/// edits took too long or if a server constantly fails on this request. This is done to keep the
-/// save fast and reliable.
-#[derive(Debug)]
-pub struct WillSaveWaitUntil(!);
-
-impl Request for WillSaveWaitUntil {
-    type Params = WillSaveTextDocumentParams;
-    type Result = Option<Vec<TextEdit>>;
-    const METHOD: &'static str = "textDocument/willSaveWaitUntil";
 }
 
 /// The workspace/applyEdit request is sent from the server to the client to modify resource on the
@@ -702,17 +603,6 @@ impl Request for DocumentColor {
     const METHOD: &'static str = "textDocument/documentColor";
 }
 
-/// The color presentation request is sent from the client to the server to obtain a list of presentations for a color value
-/// at a given location.
-#[derive(Debug)]
-pub struct ColorPresentationRequest(!);
-
-impl Request for ColorPresentationRequest {
-    type Params = ColorPresentationParams;
-    type Result = Vec<ColorPresentation>;
-    const METHOD: &'static str = "textDocument/colorPresentation";
-}
-
 /// The folding range request is sent from the client to the server to return all folding ranges found in a given text document.
 #[derive(Debug)]
 pub struct FoldingRangeRequest(!);
@@ -757,23 +647,6 @@ impl Request for WorkDoneProgressCreate {
     const METHOD: &'static str = "window/workDoneProgress/create";
 }
 
-/// The selection range request is sent from the client to the server to return
-/// suggested selection ranges at given positions. A selection range is a range
-/// around the cursor position which the user might be interested in selecting.
-///
-/// A selection range in the return array is for the position in the provided parameters at the same index.
-/// Therefore `positions[i]` must be contained in `result[i].range`.
-///
-/// Typically, but not necessary, selection ranges correspond to the nodes of the
-/// syntax tree.
-pub struct SelectionRangeRequest(!);
-
-impl Request for SelectionRangeRequest {
-    type Params = SelectionRangeParams;
-    type Result = Option<Vec<SelectionRange>>;
-    const METHOD: &'static str = "textDocument/selectionRange";
-}
-
 pub struct SemanticTokensFullRequest(!);
 
 impl Request for SemanticTokensFullRequest {
@@ -788,14 +661,6 @@ impl Request for SemanticTokensFullDeltaRequest {
     type Params = SemanticTokensDeltaParams;
     type Result = Option<SemanticTokensFullDeltaResult>;
     const METHOD: &'static str = "textDocument/semanticTokens/full/delta";
-}
-
-pub struct SemanticTokensRangeRequest(!);
-
-impl Request for SemanticTokensRangeRequest {
-    type Params = SemanticTokensRangeParams;
-    type Result = Option<SemanticTokensRangeResult>;
-    const METHOD: &'static str = "textDocument/semanticTokens/range";
 }
 
 /// The `workspace/semanticTokens/refresh` request is sent from the server to the client.
@@ -824,15 +689,6 @@ impl Request for CodeLensRefresh {
     const METHOD: &'static str = "workspace/codeLens/refresh";
 }
 
-/// The will create files request is sent from the client to the server before files are actually created as long as the creation is triggered from within the client. The request can return a WorkspaceEdit which will be applied to workspace before the files are created. Please note that clients might drop results if computing the edit took too long or if a server constantly fails on this request. This is done to keep creates fast and reliable.
-pub struct WillCreateFiles(!);
-
-impl Request for WillCreateFiles {
-    type Params = CreateFilesParams;
-    type Result = Option<WorkspaceEdit>;
-    const METHOD: &'static str = "workspace/willCreateFiles";
-}
-
 /// The will rename files request is sent from the client to the server before files are actually renamed as long as the rename is triggered from within the client. The request can return a WorkspaceEdit which will be applied to workspace before the files are renamed. Please note that clients might drop results if computing the edit took too long or if a server constantly fails on this request. This is done to keep renames fast and reliable.
 pub struct WillRenameFiles(!);
 
@@ -842,15 +698,6 @@ impl Request for WillRenameFiles {
     const METHOD: &'static str = "workspace/willRenameFiles";
 }
 
-/// The will delete files request is sent from the client to the server before files are actually deleted as long as the deletion is triggered from within the client. The request can return a WorkspaceEdit which will be applied to workspace before the files are deleted. Please note that clients might drop results if computing the edit took too long or if a server constantly fails on this request. This is done to keep deletes fast and reliable.
-pub struct WillDeleteFiles(!);
-
-impl Request for WillDeleteFiles {
-    type Params = DeleteFilesParams;
-    type Result = Option<WorkspaceEdit>;
-    const METHOD: &'static str = "workspace/willDeleteFiles";
-}
-
 /// The show document request is sent from a server to a client to ask the client to display a particular document in the user interface.
 pub struct ShowDocument(!);
 
@@ -858,14 +705,6 @@ impl Request for ShowDocument {
     type Params = ShowDocumentParams;
     type Result = ShowDocumentResult;
     const METHOD: &'static str = "window/showDocument";
-}
-
-pub struct MonikerRequest(!);
-
-impl Request for MonikerRequest {
-    type Params = MonikerParams;
-    type Result = Option<Vec<Moniker>>;
-    const METHOD: &'static str = "textDocument/moniker";
 }
 
 /// The inlay hints request is sent from the client to the server to compute inlay hints for a given
@@ -902,30 +741,6 @@ impl Request for InlayHintRefreshRequest {
     type Params = ();
     type Result = ();
     const METHOD: &'static str = "workspace/inlayHint/refresh";
-}
-
-/// The inline value request is sent from the client to the server to compute inline values for a
-/// given text document that may be rendered in the editor at the end of lines.
-pub struct InlineValueRequest(!);
-
-impl Request for InlineValueRequest {
-    type Params = InlineValueParams;
-    type Result = Option<Vec<InlineValue>>;
-    const METHOD: &'static str = "textDocument/inlineValue";
-}
-
-/// The `workspace/inlineValue/refresh` request is sent from the server to the client. Servers can
-/// use it to ask clients to refresh the inline values currently shown in editors. As a result the
-/// client should ask the server to recompute the inline values for these editors. This is useful if
-/// a server detects a configuration change which requires a re-calculation of all inline values.
-/// Note that the client still has the freedom to delay the re-calculation of the inline values if
-/// for example an editor is currently not visible.
-pub struct InlineValueRefreshRequest(!);
-
-impl Request for InlineValueRefreshRequest {
-    type Params = ();
-    type Result = ();
-    const METHOD: &'static str = "workspace/inlineValue/refresh";
 }
 
 /// The text document diagnostic request is sent from the client to the server to ask the server to
@@ -968,45 +783,6 @@ impl Request for WorkspaceDiagnosticRefresh {
     const METHOD: &'static str = "workspace/diagnostic/refresh";
 }
 
-/// The type hierarchy request is sent from the client to the server to return a type hierarchy for
-/// the language element of given text document positions. Will return null if the server couldn’t
-/// infer a valid type from the position. The type hierarchy requests are executed in two steps:
-///
-/// 1. first a type hierarchy item is prepared for the given text document position.
-/// 2. for a type hierarchy item the supertype or subtype type hierarchy items are resolved.
-pub struct TypeHierarchyPrepare(!);
-
-impl Request for TypeHierarchyPrepare {
-    type Params = TypeHierarchyPrepareParams;
-    type Result = Option<Vec<TypeHierarchyItem>>;
-    const METHOD: &'static str = "textDocument/prepareTypeHierarchy";
-}
-
-/// The `typeHierarchy/supertypes` request is sent from the client to the server to resolve the
-/// supertypes for a given type hierarchy item. Will return null if the server couldn’t infer a
-/// valid type from item in the params. The request doesn’t define its own client and server
-/// capabilities. It is only issued if a server registers for the
-/// `textDocument/prepareTypeHierarchy` request.
-pub struct TypeHierarchySupertypes(!);
-
-impl Request for TypeHierarchySupertypes {
-    type Params = TypeHierarchySupertypesParams;
-    type Result = Option<Vec<TypeHierarchyItem>>;
-    const METHOD: &'static str = "typeHierarchy/supertypes";
-}
-
-/// The `typeHierarchy/subtypes` request is sent from the client to the server to resolve the
-/// subtypes for a given type hierarchy item. Will return null if the server couldn’t infer a valid
-/// type from item in the params. The request doesn’t define its own client and server capabilities.
-/// It is only issued if a server registers for the textDocument/prepareTypeHierarchy request.
-pub struct TypeHierarchySubtypes(!);
-
-impl Request for TypeHierarchySubtypes {
-    type Params = TypeHierarchySubtypesParams;
-    type Result = Option<Vec<TypeHierarchyItem>>;
-    const METHOD: &'static str = "typeHierarchy/subtypes";
-}
-
 #[cfg(test)]
 mod test {
     use serde::de::DeserializeOwned;
@@ -1042,10 +818,8 @@ mod test {
         check_macro!("client/registerCapability");
         check_macro!("client/unregisterCapability");
 
-        check_macro!("textDocument/willSaveWaitUntil");
         check_macro!("textDocument/completion");
         check_macro!("textDocument/hover");
-        check_macro!("textDocument/signatureHelp");
         check_macro!("textDocument/declaration");
         check_macro!("textDocument/definition");
         check_macro!("textDocument/references");
@@ -1059,20 +833,14 @@ mod test {
         check_macro!("textDocument/formatting");
         check_macro!("textDocument/rename");
         check_macro!("textDocument/documentColor");
-        check_macro!("textDocument/colorPresentation");
         check_macro!("textDocument/foldingRange");
         check_macro!("textDocument/prepareRename");
         check_macro!("textDocument/implementation");
-        check_macro!("textDocument/selectionRange");
         check_macro!("textDocument/typeDefinition");
-        check_macro!("textDocument/moniker");
         check_macro!("textDocument/linkedEditingRange");
-        check_macro!("textDocument/prepareTypeHierarchy");
         check_macro!("textDocument/semanticTokens/full");
         check_macro!("textDocument/semanticTokens/full/delta");
-        check_macro!("textDocument/semanticTokens/range");
         check_macro!("textDocument/inlayHint");
-        check_macro!("textDocument/inlineValue");
         check_macro!("textDocument/diagnostic");
 
         check_macro!("workspace/applyEdit");
@@ -1081,22 +849,16 @@ mod test {
         check_macro!("workspace/configuration");
         check_macro!("workspace/diagnostic");
         check_macro!("workspace/diagnostic/refresh");
-        check_macro!("workspace/willCreateFiles");
         check_macro!("workspace/willRenameFiles");
-        check_macro!("workspace/willDeleteFiles");
         check_macro!("workspace/workspaceFolders");
         check_macro!("workspace/semanticTokens/refresh");
         check_macro!("workspace/codeLens/refresh");
         check_macro!("workspace/inlayHint/refresh");
-        check_macro!("workspace/inlineValue/refresh");
 
         check_macro!("codeAction/resolve");
         check_macro!("codeLens/resolve");
         check_macro!("completionItem/resolve");
         check_macro!("documentLink/resolve");
         check_macro!("inlayHint/resolve");
-        check_macro!("typeHierarchy/subtypes");
-        check_macro!("typeHierarchy/supertypes");
-        check_macro!("workspaceSymbol/resolve");
     }
 }

@@ -23,7 +23,7 @@ use crate::path_list::PathList;
 /// A project that was open when ed last quit.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SessionWorkspace {
-    pub paths: PathList,
+    pub(crate) paths: PathList,
 }
 
 /// Contents of a project's `.ed/workspace.json`.
@@ -114,21 +114,21 @@ impl SerializedTerminalGroup {
 #[derive(Debug, PartialEq, Eq, Clone, Default, Serialize, Deserialize)]
 pub struct DockStructure {
     #[serde(default)]
-    pub left: DockData,
+    pub(crate) left: DockData,
     #[serde(default)]
-    pub right: DockData,
+    pub(crate) right: DockData,
     #[serde(default)]
-    pub bottom: DockData,
+    pub(crate) bottom: DockData,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Serialize, Deserialize)]
-pub struct DockData {
+pub(crate) struct DockData {
     #[serde(default)]
-    pub visible: bool,
+    pub(crate) visible: bool,
     #[serde(default)]
-    pub active_panel: Option<String>,
+    pub(crate) active_panel: Option<String>,
     #[serde(default)]
-    pub zoom: bool,
+    pub(crate) zoom: bool,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -213,14 +213,14 @@ impl SerializedPaneGroup {
 #[derive(Debug, PartialEq, Eq, Default, Clone, Serialize, Deserialize)]
 pub(crate) struct SerializedPane {
     #[serde(default)]
-    pub(crate) active: bool,
+    active: bool,
     #[serde(default, rename = "items")]
-    pub(crate) children: Vec<SerializedItem>,
+    children: Vec<SerializedItem>,
     #[serde(default)]
-    pub(crate) pinned_count: usize,
+    pinned_count: usize,
     /// Whether this pane is zoomed over the others.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub(crate) zoomed: bool,
+    zoomed: bool,
 }
 
 impl SerializedPane {
@@ -228,7 +228,7 @@ impl SerializedPane {
         SerializedPane { active, children, pinned_count, zoomed }
     }
 
-    pub(crate) async fn deserialize_to(
+    async fn deserialize_to(
         &self,
         project: &Entity<Project>,
         pane: &WeakEntity<Pane>,
@@ -298,13 +298,13 @@ impl SerializedPane {
 /// that item type saved.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub(crate) struct SerializedItem {
-    pub kind: String,
+    pub(crate) kind: String,
     #[serde(default)]
-    pub state: serde_json::Value,
+    pub(crate) state: serde_json::Value,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub active: bool,
+    pub(crate) active: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub preview: bool,
+    pub(crate) preview: bool,
 }
 
 #[cfg(test)]

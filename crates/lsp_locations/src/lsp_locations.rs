@@ -155,7 +155,7 @@ fn show_no_results_toast(workspace: &WeakEntity<Workspace>, kind: LspPickerKind,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LspPickerKind {
+enum LspPickerKind {
     References,
     Definition,
     Implementation,
@@ -197,7 +197,7 @@ impl LspPickerKind {
     }
 }
 
-pub struct LspLocationsPicker {
+struct LspLocationsPicker {
     picker: Entity<Picker<LspLocationsDelegate>>,
     _subscription: Subscription,
 }

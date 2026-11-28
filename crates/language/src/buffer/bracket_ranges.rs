@@ -29,7 +29,7 @@ pub struct BracketMatch {
     pub open_range: Range<usize>,
     pub close_range: Range<usize>,
     pub newline_only: bool,
-    pub syntax_layer_depth: usize,
+    syntax_layer_depth: usize,
 }
 
 impl BracketMatch {

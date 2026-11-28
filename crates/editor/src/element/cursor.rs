@@ -501,7 +501,7 @@ impl EditorElement {
     }
 }
 
-pub(super) struct NavigationOverlayLayoutContext<'a> {
+struct NavigationOverlayLayoutContext<'a> {
     display_snapshot: &'a DisplaySnapshot,
     visible_display_row_range: &'a Range<DisplayRow>,
     line_layouts: &'a [LineWithInvisibles],
@@ -584,7 +584,7 @@ impl CursorLayout {
     }
 }
 
-pub(super) const fn cursor_shape_supports_cursor_motion(shape: CursorShape) -> bool {
+const fn cursor_shape_supports_cursor_motion(shape: CursorShape) -> bool {
     matches!(shape, CursorShape::Bar | CursorShape::Block)
 }
 

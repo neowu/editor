@@ -26,6 +26,7 @@ use project::HoverBlock;
 use project::HoverBlockKind;
 use project::InlayHint;
 use project::InlayHintLabel;
+use project::InlayHintLabelPart;
 use project::InlayHintLabelPartTooltip;
 use project::InlayHintTooltip;
 use project::InvalidationStrategy;
@@ -84,7 +85,7 @@ pub(crate) struct LspInlayHintData {
     hint_refresh_tasks: FxHashMap<BufferId, Vec<HintRefreshTask>>,
     hint_chunk_fetching: FxHashMap<BufferId, (Global, FxHashSet<Range<BufferRow>>)>,
     invalidate_hints_for_buffers: FxHashSet<BufferId>,
-    pub added_hints: FxHashMap<InlayId, Option<InlayHintKind>>,
+    added_hints: FxHashMap<InlayId, Option<InlayHintKind>>,
     hovered_command: Option<HoveredInlayHintCommand>,
     pending_text_edit: Option<PendingHintTextEdit>,
     pending_refresh_acceptance: Option<(FxHashSet<BufferId>, Task<()>)>,
@@ -92,9 +93,9 @@ pub(crate) struct LspInlayHintData {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct HintTarget {
-    pub buffer_id: BufferId,
-    pub hint_id: InlayId,
-    pub position: Anchor,
+    pub(crate) buffer_id: BufferId,
+    pub(crate) hint_id: InlayId,
+    pub(crate) position: Anchor,
 }
 
 #[derive(Debug)]
@@ -125,7 +126,7 @@ impl LspInlayHintData {
         }
     }
 
-    pub(crate) fn clear(&mut self) {
+    fn clear(&mut self) {
         self.hint_refresh_tasks.clear();
         self.hint_chunk_fetching.clear();
         self.added_hints.clear();
@@ -137,7 +138,7 @@ impl LspInlayHintData {
     /// Like `clear`, but only wipes tracking state for the given buffer IDs.
     /// Hints belonging to other buffers are left intact so they are neither
     /// re-fetched nor duplicated on the next `NewLinesShown`.
-    pub(crate) fn clear_for_buffers(
+    fn clear_for_buffers(
         &mut self,
         buffer_ids: &FxHashSet<BufferId>,
         current_hints: impl IntoIterator<Item = Inlay>,
@@ -234,7 +235,7 @@ impl Editor {
         supports
     }
 
-    pub fn accept_inlay_hint(&mut self, _: &AcceptInlayHint, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn accept_inlay_hint(&mut self, _: &AcceptInlayHint, window: &mut Window, cx: &mut Context<Self>) {
         if !self.can_accept_inlay_hint(cx) {
             return;
         }
@@ -251,7 +252,7 @@ impl Editor {
         self.apply_inlay_hint_text_edits(targets.into_iter(), None, window, cx);
     }
 
-    pub fn update_inlay_link_and_hover_points(
+    pub(crate) fn update_inlay_link_and_hover_points(
         &mut self,
         snapshot: &EditorSnapshot,
         hint_glyph: Option<DisplayPoint>,
@@ -343,7 +344,7 @@ impl Editor {
                 InlayHintLabel::LabelParts(label_parts) => {
                     if let Some(offset_in_label) = offset_in_hint.checked_sub(actual_left_padding)
                         && let Some((hovered_hint_part, part_range)) =
-                            hover_popover::find_hovered_hint_part(label_parts, offset_in_label)
+                            find_hovered_hint_part(label_parts, offset_in_label)
                     {
                         let highlight_start = actual_left_padding + part_range.start;
                         let highlight_end = actual_left_padding + part_range.end;
@@ -571,6 +572,7 @@ impl Editor {
 
         let debounce = match &reason {
             InlayHintRefreshReason::BuffersRemoved(_) => None,
+            // lint: expect(wildcard_match) only some variants matter here
             _may_need_lsp_call => self.inlay_hints.as_ref().and_then(|inlay_hints| {
                 if invalidate_cache.should_invalidate() {
                     inlay_hints.invalidate_debounce
@@ -1218,7 +1220,7 @@ fn label_part_has_command(hint: &InlayHint, offset_in_hint: usize) -> bool {
     let left_padding = usize::from(hint.padding_left && !hint.text().starts_with(" "));
     offset_in_hint
         .checked_sub(left_padding)
-        .and_then(|offset_in_label| hover_popover::find_hovered_hint_part(label_parts.clone(), offset_in_label))
+        .and_then(|offset_in_label| find_hovered_hint_part(label_parts.clone(), offset_in_label))
         .is_some_and(|(part, _)| part.command.is_some())
 }
 
@@ -1277,6 +1279,21 @@ fn spawn_editor_hints_refresh(
         finished_sender.send(()).ok();
     });
     HintRefreshTask { task, finished: finished.shared() }
+}
+
+fn find_hovered_hint_part(
+    label_parts: Vec<InlayHintLabelPart>,
+    offset_in_label: usize,
+) -> Option<(InlayHintLabelPart, Range<usize>)> {
+    let mut part_start = 0;
+    for part in label_parts {
+        let part_end = part_start + part.value.len();
+        if (part_start..part_end).contains(&offset_in_label) {
+            return Some((part, part_start..part_end));
+        }
+        part_start = part_end;
+    }
+    None
 }
 
 #[cfg(test)]

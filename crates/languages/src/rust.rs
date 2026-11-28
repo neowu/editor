@@ -52,7 +52,7 @@ fn semantic_token_rules() -> SemanticTokenRules {
         .expect("failed to parse rust semantic_token_rules.json")
 }
 
-pub(crate) struct RustLspAdapter;
+struct RustLspAdapter;
 
 const SERVER_NAME: LanguageServerName = LanguageServerName::new_static("rust-analyzer");
 
@@ -470,6 +470,7 @@ impl LspAdapter for RustLspAdapter {
                         .collect(),
                 ));
             }
+            // lint: expect(wildcard_match) only some variants matter here
             _ => return None,
         };
 
@@ -516,7 +517,7 @@ impl LspAdapter for RustLspAdapter {
     }
 }
 
-pub(crate) struct RustContextProvider;
+struct RustContextProvider;
 
 impl ContextProvider for RustContextProvider {
     fn lsp_task_source(&self) -> Option<LanguageServerName> {

@@ -10,7 +10,7 @@ use smallvec::SmallVec;
 /// The initial location for a collection should be `Locator::between(Locator::min(), Locator::max())`,
 /// leaving room for items to be inserted before and after it.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Locator(SmallVec<[u64; 2]>);
+pub(crate) struct Locator(SmallVec<[u64; 2]>);
 
 impl Clone for Locator {
     fn clone(&self) -> Self {
@@ -25,30 +25,30 @@ impl Clone for Locator {
 }
 
 impl Locator {
-    pub const fn min() -> Self {
+    pub(crate) const fn min() -> Self {
         // SAFETY: 1 is <= 2
         Self(unsafe { SmallVec::from_const_with_len_unchecked([u64::MIN; 2], 1) })
     }
 
-    pub const fn max() -> Self {
+    pub(crate) const fn max() -> Self {
         // SAFETY: 1 is <= 2
         Self(unsafe { SmallVec::from_const_with_len_unchecked([u64::MAX; 2], 1) })
     }
 
-    pub const fn min_ref() -> &'static Self {
+    pub(crate) const fn min_ref() -> &'static Self {
         const { &Self::min() }
     }
 
-    pub const fn max_ref() -> &'static Self {
+    pub(crate) const fn max_ref() -> &'static Self {
         const { &Self::max() }
     }
 
-    pub fn assign(&mut self, other: &Self) {
+    pub(crate) fn assign(&mut self, other: &Self) {
         self.0.resize(other.0.len(), 0);
         self.0.copy_from_slice(&other.0);
     }
 
-    pub fn between(lhs: &Self, rhs: &Self) -> Self {
+    pub(crate) fn between(lhs: &Self, rhs: &Self) -> Self {
         let lhs = lhs.0.iter().copied().chain(iter::repeat(u64::MIN));
         let rhs = rhs.0.iter().copied().chain(iter::repeat(u64::MAX));
         let mut location = SmallVec::new();
@@ -61,14 +61,6 @@ impl Locator {
             }
         }
         Self(location)
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
     }
 }
 

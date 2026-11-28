@@ -75,7 +75,7 @@ impl HitboxId {
     /// Typically this should only be used when handling `ScrollWheelEvent`, and otherwise
     /// `is_hovered` should be used. See the documentation of `Hitbox::is_hovered` for details about
     /// this distinction.
-    pub fn should_handle_scroll(self, window: &Window) -> bool {
+    pub(crate) fn should_handle_scroll(self, window: &Window) -> bool {
         window.mouse_hit_test.ids.contains(&self)
     }
 
@@ -94,9 +94,9 @@ pub struct Hitbox {
     #[deref]
     pub bounds: Bounds<Pixels>,
     /// The content mask when the hitbox was inserted.
-    pub content_mask: ContentMask<Pixels>,
+    pub(crate) content_mask: ContentMask<Pixels>,
     /// Flags that specify hitbox behavior.
-    pub behavior: HitboxBehavior,
+    pub(crate) behavior: HitboxBehavior,
 }
 
 impl Hitbox {

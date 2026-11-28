@@ -48,13 +48,19 @@ use workspace::ModalView;
 use workspace::Workspace;
 use workspace::WorkspaceActions;
 
-actions!(lsp_command_selector, [Toggle, ToggleArgumentsFocus]);
+actions!(
+    lsp_command_selector,
+    [
+        pub(crate) Toggle,
+        pub ToggleArgumentsFocus,
+    ]
+);
 
 pub fn init(workspace_actions: &mut WorkspaceActions) {
     LspCommandSelector::register(workspace_actions);
 }
 
-pub struct LspCommandSelector {
+struct LspCommandSelector {
     picker: Entity<Picker<LspCommandSelectorDelegate>>,
 }
 
@@ -149,7 +155,7 @@ enum Execution {
     Failed(SharedString),
 }
 
-pub struct LspCommandSelectorDelegate {
+struct LspCommandSelectorDelegate {
     selector: WeakEntity<LspCommandSelector>,
     lsp_store: Entity<LspStore>,
     arguments_editor: Entity<Editor>,

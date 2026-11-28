@@ -45,7 +45,7 @@ pub enum AnyIcon {
 impl AnyIcon {
     /// Returns a new [`AnyIcon`] after applying the given mapping function
     /// to the contained [`Icon`].
-    pub fn map(self, f: impl FnOnce(Icon) -> Icon) -> Self {
+    pub(crate) fn map(self, f: impl FnOnce(Icon) -> Icon) -> Self {
         match self {
             Self::Icon(icon) => Self::Icon(f(icon)),
             Self::AnimatedIcon(animated_icon) => Self::AnimatedIcon(animated_icon.map_element(f)),
@@ -107,7 +107,7 @@ impl IconSize {
     /// The returned tuple contains:
     ///   1. The length of one side of the square
     ///   2. The padding of one side of the square
-    pub fn square_components(&self, window: &mut Window, cx: &mut App) -> (Pixels, Pixels) {
+    fn square_components(self, window: &Window, cx: &App) -> (Pixels, Pixels) {
         let icon_size = self.rems() * window.rem_size();
         let padding = match self {
             IconSize::Indicator => DynamicSpacing::Base00.px(cx),
@@ -193,7 +193,7 @@ impl Icon {
         }
     }
 
-    pub fn from_external_svg(svg: SharedString) -> Self {
+    pub(crate) fn from_external_svg(svg: SharedString) -> Self {
         Self {
             source: IconSource::ExternalSvg(svg),
             color: Color::default(),
@@ -276,30 +276,18 @@ impl RenderOnce for Icon {
 }
 
 #[derive(IntoElement)]
-pub struct IconWithIndicator {
+pub(crate) struct IconWithIndicator {
     icon: Icon,
     indicator: Option<Indicator>,
     indicator_border_color: Option<Hsla>,
 }
 
 impl IconWithIndicator {
-    pub const fn new(icon: Icon, indicator: Option<Indicator>) -> Self {
+    pub(crate) const fn new(icon: Icon, indicator: Option<Indicator>) -> Self {
         Self { icon, indicator, indicator_border_color: None }
     }
 
-    pub fn indicator(mut self, indicator: Option<Indicator>) -> Self {
-        self.indicator = indicator;
-        self
-    }
-
-    pub const fn indicator_color(mut self, color: Color) -> Self {
-        if let Some(indicator) = self.indicator.as_mut() {
-            indicator.color = color;
-        }
-        self
-    }
-
-    pub const fn indicator_border_color(mut self, color: Option<Hsla>) -> Self {
+    pub(crate) const fn indicator_border_color(mut self, color: Option<Hsla>) -> Self {
         self.indicator_border_color = color;
         self
     }

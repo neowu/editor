@@ -33,7 +33,7 @@ use crate::pane_group::element::pane_axis;
 use crate::pane_motion;
 use crate::pane_motion::PaneMotion;
 
-pub const HANDLE_HITBOX_SIZE: f32 = 4.0;
+const HANDLE_HITBOX_SIZE: f32 = 4.0;
 const HORIZONTAL_MIN_SIZE: f32 = 80.;
 const VERTICAL_MIN_SIZE: f32 = 100.;
 
@@ -42,7 +42,7 @@ const VERTICAL_MIN_SIZE: f32 = 100.;
 /// Single-pane group is a regular pane.
 #[derive(Clone)]
 pub struct PaneGroup {
-    pub root: Member,
+    pub(crate) root: Member,
     /// Split/close/move animation state for this group's panes.
     motion: Rc<RefCell<PaneMotion>>,
     backdrop: PaneBackdrop,
@@ -58,13 +58,13 @@ pub enum PaneBackdrop {
     Panel,
 }
 
-pub struct PaneRenderResult {
-    pub element: gpui::AnyElement,
-    pub contains_active_pane: bool,
+struct PaneRenderResult {
+    element: gpui::AnyElement,
+    contains_active_pane: bool,
 }
 
 impl PaneGroup {
-    pub fn with_root(root: Member) -> Self {
+    pub(crate) fn with_root(root: Member) -> Self {
         Self { root, motion: Rc::default(), backdrop: PaneBackdrop::Window }
     }
 
@@ -73,7 +73,7 @@ impl PaneGroup {
     }
 
     /// The next frame snaps instead of animating whatever changed while hidden.
-    pub fn snap_motion(&self) {
+    pub(crate) fn snap_motion(&self) {
         self.motion.borrow_mut().snap_next();
     }
 
@@ -108,14 +108,14 @@ impl PaneGroup {
         }
     }
 
-    pub fn bounding_box_for_pane(&self, pane: &Entity<Pane>) -> Option<Bounds<Pixels>> {
+    fn bounding_box_for_pane(&self, pane: &Entity<Pane>) -> Option<Bounds<Pixels>> {
         match &self.root {
             Member::Pane(_) => None,
             Member::Axis(axis) => axis.bounding_box_for_pane(pane),
         }
     }
 
-    pub fn pane_at_pixel_position(&self, coordinate: Point<Pixels>) -> Option<&Entity<Pane>> {
+    fn pane_at_pixel_position(&self, coordinate: Point<Pixels>) -> Option<&Entity<Pane>> {
         match &self.root {
             Member::Pane(pane) => Some(pane),
             Member::Axis(axis) => axis.pane_at_pixel_position(coordinate),
@@ -180,7 +180,7 @@ impl PaneGroup {
         }
     }
 
-    pub fn reset_pane_sizes(&mut self) {
+    pub(crate) fn reset_pane_sizes(&mut self) {
         match &mut self.root {
             Member::Pane(_) => {}
             Member::Axis(axis) => {
@@ -198,7 +198,7 @@ impl PaneGroup {
 
     /// Renders `pane` zoomed in place of the group, through the group's motion so
     /// zooming in and out animates.
-    pub fn render_zoomed(&self, pane: &Entity<Pane>, cx: &App) -> impl IntoElement {
+    pub(crate) fn render_zoomed(&self, pane: &Entity<Pane>, cx: &App) -> impl IntoElement {
         div()
             .relative()
             .flex()
@@ -249,13 +249,13 @@ impl PaneGroup {
     }
 
     /// Panes whose tab bars sit along the top edge of the group.
-    pub fn top_row_panes(&self) -> Vec<&Entity<Pane>> {
+    pub(crate) fn top_row_panes(&self) -> Vec<&Entity<Pane>> {
         let mut panes = Vec::new();
         self.root.collect_top_row_panes(&mut panes);
         panes
     }
 
-    pub fn last_pane(&self) -> Entity<Pane> {
+    pub(crate) fn last_pane(&self) -> Entity<Pane> {
         self.root.last_pane()
     }
 
@@ -295,7 +295,7 @@ fn member_reaches_top(axis: Axis, index: usize) -> bool {
 }
 
 #[derive(Debug, Clone)]
-pub enum Member {
+pub(crate) enum Member {
     Axis(PaneAxis),
     Pane(Entity<Pane>),
 }
@@ -336,7 +336,7 @@ impl Member {
         }
     }
 
-    pub fn render(
+    fn render(
         &self,
         basis: usize,
         zoomed: Option<&AnyWeakView>,
@@ -395,7 +395,7 @@ impl Member {
         }
     }
 
-    pub fn contains_pane(&self, needle: &Entity<Pane>) -> bool {
+    pub(crate) fn contains_pane(&self, needle: &Entity<Pane>) -> bool {
         match self {
             Member::Pane(pane) => pane == needle,
             Member::Axis(axis) => axis.members.iter().any(|member| member.contains_pane(needle)),
@@ -435,21 +435,21 @@ pub struct PaneRenderContext<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct PaneAxis {
-    pub axis: Axis,
-    pub members: Vec<Member>,
-    pub flexes: Arc<Mutex<Vec<f32>>>,
-    pub bounding_boxes: Arc<Mutex<Vec<Option<Bounds<Pixels>>>>>,
+pub(crate) struct PaneAxis {
+    pub(crate) axis: Axis,
+    pub(crate) members: Vec<Member>,
+    pub(crate) flexes: Arc<Mutex<Vec<f32>>>,
+    pub(crate) bounding_boxes: Arc<Mutex<Vec<Option<Bounds<Pixels>>>>>,
 }
 
 impl PaneAxis {
-    pub fn new(axis: Axis, members: Vec<Member>) -> Self {
+    fn new(axis: Axis, members: Vec<Member>) -> Self {
         let flexes = Arc::new(Mutex::new(vec![1.; members.len()]));
         let bounding_boxes = Arc::new(Mutex::new(vec![None; members.len()]));
         Self { axis, members, flexes, bounding_boxes }
     }
 
-    pub fn load(axis: Axis, members: Vec<Member>, flexes: Option<Vec<f32>>) -> Self {
+    pub(crate) fn load(axis: Axis, members: Vec<Member>, flexes: Option<Vec<f32>>) -> Self {
         let mut flexes = flexes.unwrap_or_else(|| vec![1.; members.len()]);
         if flexes.len() != members.len() || (flexes.iter().copied().sum::<f32>() - flexes.len() as f32).abs() >= 0.001 {
             flexes = vec![1.; members.len()];
@@ -700,21 +700,21 @@ impl SplitDirection {
         }
     }
 
-    pub const fn axis(&self) -> Axis {
+    const fn axis(self) -> Axis {
         match self {
             Self::Up | Self::Down => Axis::Vertical,
             Self::Left | Self::Right => Axis::Horizontal,
         }
     }
 
-    pub const fn increasing(&self) -> bool {
+    const fn increasing(self) -> bool {
         match self {
             Self::Left | Self::Up => false,
             Self::Down | Self::Right => true,
         }
     }
 
-    pub const fn opposite(&self) -> SplitDirection {
+    pub(crate) const fn opposite(self) -> SplitDirection {
         match self {
             Self::Down => Self::Up,
             Self::Up => Self::Down,

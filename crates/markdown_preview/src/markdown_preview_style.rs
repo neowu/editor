@@ -51,6 +51,7 @@ pub(crate) fn reset_preview_font_size(cx: &mut App) {
 
 /// The markdown style of the preview, rendered with `colors` and `syntax`
 /// (which may come from a theme other than the active editor theme).
+// lint: expect(misplaced_item) this module exists to hold the preview style
 pub(crate) fn preview_markdown_style(
     colors: &ThemeColors,
     syntax: &'static SyntaxTheme,

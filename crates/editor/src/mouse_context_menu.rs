@@ -80,7 +80,7 @@ impl MouseContextMenu {
     ) -> Option<Self> {
         let editor_snapshot = editor.snapshot(window, cx);
         let content_origin = editor.last_bounds?.origin + Point { x: editor.gutter_dimensions.width, y: Pixels::ZERO };
-        let source_position = editor.to_pixel_point(source, &editor_snapshot, window, cx)?;
+        let source_position = editor.pixel_point(source, &editor_snapshot, window, cx)?;
         let menu_position =
             MenuPosition::PinnedToEditor { source, offset: position - (source_position + content_origin) };
         Some(MouseContextMenu::new(editor, menu_position, context_menu, window, cx))

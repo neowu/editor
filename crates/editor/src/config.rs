@@ -19,7 +19,7 @@ use super::Window;
 use super::smallvec;
 
 impl Editor {
-    pub fn style(&mut self, cx: &App) -> &EditorStyle {
+    pub(crate) fn style(&mut self, cx: &App) -> &EditorStyle {
         if let Some(ref style) = self.style {
             style
         } else {
@@ -39,7 +39,7 @@ impl Editor {
     }
 
     /// called by the Element so we know what style we were most recently rendered with.
-    pub fn set_style(&mut self, style: EditorStyle, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn set_style(&mut self, style: EditorStyle, window: &Window, cx: &mut Context<Self>) {
         // We intentionally do not inform the display map about the minimap style
         // so that wrapping is not recalculated and stays consistent for the editor
         // and its linked minimap.
@@ -88,7 +88,7 @@ impl Editor {
         cx.notify();
     }
 
-    pub fn set_minimap_visibility(
+    pub(crate) fn set_minimap_visibility(
         &mut self,
         minimap_visibility: MinimapVisibility,
         window: &mut Window,
@@ -140,7 +140,7 @@ impl Editor {
         wrap_guides
     }
 
-    pub fn soft_wrap_mode(&self, cx: &App) -> SoftWrap {
+    pub(crate) fn soft_wrap_mode(&self, cx: &App) -> SoftWrap {
         let settings = self.buffer.read(cx).language_settings(cx);
         if self.soft_wrap_mode_override.unwrap_or(settings.soft_wrap) { SoftWrap::EditorWidth } else { SoftWrap::None }
     }
@@ -161,12 +161,11 @@ impl Editor {
         changed
     }
 
-    pub fn toggle_soft_wrap(&mut self, _: &ToggleSoftWrap, _: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_soft_wrap(&mut self, _: &ToggleSoftWrap, _: &mut Window, cx: &mut Context<Self>) {
         if self.soft_wrap_mode_override.is_some() {
             self.soft_wrap_mode_override.take();
         } else {
             let soft_wrap = match self.soft_wrap_mode(cx) {
-                SoftWrap::GitDiff => return,
                 SoftWrap::None => true,
                 SoftWrap::EditorWidth => false,
             };
@@ -190,7 +189,7 @@ impl Editor {
         cx.notify();
     }
 
-    pub const fn set_delegate_open_excerpts(&mut self, delegate: bool) {
+    pub(crate) const fn set_delegate_open_excerpts(&mut self, delegate: bool) {
         self.delegate_open_excerpts = delegate;
     }
 

@@ -1,14 +1,14 @@
 //! Entity relationship diagrams: entities with attributes, relationships, and subgraphs. Port of
 //! Pele's `src/diagrams/er/index.ts`.
 
-pub(crate) mod db;
-pub(crate) mod graph;
-pub(crate) mod lexer;
-pub(crate) mod markers;
-pub(crate) mod parser;
-pub(crate) mod render;
-pub(crate) mod tokens;
-pub(crate) mod types;
+mod db;
+mod graph;
+mod lexer;
+mod markers;
+mod parser;
+mod render;
+mod tokens;
+mod types;
 
 use super::Diagram;
 use super::Input;
@@ -34,7 +34,7 @@ pub(crate) use db::ErDb as Model;
 /// # Errors
 ///
 /// Returns a syntax error for input Mermaid rejects.
-pub(crate) fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
+fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
     let mut db = Model::default();
     if let Some(title) = title.filter(|title| !title.is_empty()) {
         db.title = Some(title.to_owned());

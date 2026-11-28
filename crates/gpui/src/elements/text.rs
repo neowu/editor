@@ -425,7 +425,7 @@ impl TextLayout {
             let wrap_width = if text_style.white_space == WhiteSpace::Normal {
                 known_dimensions.width.or(match available_space.width {
                     AvailableSpace::Definite(x) => Some(x),
-                    _ => None,
+                    AvailableSpace::MinContent | AvailableSpace::MaxContent => None,
                 })
             } else {
                 None
@@ -438,7 +438,7 @@ impl TextLayout {
                             Some(max_lines) => Some(x * max_lines),
                             None => Some(x),
                         },
-                        _ => None,
+                        AvailableSpace::MinContent | AvailableSpace::MaxContent => None,
                     });
 
                     match text_overflow {
@@ -482,9 +482,11 @@ impl TextLayout {
                         &runs,
                         truncate_from,
                     )
-                } else if let Some(unclipped) =
-                    window.text_system().shape_text(text.clone(), font_size, &runs, None, None).log_err()
-                    && unclipped.iter().all(|line| line.size(line_height).width <= truncate_width)
+                } else if window
+                    .text_system()
+                    .shape_text(text.clone(), font_size, &runs, None, None)
+                    .iter()
+                    .all(|line| line.size(line_height).width <= truncate_width)
                 {
                     // The truncation decision below sums per-character advances,
                     // which overestimates the shaped width (no kerning), truncating
@@ -501,28 +503,13 @@ impl TextLayout {
             };
             let len = text.len();
 
-            let Some(lines) = window
-                .text_system()
-                .shape_text(
-                    text,
-                    font_size,
-                    &runs,
-                    wrap_width,            // Wrap if we know the width.
-                    text_style.line_clamp, // Limit the number of lines if line_clamp is set.
-                )
-                .log_err()
-            else {
-                element_state.0.borrow_mut().replace(TextLayoutInner {
-                    lines: SmallVec::default(),
-                    len: 0,
-                    line_height,
-                    wrap_width,
-                    truncate_width,
-                    size: Some(Size::default()),
-                    bounds: None,
-                });
-                return Size::default();
-            };
+            let lines = window.text_system().shape_text(
+                text,
+                font_size,
+                &runs,
+                wrap_width,            // Wrap if we know the width.
+                text_style.line_clamp, // Limit the number of lines if line_clamp is set.
+            );
 
             let mut size: Size<Pixels> = Size::default();
             for line in &lines {
@@ -552,7 +539,7 @@ impl TextLayout {
         element_state.bounds = Some(bounds);
     }
 
-    fn paint(&self, text: &str, window: &mut Window, cx: &mut App) {
+    fn paint(&self, text: &str, window: &mut Window, cx: &App) {
         self.paint_lines(TextPaintPass::All, window, cx)
             .unwrap_or_else(|err| panic!("failed to paint {text}: {err:#}"));
     }
@@ -569,7 +556,7 @@ impl TextLayout {
         self.paint_lines(TextPaintPass::Foreground, window, cx)
     }
 
-    fn paint_lines(&self, pass: TextPaintPass, window: &mut Window, cx: &mut App) -> anyhow::Result<()> {
+    fn paint_lines(&self, pass: TextPaintPass, window: &mut Window, cx: &App) -> anyhow::Result<()> {
         let element_state = self.0.borrow();
         let element_state = element_state.as_ref().context("measurement has not been performed")?;
         let bounds = element_state.bounds.context("prepaint has not been performed")?;

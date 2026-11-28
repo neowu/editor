@@ -79,6 +79,7 @@ fn kind(t: T) -> &'static str {
         T::ComponentQueue => 16,
         T::ComponentExt => 17,
         T::ComponentExtDb => 18,
+        // lint: expect(wildcard_match) only a few variants of `T` matter here
         _ => 19,
     };
     KINDS.get(at).copied().unwrap_or("")
@@ -149,6 +150,7 @@ impl<'a> Parser<'a> {
                     }));
                     self.i += 1;
                 }
+                // lint: expect(wildcard_match) only a few variants of `T` matter here
                 _ => break,
             }
         }
@@ -172,6 +174,7 @@ impl<'a> Parser<'a> {
                 db.set_acc_description(trim(self.text(self.i)));
                 self.i += 1;
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => {
                 self.i += 1;
                 if t == T::AccTitle {
@@ -205,6 +208,7 @@ impl<'a> Parser<'a> {
                 T::EnterpriseBoundary => Some("ENTERPRISE"),
                 T::SystemBoundary => Some("SYSTEM"),
                 T::ContainerBoundary => Some("CONTAINER"),
+                // lint: expect(wildcard_match) only a few variants of `T` matter here
                 _ => None,
             };
             if let Some(inserted) = inserted {
@@ -216,6 +220,7 @@ impl<'a> Parser<'a> {
                 T::NodeL => db.add_deployment_node("nodeL", &attrs),
                 T::NodeR => db.add_deployment_node("nodeR", &attrs),
                 T::ContainerBoundary => db.add_container_boundary(&attrs),
+                // lint: expect(wildcard_match) only a few variants of `T` matter here
                 _ => db.add_person_or_system_boundary(&attrs, "system"),
             }
             if self.t() == T::Lbrace {
@@ -243,6 +248,7 @@ impl<'a> Parser<'a> {
                 T::RelL => "rel_l",
                 T::RelR => "rel_r",
                 T::RelB => "rel_b",
+                // lint: expect(wildcard_match) only a few variants of `T` matter here
                 _ => "rel",
             };
             db.add_rel(r#type, &attrs);

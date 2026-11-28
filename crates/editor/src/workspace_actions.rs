@@ -65,7 +65,7 @@ impl Editor {
         None
     }
 
-    pub fn target_file_abs_path(&self, cx: &mut Context<Self>) -> Option<PathBuf> {
+    fn target_file_abs_path(&self, cx: &Context<Self>) -> Option<PathBuf> {
         let buffer = self.active_buffer(cx)?;
         let buffer = buffer.read(cx);
         if let Some(project_path) = buffer.project_path(cx) {
@@ -91,9 +91,9 @@ impl Editor {
         );
     }
 
-    pub fn new_in_workspace(
-        workspace: &mut Workspace,
-        window: &mut Window,
+    fn new_in_workspace(
+        workspace: &Workspace,
+        window: &Window,
         cx: &mut Context<Workspace>,
     ) -> Task<Result<Entity<Editor>>> {
         let project = workspace.project().clone();
@@ -202,7 +202,7 @@ impl Editor {
         }
     }
 
-    pub fn open_project_transaction(
+    pub(crate) fn open_project_transaction(
         editor: &WeakEntity<Editor>,
         workspace: WeakEntity<Workspace>,
         transaction: ProjectTransaction,
@@ -288,7 +288,7 @@ impl Editor {
         Ok(())
     }
 
-    pub fn reload_file(&mut self, _: &ReloadFile, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn reload_file(&mut self, _: &ReloadFile, window: &mut Window, cx: &mut Context<Self>) {
         let Some(project) = self.project.clone() else {
             return;
         };
@@ -296,7 +296,12 @@ impl Editor {
         self.detach_and_notify_err(task, window, cx);
     }
 
-    pub fn open_active_item_in_terminal(&mut self, _: &OpenInTerminal, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn open_active_item_in_terminal(
+        &mut self,
+        _: &OpenInTerminal,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if let Some(working_directory) = self.active_buffer(cx).and_then(|buffer| {
             let project_path = buffer.read(cx).project_path(cx)?;
             let project = self.project()?.read(cx);
@@ -345,7 +350,7 @@ impl Editor {
         }
     }
 
-    pub fn copy_file_name_without_extension(
+    pub(crate) fn copy_file_name_without_extension(
         &mut self,
         _: &CopyFileNameWithoutExtension,
         _: &mut Window,
@@ -359,7 +364,7 @@ impl Editor {
         }
     }
 
-    pub fn copy_file_name(&mut self, _: &CopyFileName, _: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn copy_file_name(&mut self, _: &CopyFileName, _: &mut Window, cx: &mut Context<Self>) {
         if let Some(file_name) = self.active_buffer(cx).and_then(|buffer| {
             let file = buffer.read(cx).file()?;
             Some(file.file_name(cx))
@@ -368,7 +373,7 @@ impl Editor {
         }
     }
 
-    pub fn copy_file_location(&mut self, _: &CopyFileLocation, _: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn copy_file_location(&mut self, _: &CopyFileLocation, _: &mut Window, cx: &mut Context<Self>) {
         let selections = self.selections.all::<Point>(&self.display_snapshot(cx));
         if let Some(file_location) = self.file_location(selections.iter().map(|s| (s.range(), s.head())), cx) {
             cx.write_to_clipboard(ClipboardItem::new_string(file_location));
@@ -428,7 +433,7 @@ impl Editor {
         (!lines.is_empty()).then(|| format_file_locations(&lines))
     }
 
-    pub fn open_selections_in_multibuffer(
+    pub(crate) fn open_selections_in_multibuffer(
         &mut self,
         _: &OpenSelectionsInMultibuffer,
         window: &mut Window,
@@ -655,7 +660,7 @@ impl Editor {
     }
 }
 
-pub(super) const GUTTER_COPIED_STATE_DURATION: Duration = Duration::from_secs(2);
+const GUTTER_COPIED_STATE_DURATION: Duration = Duration::from_secs(2);
 
 /// Formats `(path, start_line, end_line)` entries as `path:1,3,5-7`, one line per
 /// run of entries sharing a path. Overlapping or adjacent line ranges are merged.

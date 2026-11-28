@@ -109,7 +109,7 @@ type SourceClickCallback = Box<dyn Fn(usize, usize, &mut Window, &mut App) -> bo
 pub(crate) type CheckboxToggleCallback = Rc<dyn Fn(Range<usize>, bool, &mut Window, &mut App)>;
 type CodeBlockRenderFn = Rc<dyn Fn(&CodeBlock, &MarkdownStyle, &mut Window, &mut App) -> Option<AnyElement>>;
 
-pub(crate) enum AutoscrollBehavior {
+enum AutoscrollBehavior {
     /// Propagate the request up the element tree for the nearest
     /// scrollable ancestor (e.g. `List`) to handle.
     Propagate,
@@ -1199,6 +1199,7 @@ impl RenderPass<'_> {
             }
             MarkdownTag::TableRow => builder.table.start_row(),
             MarkdownTag::TableCell => self.start_table_cell(range),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => log::debug!("unsupported markdown tag {tag:?}"),
         }
     }
@@ -1713,6 +1714,7 @@ fn collect_image_alt_text(
             MarkdownEvent::End(MarkdownTagEnd::Image) => break,
             MarkdownEvent::Text => alt_text.push_str(&source[range.clone()]),
             MarkdownEvent::SubstitutedText(text) => alt_text.push_str(text),
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }
@@ -1801,7 +1803,7 @@ impl IntoElement for MarkdownElement {
     }
 }
 
-pub enum AnyDiv {
+pub(crate) enum AnyDiv {
     Div(Div),
     Stateful(Stateful<Div>),
 }
@@ -1926,6 +1928,7 @@ fn task_list_marker_for_item(
     let marker_index = match &events.get(next_index)?.1 {
         MarkdownEvent::Start(MarkdownTag::Paragraph) => next_index.checked_add(1)?,
         MarkdownEvent::TaskListMarker(_) => next_index,
+        // lint: expect(wildcard_match) only some variants matter here
         _ => return None,
     };
 
@@ -1941,7 +1944,7 @@ struct MarkdownInputHandler {
 }
 
 impl MarkdownInputHandler {
-    pub(crate) const fn new(markdown: Entity<Markdown>, rendered_text: RenderedText) -> Self {
+    const fn new(markdown: Entity<Markdown>, rendered_text: RenderedText) -> Self {
         Self { markdown, rendered_text }
     }
 }

@@ -10,7 +10,7 @@ use crate::RangeToAnchorExt as _;
 use crate::display_map::DisplaySnapshot;
 
 impl Editor {
-    pub fn refresh_matching_bracket_highlights(&mut self, snapshot: &DisplaySnapshot, cx: &mut Context<Editor>) {
+    pub(crate) fn refresh_matching_bracket_highlights(&mut self, snapshot: &DisplaySnapshot, cx: &mut Context<Editor>) {
         let newest_selection = self.selections.newest::<MultiBufferOffset>(snapshot);
         // Don't highlight brackets if the selection isn't empty
         if !newest_selection.is_empty() {

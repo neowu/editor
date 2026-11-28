@@ -1105,6 +1105,7 @@ impl Lexer<'_> {
                     S::Click => Some(T::Click),
                     S::CallbackName => Some(T::CallbackName),
                     S::CallbackArgs => Some(T::CallbackArgs),
+                    // lint: expect(wildcard_match) only a few variants of `S` matter here
                     _ => None,
                 };
                 if let Some(kind) = kind {

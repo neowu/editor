@@ -447,6 +447,7 @@ impl Item for Editor {
                 f(ItemEvent::Edit);
             }
 
+            // lint: expect(wildcard_match) only some variants matter here
             _ => {}
         }
     }
@@ -530,10 +531,10 @@ struct EditorRestorationData {
 }
 
 #[derive(Default, Debug)]
-pub struct RestorationData {
-    pub scroll_position: (BufferRow, gpui::Point<ScrollOffset>),
-    pub folds: Vec<Range<Point>>,
-    pub selections: Vec<Range<Point>>,
+pub(crate) struct RestorationData {
+    pub(crate) scroll_position: (BufferRow, gpui::Point<ScrollOffset>),
+    pub(crate) folds: Vec<Range<Point>>,
+    pub(crate) selections: Vec<Range<Point>>,
 }
 
 impl ProjectItem for Editor {
@@ -608,7 +609,7 @@ impl Editor {
         if description.is_empty() { None } else { Some(description.to_owned().into()) }
     }
 
-    pub fn update_restoration_data(
+    pub(crate) fn update_restoration_data(
         &self,
         cx: &mut Context<Self>,
         write: impl for<'a> FnOnce(&'a mut RestorationData) + 'static,

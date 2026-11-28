@@ -132,6 +132,7 @@ impl MenuItem {
     pub const fn is_checked(&self) -> bool {
         match self {
             MenuItem::Action { checked, .. } => *checked,
+            // lint: expect(wildcard_match) naming the rest makes rustc reject the const fn (E0493)
             _ => false,
         }
     }
@@ -145,6 +146,7 @@ impl MenuItem {
             MenuItem::Submenu(submenu) => {
                 submenu.disabled = disabled;
             }
+            // lint: expect(wildcard_match) naming the rest makes rustc reject the const fn (E0493)
             _ => {}
         }
         self
@@ -158,7 +160,7 @@ impl MenuItem {
         match self {
             MenuItem::Action { disabled, .. } => *disabled,
             MenuItem::Submenu(submenu) => submenu.disabled,
-            _ => false,
+            &MenuItem::Separator | &MenuItem::SystemMenu(_) => false,
         }
     }
 }

@@ -186,7 +186,7 @@ const fn word(text: &'static str) -> TokenType {
 }
 
 /// Pele's `EVENTMODELING_TOKENS`, in matching order.
-pub(crate) const EVENTMODELING_TOKENS: &[TokenType] = &[
+const EVENTMODELING_TOKENS: &[TokenType] = &[
     TokenType { longer: &[t::ID], ..keyword("eventmodeling") },
     word("resetframe"),
     word("readmodel"),

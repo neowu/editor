@@ -81,6 +81,7 @@ const LINE: &str = "var(--_l)";
 fn get<'v>(value: &'v Value, key: &str) -> Option<&'v Value> {
     match value {
         Value::Object(entries) => entries.iter().find(|(own, _)| own == key).map(|(_, v)| v),
+        // lint: expect(wildcard_match) only a few variants of `Value` matter here
         _ => None,
     }
 }

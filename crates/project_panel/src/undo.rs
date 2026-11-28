@@ -168,7 +168,6 @@ use workspace::notifications::NotificationId;
 use workspace::notifications::markdown_style;
 use workspace::notifications::simple_message_notification::MessageNotification;
 use worktree::CreatedEntry;
-use worktree::Worktree;
 
 use crate::ProjectPanel;
 
@@ -217,6 +216,7 @@ impl Operation {
 
                 Change::Batched(changes)
             }
+            // lint: expect(wildcard_match) only some variants matter here
             operation => {
                 return operation.execute_confirmed(undo_manager, cx).await.map(Some);
             }
@@ -314,24 +314,6 @@ impl Change {
             Change::Batched(changes) => Operation::Batch(changes.into_iter().rev().map(Change::into_inverse).collect()),
         }
     }
-}
-
-/// Returns the parent directories of `path` that do not yet exist in the given
-/// worktree and would therefore be created when an entry is placed at `path`,
-/// ordered from the deepest to the shallowest.
-pub(crate) fn missing_parent_dirs(worktree: &Worktree, worktree_id: WorktreeId, path: &RelPath) -> Vec<ProjectPath> {
-    let mut dirs = Vec::new();
-    let mut current = path.parent();
-    while let Some(parent) = current {
-        if parent.is_empty() {
-            break;
-        }
-        if worktree.entry_for_path(parent).is_none() {
-            dirs.push(ProjectPath { worktree_id, path: parent.into_arc() });
-        }
-        current = parent.parent();
-    }
-    dirs
 }
 
 // Imagine pressing undo 10000+ times?!
@@ -454,15 +436,11 @@ impl Inner {
         }
     }
 
-    pub(crate) fn new(
-        workspace: WeakEntity<Workspace>,
-        panel: WeakEntity<ProjectPanel>,
-        rx: mpsc::Receiver<UndoMessage>,
-    ) -> Self {
+    fn new(workspace: WeakEntity<Workspace>, panel: WeakEntity<ProjectPanel>, rx: mpsc::Receiver<UndoMessage>) -> Self {
         Self::new_with_limit(workspace, panel, MAX_UNDO_OPERATIONS, rx)
     }
 
-    pub(crate) fn new_with_limit(
+    fn new_with_limit(
         workspace: WeakEntity<Workspace>,
         panel: WeakEntity<ProjectPanel>,
         limit: usize,
@@ -480,15 +458,15 @@ impl Inner {
         }
     }
 
-    pub(crate) const fn can_undo(&self) -> bool {
+    const fn can_undo(&self) -> bool {
         self.cursor > 0
     }
 
-    pub(crate) fn can_redo(&self) -> bool {
+    fn can_redo(&self) -> bool {
         self.cursor < self.history.len()
     }
 
-    pub(crate) async fn undo(&mut self, cx: &mut AsyncApp) -> Result<()> {
+    async fn undo(&mut self, cx: &mut AsyncApp) -> Result<()> {
         if !self.can_undo() {
             return Ok(());
         }
@@ -541,7 +519,7 @@ impl Inner {
         Ok(())
     }
 
-    pub(crate) async fn redo(&mut self, cx: &mut AsyncApp) -> Result<()> {
+    async fn redo(&mut self, cx: &mut AsyncApp) -> Result<()> {
         if !self.can_redo() {
             return Ok(());
         }
@@ -563,7 +541,7 @@ impl Inner {
     }
 
     /// Passed in changes will always be performed as a single step.
-    pub(crate) fn record(&mut self, mut changes: Vec<Change>) {
+    fn record(&mut self, mut changes: Vec<Change>) {
         let change = match changes.len() {
             0 => return,
             1 => changes.remove(0),

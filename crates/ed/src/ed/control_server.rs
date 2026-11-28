@@ -158,6 +158,7 @@ async fn handle_request(
     match request.command {
         Command::Windows => return windows(cx),
         Command::Quit => return Ok(Value::Null),
+        // lint: expect(wildcard_match) only some variants matter here
         _ => {}
     }
 

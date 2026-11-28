@@ -37,7 +37,7 @@ use objc2_core_text::kCTFontWidthTrait;
 
 /// A `CTFont` shared across threads; Core Text fonts are immutable and thread-safe.
 #[derive(Clone)]
-pub(crate) struct SyncFont(pub CFRetained<CTFont>);
+pub(crate) struct SyncFont(pub(crate) CFRetained<CTFont>);
 
 // SAFETY: Apple documents `CTFont` as safe to use from multiple threads.
 unsafe impl Send for SyncFont {}
@@ -63,9 +63,9 @@ const STRETCH_NORMAL: f32 = 1.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct FontProperties {
-    pub(crate) style: FontStyle,
-    pub(crate) weight: f32,
-    pub(crate) stretch: f32,
+    style: FontStyle,
+    weight: f32,
+    stretch: f32,
 }
 
 pub(crate) fn family_fonts(family_name: &str) -> Result<Vec<CFRetained<CTFont>>> {
@@ -208,12 +208,12 @@ pub(crate) fn properties(font: &CTFont) -> Option<FontProperties> {
     Some(FontProperties { style, weight, stretch })
 }
 
-pub(crate) fn traits(font: &CTFont) -> CFRetained<CFDictionary<CFString, CFType>> {
+fn traits(font: &CTFont) -> CFRetained<CFDictionary<CFString, CFType>> {
     // SAFETY: Core Text documents the traits dictionary as keyed by strings.
     unsafe { CFRetained::cast_unchecked(font.traits()) }
 }
 
-pub(crate) fn trait_value(traits: &CFDictionary<CFString, CFType>, key: &CFString) -> Option<f64> {
+fn trait_value(traits: &CFDictionary<CFString, CFType>, key: &CFString) -> Option<f64> {
     traits.get(key)?.downcast::<CFNumber>().ok()?.as_f64()
 }
 

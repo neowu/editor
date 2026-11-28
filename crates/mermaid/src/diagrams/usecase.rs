@@ -1,14 +1,14 @@
 //! Use case diagrams: actors, use cases, notes, JSON tables, and system boundaries, joined by
 //! relationships. Port of Pele's `src/diagrams/usecase/index.ts`.
 
-pub(crate) mod db;
-pub(crate) mod graph;
-pub(crate) mod json;
-pub(crate) mod lexer;
-pub(crate) mod parser;
-pub(crate) mod render;
-pub(crate) mod tokens;
-pub(crate) mod types;
+mod db;
+mod graph;
+mod json;
+mod lexer;
+mod parser;
+mod render;
+mod tokens;
+mod types;
 
 use super::Diagram;
 use super::Input;
@@ -35,6 +35,6 @@ pub(crate) use types::UsecaseModel as Model;
 ///
 /// Returns Mermaid's lexing, parsing, and JSON errors as syntax errors, and its model errors as
 /// semantic errors.
-pub(crate) fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
+fn parse(source: &str, title: Option<&str>) -> Result<Model, Error> {
     parser::parse_usecase(source, title)
 }

@@ -39,7 +39,7 @@ impl Appearance {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Theme {
     /// The unique identifier for the theme.
-    pub id: String,
+    id: String,
     /// The name of the theme.
     pub name: SharedString,
     /// The appearance of the theme (light or dark).

@@ -46,12 +46,18 @@ pub(super) type WrapEdit = text::Edit<WrapRow>;
 pub(super) type WrapPatch = Patch<WrapRow>;
 
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
-pub struct WrapRow(pub u32);
+pub(crate) struct WrapRow(pub(crate) u32);
 
 const WRAP_YIELD_ROW_INTERVAL: usize = 100;
 
 impl_for_row_types! {
     WrapRow => RowDelta
+}
+
+impl WrapRow {
+    pub(crate) fn checked_sub(self, other: WrapRow) -> Option<RowDelta> {
+        self.0.checked_sub(other.0).map(RowDelta)
+    }
 }
 
 /// Handles soft wrapping of text.
@@ -101,7 +107,7 @@ impl TransformSummary {
 }
 
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
-pub struct WrapPoint(pub Point);
+pub(crate) struct WrapPoint(pub(crate) Point);
 
 struct LineFragmentBuilder {
     text_system: Arc<TextSystem>,
@@ -160,7 +166,7 @@ pub(crate) struct WrapChunks<'a> {
 }
 
 #[derive(Clone)]
-pub struct WrapRows<'a> {
+pub(crate) struct WrapRows<'a> {
     input_buffer_rows: FoldRows<'a>,
     input_buffer_row: RowInfo,
     output_row: WrapRow,
@@ -730,11 +736,11 @@ impl WrapSnapshot {
         }
     }
 
-    pub fn max_point(&self) -> WrapPoint {
+    pub(crate) fn max_point(&self) -> WrapPoint {
         WrapPoint(self.transforms.summary().output.lines)
     }
 
-    pub fn line_len(&self, row: WrapRow) -> u32 {
+    pub(crate) fn line_len(&self, row: WrapRow) -> u32 {
         let (start, _, item) = self.transforms.find::<Dimensions<WrapPoint, TabPoint>, _>(
             (),
             &WrapPoint::new(row + WrapRow(1), 0),
@@ -750,7 +756,7 @@ impl WrapSnapshot {
         }
     }
 
-    pub fn text_summary_for_range(&self, rows: Range<WrapRow>) -> TextSummary {
+    pub(crate) fn text_summary_for_range(&self, rows: Range<WrapRow>) -> TextSummary {
         let mut summary = TextSummary::default();
 
         let start = WrapPoint::new(rows.start, 0);
@@ -803,7 +809,7 @@ impl WrapSnapshot {
         summary
     }
 
-    pub fn soft_wrap_indent(&self, row: WrapRow) -> Option<u32> {
+    pub(crate) fn soft_wrap_indent(&self, row: WrapRow) -> Option<u32> {
         let (.., item) = self.transforms.find::<WrapPoint, _>((), &WrapPoint::new(row + WrapRow(1), 0), Bias::Left);
         let transform = item?;
         if transform.is_isomorphic() { None } else { Some(transform.summary.output.lines.column) }
@@ -813,7 +819,7 @@ impl WrapSnapshot {
         self.transforms.summary().output.longest_row
     }
 
-    pub fn row_infos(&self, start_row: WrapRow) -> WrapRows<'_> {
+    pub(crate) fn row_infos(&self, start_row: WrapRow) -> WrapRows<'_> {
         let mut transforms = self.transforms.cursor::<Dimensions<WrapPoint, TabPoint>>(());
         transforms.seek(&WrapPoint::new(start_row, 0), Bias::Left);
         let mut input_row = transforms.start().1.row();
@@ -833,7 +839,7 @@ impl WrapSnapshot {
         }
     }
 
-    pub fn to_tab_point(&self, point: WrapPoint) -> TabPoint {
+    pub(crate) fn to_tab_point(&self, point: WrapPoint) -> TabPoint {
         let (start, _, item) = self.transforms.find::<Dimensions<WrapPoint, TabPoint>, _>((), &point, Bias::Right);
         let mut tab_point = start.1.0;
         if item.is_some_and(|t| t.is_isomorphic()) {
@@ -842,24 +848,24 @@ impl WrapSnapshot {
         TabPoint(tab_point)
     }
 
-    pub fn to_point(&self, point: WrapPoint, bias: Bias) -> Point {
+    pub(crate) fn to_point(&self, point: WrapPoint, bias: Bias) -> Point {
         self.tab_snapshot.tab_point_to_point(self.to_tab_point(point), bias)
     }
 
-    pub fn make_wrap_point(&self, point: Point, bias: Bias) -> WrapPoint {
+    pub(crate) fn make_wrap_point(&self, point: Point, bias: Bias) -> WrapPoint {
         self.tab_point_to_wrap_point(self.tab_snapshot.point_to_tab_point(point, bias))
     }
 
-    pub fn tab_point_to_wrap_point(&self, point: TabPoint) -> WrapPoint {
+    pub(crate) fn tab_point_to_wrap_point(&self, point: TabPoint) -> WrapPoint {
         let (start, ..) = self.transforms.find::<Dimensions<TabPoint, WrapPoint>, _>((), &point, Bias::Right);
         WrapPoint(start.1.0 + (point.0 - start.0.0))
     }
 
-    pub fn wrap_point_cursor(&self) -> WrapPointCursor<'_> {
+    pub(crate) fn wrap_point_cursor(&self) -> WrapPointCursor<'_> {
         WrapPointCursor { cursor: self.transforms.cursor::<Dimensions<TabPoint, WrapPoint>>(()) }
     }
 
-    pub fn clip_point(&self, mut point: WrapPoint, bias: Bias) -> WrapPoint {
+    pub(crate) fn clip_point(&self, mut point: WrapPoint, bias: Bias) -> WrapPoint {
         if bias == Bias::Left {
             let (start, _, item) = self.transforms.find::<WrapPoint, _>((), &point, Bias::Right);
             if item.is_some_and(|t| !t.is_isomorphic()) {
@@ -873,7 +879,7 @@ impl WrapSnapshot {
 
     /// Try to find a TabRow start that is also a WrapRow start
     /// Every TabRow start is a WrapRow start.
-    pub fn prev_row_boundary(&self, point: WrapPoint) -> WrapRow {
+    pub(crate) fn prev_row_boundary(&self, point: WrapPoint) -> WrapRow {
         if self.transforms.is_empty() {
             return WrapRow(0);
         }
@@ -926,7 +932,7 @@ impl WrapSnapshot {
         WrapRow(0)
     }
 
-    pub fn next_row_boundary(&self, mut point: WrapPoint) -> Option<WrapRow> {
+    pub(crate) fn next_row_boundary(&self, mut point: WrapPoint) -> Option<WrapRow> {
         point.0 += Point::new(1, 0);
 
         let mut cursor = self.transforms.cursor::<Dimensions<WrapPoint, TabPoint>>(());
@@ -944,17 +950,17 @@ impl WrapSnapshot {
     const fn check_invariants(&self) {}
 }
 
-pub struct WrapPointCursor<'transforms> {
+pub(crate) struct WrapPointCursor<'transforms> {
     cursor: Cursor<'transforms, 'static, Transform, Dimensions<TabPoint, WrapPoint>>,
 }
 
 impl WrapPointCursor<'_> {
     /// Resets the cursor to the start so it can seek backward again.
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.cursor.reset();
     }
 
-    pub fn map(&mut self, point: TabPoint) -> WrapPoint {
+    pub(crate) fn map(&mut self, point: TabPoint) -> WrapPoint {
         let cursor = &mut self.cursor;
         if cursor.did_seek() && point >= cursor.start().0 {
             cursor.seek_forward(&point, Bias::Right);
@@ -1166,23 +1172,23 @@ impl SumTreeExt for SumTree<Transform> {
 }
 
 impl WrapPoint {
-    pub const fn new(row: WrapRow, column: u32) -> Self {
+    pub(crate) const fn new(row: WrapRow, column: u32) -> Self {
         Self(Point::new(row.0, column))
     }
 
-    pub const fn row(self) -> WrapRow {
+    pub(crate) const fn row(self) -> WrapRow {
         WrapRow(self.0.row)
     }
 
-    pub const fn row_mut(&mut self) -> &mut u32 {
+    pub(crate) const fn row_mut(&mut self) -> &mut u32 {
         &mut self.0.row
     }
 
-    pub const fn column(self) -> u32 {
+    pub(crate) const fn column(self) -> u32 {
         self.0.column
     }
 
-    pub const fn column_mut(&mut self) -> &mut u32 {
+    pub(crate) const fn column_mut(&mut self) -> &mut u32 {
         &mut self.0.column
     }
 }

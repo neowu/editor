@@ -176,11 +176,11 @@ impl DispatchPhase {
 }
 
 struct WindowInvalidatorInner {
-    pub dirty: bool,
-    pub draw_phase: DrawPhase,
-    pub dirty_views: FxHashSet<EntityId>,
-    pub update_count: usize,
-    pub platform_waker: Option<Rc<dyn Fn()>>,
+    dirty: bool,
+    draw_phase: DrawPhase,
+    dirty_views: FxHashSet<EntityId>,
+    update_count: usize,
+    platform_waker: Option<Rc<dyn Fn()>>,
 }
 
 #[derive(Clone)]
@@ -189,7 +189,7 @@ pub(crate) struct WindowInvalidator {
 }
 
 impl WindowInvalidator {
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         WindowInvalidator {
             inner: Rc::new(RefCell::new(WindowInvalidatorInner {
                 dirty: true,
@@ -238,7 +238,7 @@ impl WindowInvalidator {
         }
     }
 
-    pub(crate) fn set_platform_waker(&self, waker: Option<Rc<dyn Fn()>>) {
+    fn set_platform_waker(&self, waker: Option<Rc<dyn Fn()>>) {
         let mut inner = self.inner.borrow_mut();
         inner.platform_waker = waker;
         let waker = inner.dirty.then(|| inner.platform_waker.clone()).flatten();
@@ -251,30 +251,30 @@ impl WindowInvalidator {
     /// Wakes the platform's frame-request source so a frame request is
     /// delivered even if the platform stops requesting frames for idle
     /// windows. No-op on platforms without a frame waker.
-    pub(crate) fn wake_platform(&self) {
+    fn wake_platform(&self) {
         let waker = self.inner.borrow().platform_waker.clone();
         if let Some(waker) = waker {
             waker();
         }
     }
 
-    pub(crate) fn set_phase(&self, phase: DrawPhase) {
+    fn set_phase(&self, phase: DrawPhase) {
         self.inner.borrow_mut().draw_phase = phase;
     }
 
-    pub(crate) fn update_count(&self) -> usize {
+    fn update_count(&self) -> usize {
         self.inner.borrow().update_count
     }
 
-    pub(crate) fn take_views(&self) -> FxHashSet<EntityId> {
+    fn take_views(&self) -> FxHashSet<EntityId> {
         mem::take(&mut self.inner.borrow_mut().dirty_views)
     }
 
-    pub(crate) fn replace_views(&self, views: FxHashSet<EntityId>) {
+    fn replace_views(&self, views: FxHashSet<EntityId>) {
         self.inner.borrow_mut().dirty_views = views;
     }
 
-    pub(crate) fn not_drawing(&self) -> bool {
+    fn not_drawing(&self) -> bool {
         self.inner.borrow().draw_phase == DrawPhase::None
     }
 }
@@ -307,7 +307,7 @@ pub struct FocusOutEvent {
 thread_local! {
     /// Fallback arena used when no app-specific arena is active.
     /// In production, each window draw sets CURRENT_ELEMENT_ARENA to the app's arena.
-    pub(crate) static ELEMENT_ARENA: RefCell<Arena> = RefCell::new(Arena::new(1024 * 1024));
+    static ELEMENT_ARENA: RefCell<Arena> = RefCell::new(Arena::new(1024 * 1024));
 
     /// Points to the current App's element arena during draw operations.
     /// This allows multiple test Apps to have isolated arenas, preventing
@@ -357,7 +357,7 @@ pub(crate) fn with_element_arena<R>(callback: impl FnOnce(&mut Arena) -> R) -> R
 /// is reached. (If teardown lived only in `exit`, such a panic would leave the
 /// scope depth permanently elevated and defer every future clear, leaking
 /// memory unboundedly.)
-pub(crate) struct ElementArenaScope {
+struct ElementArenaScope {
     /// The entered arena: compared against the argument in `exit`, and
     /// dereferenced in `Drop` to end its scope (see the SAFETY note there).
     entered: *const RefCell<Arena>,
@@ -367,7 +367,7 @@ pub(crate) struct ElementArenaScope {
 
 impl ElementArenaScope {
     /// Enter a scope where element allocations use the given arena.
-    pub(crate) fn enter(arena: &RefCell<Arena>) -> Self {
+    fn enter(arena: &RefCell<Arena>) -> Self {
         arena.borrow_mut().begin_scope();
         let previous = CURRENT_ELEMENT_ARENA.with(|current| {
             let prev = current.get();
@@ -385,7 +385,7 @@ impl ElementArenaScope {
     /// Panics if passed a different arena than was entered: ending the scope
     /// of the wrong arena would unbalance two arenas' scope depths, allowing
     /// one of them to clear while a draw still references its memory.
-    pub(crate) fn exit(mut self, arena: &RefCell<Arena>) -> ArenaClearNeeded {
+    fn exit(mut self, arena: &RefCell<Arena>) -> ArenaClearNeeded {
         assert!(ptr::eq(self.entered, arena), "ElementArenaScope::exit called with a different arena than was entered");
         self.exited = true;
         // Teardown (restoring the thread-local and ending the arena's
@@ -454,33 +454,33 @@ impl ArenaClearNeeded {
 
 type FrameCallback = Box<dyn FnOnce(&mut Window, &mut App)>;
 
-pub(crate) type AnyMouseListener = Box<dyn FnMut(&dyn Any, DispatchPhase, &mut Window, &mut App) + 'static>;
+type AnyMouseListener = Box<dyn FnMut(&dyn Any, DispatchPhase, &mut Window, &mut App) + 'static>;
 
 /// An identifier for a tooltip.
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
-pub struct TooltipId(usize);
+pub(crate) struct TooltipId(usize);
 
 impl TooltipId {
     /// Checks if the tooltip is currently hovered.
-    pub fn is_hovered(&self, window: &Window) -> bool {
+    pub(crate) fn is_hovered(self, window: &Window) -> bool {
         window.tooltip_bounds.as_ref().is_some_and(|tooltip_bounds| {
-            tooltip_bounds.id == *self && tooltip_bounds.bounds.contains(&window.mouse_position())
+            tooltip_bounds.id == self && tooltip_bounds.bounds.contains(&window.mouse_position())
         })
     }
 }
 
-pub(crate) struct TooltipBounds {
+struct TooltipBounds {
     id: TooltipId,
     bounds: Bounds<Pixels>,
 }
 
 #[derive(Clone)]
-pub(crate) struct TooltipRequest {
+struct TooltipRequest {
     id: TooltipId,
     tooltip: AnyTooltip,
 }
 
-pub(crate) struct DeferredDraw {
+struct DeferredDraw {
     current_view: EntityId,
     priority: usize,
     parent_node: DispatchNodeId,
@@ -499,18 +499,18 @@ pub(crate) struct DeferredDraw {
 
 pub(crate) struct Frame {
     pub(crate) focus: Option<FocusId>,
-    pub(crate) window_active: bool,
-    pub(crate) element_states: FxHashMap<(GlobalElementId, TypeId), ElementStateBox>,
+    window_active: bool,
+    element_states: FxHashMap<(GlobalElementId, TypeId), ElementStateBox>,
     accessed_element_states: Vec<(GlobalElementId, TypeId)>,
-    pub(crate) mouse_listeners: Vec<Option<AnyMouseListener>>,
+    mouse_listeners: Vec<Option<AnyMouseListener>>,
     pub(crate) dispatch_tree: DispatchTree,
     pub(crate) scene: Scene,
-    pub(crate) hitboxes: Vec<Hitbox>,
-    pub(crate) window_control_hitboxes: Vec<(WindowControlArea, Hitbox)>,
-    pub(crate) deferred_draws: Vec<DeferredDraw>,
-    pub(crate) input_handlers: Vec<Option<PlatformInputHandler>>,
-    pub(crate) tooltip_requests: Vec<Option<TooltipRequest>>,
-    pub(crate) cursor_styles: Vec<CursorStyleRequest>,
+    hitboxes: Vec<Hitbox>,
+    window_control_hitboxes: Vec<(WindowControlArea, Hitbox)>,
+    deferred_draws: Vec<DeferredDraw>,
+    input_handlers: Vec<Option<PlatformInputHandler>>,
+    tooltip_requests: Vec<Option<TooltipRequest>>,
+    cursor_styles: Vec<CursorStyleRequest>,
     pub(crate) tab_stops: TabStopMap,
     pub(crate) ui_elements: Vec<UiElement>,
     pub(crate) ui_texts: Vec<UiText>,
@@ -540,7 +540,7 @@ pub(crate) struct PaintIndex {
 }
 
 impl Frame {
-    pub(crate) fn new(dispatch_tree: DispatchTree) -> Self {
+    fn new(dispatch_tree: DispatchTree) -> Self {
         Frame {
             focus: None,
             window_active: false,
@@ -562,7 +562,7 @@ impl Frame {
         }
     }
 
-    pub(crate) fn clear(&mut self) {
+    fn clear(&mut self) {
         self.element_states.clear();
         self.accessed_element_states.clear();
         self.mouse_listeners.clear();
@@ -580,7 +580,7 @@ impl Frame {
         self.focus = None;
     }
 
-    pub(crate) fn cursor_style(&self, window: &Window) -> Option<CursorStyle> {
+    fn cursor_style(&self, window: &Window) -> Option<CursorStyle> {
         self.cursor_styles
             .iter()
             .rev()
@@ -593,7 +593,7 @@ impl Frame {
             .into_inner()
     }
 
-    pub(crate) fn hit_test(&self, position: Point<Pixels>) -> HitTest {
+    fn hit_test(&self, position: Point<Pixels>) -> HitTest {
         let mut set_hover_hitbox_count = false;
         let mut hit_test = HitTest::default();
         for hitbox in self.hitboxes.iter().rev() {
@@ -615,11 +615,11 @@ impl Frame {
         hit_test
     }
 
-    pub(crate) fn focus_path(&self) -> SmallVec<[FocusId; 8]> {
+    fn focus_path(&self) -> SmallVec<[FocusId; 8]> {
         self.focus.map_or_default(|focus_id| self.dispatch_tree.focus_path(focus_id))
     }
 
-    pub(crate) fn finish(&mut self, prev_frame: &mut Self) {
+    fn finish(&mut self, prev_frame: &mut Self) {
         for element_state_key in &self.accessed_element_states {
             if let Some((element_state_key, element_state)) = prev_frame.element_states.remove_entry(element_state_key)
             {
@@ -643,7 +643,7 @@ pub struct Window {
     pub(crate) invalidator: WindowInvalidator,
     pub(crate) removed: bool,
     pub(crate) platform_window: Box<dyn PlatformWindow>,
-    pub(crate) display_id: Option<DisplayId>,
+    display_id: Option<DisplayId>,
     is_resizable: bool,
     is_minimizable: bool,
     sprite_atlas: Arc<dyn PlatformAtlas>,
@@ -654,22 +654,22 @@ pub struct Window {
     /// This is used by `with_rem_size` to allow rendering an element tree with
     /// a given rem size.
     rem_size_override_stack: SmallVec<[Pixels; 8]>,
-    pub(crate) viewport_size: Size<Pixels>,
+    viewport_size: Size<Pixels>,
     layout_engine: Option<TaffyLayoutEngine>,
     pub(crate) root: Option<AnyView>,
     pub(crate) element_id_stack: ElementIdStack,
-    pub(crate) text_style_stack: Vec<TextStyleRefinement>,
-    pub(crate) rendered_entity_stack: Vec<EntityId>,
-    pub(crate) element_offset_stack: Vec<Point<Pixels>>,
-    pub(crate) element_opacity: f32,
-    pub(crate) content_mask_stack: Vec<ContentMask<Pixels>>,
-    pub(crate) requested_autoscroll: Option<Bounds<Pixels>>,
+    text_style_stack: Vec<TextStyleRefinement>,
+    rendered_entity_stack: Vec<EntityId>,
+    element_offset_stack: Vec<Point<Pixels>>,
+    element_opacity: f32,
+    content_mask_stack: Vec<ContentMask<Pixels>>,
+    requested_autoscroll: Option<Bounds<Pixels>>,
     pub(crate) image_cache_stack: Vec<AnyImageCache>,
     pub(crate) rendered_frame: Frame,
     pub(crate) next_frame: Frame,
     next_hitbox_id: HitboxId,
-    pub(crate) next_tooltip_id: TooltipId,
-    pub(crate) tooltip_bounds: Option<TooltipBounds>,
+    next_tooltip_id: TooltipId,
+    tooltip_bounds: Option<TooltipBounds>,
     pub(crate) next_frame_callbacks: Rc<RefCell<Vec<FrameCallback>>>,
     pub(crate) dirty_views: FxHashSet<EntityId>,
     focus_listeners: SingleSubscriberSet<AnyWindowFocusListener>,
@@ -683,7 +683,7 @@ pub struct Window {
     scale_factor: f32,
     pub(crate) bounds_observers: SingleSubscriberSet<AnyObserver>,
     appearance: WindowAppearance,
-    pub(crate) appearance_observers: SingleSubscriberSet<AnyObserver>,
+    appearance_observers: SingleSubscriberSet<AnyObserver>,
     active: Rc<Cell<bool>>,
     visibility: WindowVisibility,
     pub(crate) needs_present: Rc<Cell<bool>>,
@@ -693,7 +693,7 @@ pub struct Window {
     pub(crate) frame_stats: Option<Box<FrameStats>>,
     /// Tracks recent input event timestamps to determine if input is arriving at a high rate.
     /// Used to selectively enable VRR optimization only when input rate exceeds 60fps.
-    pub(crate) input_rate_tracker: Rc<RefCell<InputRateTracker>>,
+    input_rate_tracker: Rc<RefCell<InputRateTracker>>,
     last_input_modality: InputModality,
     pub(crate) refreshing: bool,
     /// The number of the frame being drawn, or of the last one drawn.
@@ -717,7 +717,7 @@ struct ModifierState {
 /// Tracks input event timestamps to determine if input is arriving at a high rate.
 /// Used for selective VRR (Variable Refresh Rate) optimization.
 #[derive(Clone, Debug)]
-pub(crate) struct InputRateTracker {
+struct InputRateTracker {
     timestamps: Vec<Instant>,
     window: Duration,
     inputs_per_second: u32,
@@ -738,7 +738,7 @@ impl Default for InputRateTracker {
 }
 
 impl InputRateTracker {
-    pub(crate) fn record_input(&mut self) {
+    fn record_input(&mut self) {
         let now = Instant::now();
         self.timestamps.push(now);
         self.prune_old_timestamps(now);
@@ -749,7 +749,7 @@ impl InputRateTracker {
         }
     }
 
-    pub(crate) fn is_high_rate(&self) -> bool {
+    fn is_high_rate(&self) -> bool {
         Instant::now() < self.sustain_until
     }
 
@@ -759,15 +759,15 @@ impl InputRateTracker {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DrawPhase {
+enum DrawPhase {
     None,
     Prepaint,
     Paint,
     Focus,
 }
 
-pub(crate) struct ElementStateBox {
-    pub(crate) inner: Box<dyn Any>,
+struct ElementStateBox {
+    inner: Box<dyn Any>,
 }
 
 fn default_bounds(display_id: Option<DisplayId>, cx: &mut App) -> WindowBounds {
@@ -1168,7 +1168,7 @@ impl Window {
         }
     }
 
-    pub(crate) fn refresh_visibility(&mut self) {
+    fn refresh_visibility(&mut self) {
         let visibility = self.platform_window.visibility();
         if self.visibility != visibility {
             self.visibility = visibility;
@@ -1314,7 +1314,7 @@ impl Window {
 
     /// Return the `WindowBounds` to indicate that how a window should be opened
     /// after it has been closed.
-    pub fn window_bounds(&self) -> WindowBounds {
+    fn window_bounds(&self) -> WindowBounds {
         self.platform_window.window_bounds()
     }
 
@@ -1488,7 +1488,7 @@ impl Window {
     /// This updates internal state like `viewport_size` and `scale_factor` from
     /// the platform window, then notifies observers. Normally called automatically
     /// by the platform's resize callback, but exposed publicly for test infrastructure.
-    pub fn bounds_changed(&mut self, cx: &mut App) {
+    fn bounds_changed(&mut self, cx: &mut App) {
         let scale_factor = self.platform_window.scale_factor();
         if scale_factor != self.scale_factor {
             self.scale_factor = scale_factor;
@@ -1665,7 +1665,7 @@ impl Window {
 
     /// Acquire a globally unique identifier for the given ElementId.
     /// Only valid for the duration of the provided closure.
-    pub fn with_global_id<R>(&mut self, element_id: ElementId, f: impl FnOnce(&GlobalElementId, &mut Self) -> R) -> R {
+    fn with_global_id<R>(&mut self, element_id: ElementId, f: impl FnOnce(&GlobalElementId, &mut Self) -> R) -> R {
         self.with_id(element_id, |this| {
             let global_id = this.element_id_stack.global_id();
 
@@ -1736,7 +1736,7 @@ impl Window {
 
     /// Returns true if the last input event was keyboard-based (key press, tab navigation, etc.)
     /// This is used for focus-visible styling to show focus indicators only for keyboard navigation.
-    pub fn last_input_was_keyboard(&self) -> bool {
+    pub(crate) fn last_input_was_keyboard(&self) -> bool {
         self.last_input_modality == InputModality::Keyboard
     }
 
@@ -2264,7 +2264,7 @@ impl Window {
 
     /// Sets a tooltip to be rendered for the upcoming frame. This method should only be called
     /// during the paint phase of element drawing.
-    pub fn set_tooltip(&mut self, tooltip: AnyTooltip) -> TooltipId {
+    pub(crate) fn set_tooltip(&mut self, tooltip: AnyTooltip) -> TooltipId {
         let id = TooltipId(post_inc(&mut self.next_tooltip_id.0));
         self.next_frame.tooltip_requests.push(Some(TooltipRequest { id, tooltip }));
         id
@@ -2289,7 +2289,7 @@ impl Window {
 
     /// Updates the global element offset relative to the current offset. This is used to implement
     /// scrolling. This method should only be called during the prepaint phase of element drawing.
-    pub fn with_element_offset<R>(&mut self, offset: Point<Pixels>, f: impl FnOnce(&mut Self) -> R) -> R {
+    pub(crate) fn with_element_offset<R>(&mut self, offset: Point<Pixels>, f: impl FnOnce(&mut Self) -> R) -> R {
         if offset.is_zero() {
             return f(self);
         }
@@ -2325,7 +2325,7 @@ impl Window {
     /// where we need to prepaint children to detect the autoscroll bounds, then adjust the
     /// element offset and prepaint again. See [`crate::List`] for an example. This method should only be
     /// called during the prepaint phase of element drawing.
-    pub fn transact<T, U>(&mut self, f: impl FnOnce(&mut Self) -> Result<T, U>) -> Result<T, U> {
+    pub(crate) fn transact<T, U>(&mut self, f: impl FnOnce(&mut Self) -> Result<T, U>) -> Result<T, U> {
         let index = self.prepaint_index();
         let result = f(self);
         if result.is_err() {
@@ -2350,7 +2350,7 @@ impl Window {
 
     /// This method can be called from a containing element such as [`crate::List`] to support the autoscroll behavior
     /// described in [`Self::request_autoscroll`].
-    pub const fn take_autoscroll(&mut self) -> Option<Bounds<Pixels>> {
+    pub(crate) const fn take_autoscroll(&mut self) -> Option<Bounds<Pixels>> {
         self.requested_autoscroll.take()
     }
 
@@ -2359,7 +2359,7 @@ impl Window {
     ///
     /// Note that the multiple calls to this method will only result in one `Asset::load` call at a
     /// time.
-    pub fn use_asset<A: Asset>(&mut self, source: &A::Source, cx: &mut App) -> Option<A::Output> {
+    pub(crate) fn use_asset<A: Asset>(&self, source: &A::Source, cx: &mut App) -> Option<A::Output> {
         cx.asset_entry::<A>(source).use_by(self.current_view())
     }
 
@@ -2368,12 +2368,12 @@ impl Window {
     ///
     /// Note that the multiple calls to this method will only result in one `Asset::load` call at a
     /// time.
-    pub fn get_asset<A: Asset>(&mut self, source: &A::Source, cx: &mut App) -> Option<A::Output> {
+    pub(crate) fn get_asset<A: Asset>(&self, source: &A::Source, cx: &mut App) -> Option<A::Output> {
         cx.fetch_asset::<A>(source)
     }
     /// Obtain the current element offset. This method should only be called during the
     /// prepaint phase of element drawing.
-    pub fn element_offset(&self) -> Point<Pixels> {
+    pub(crate) fn element_offset(&self) -> Point<Pixels> {
         self.element_offset_stack.last().copied().unwrap_or_default()
     }
 
@@ -2498,7 +2498,7 @@ impl Window {
 
     /// Executes the given closure within the context of a tab group.
     #[inline]
-    pub fn with_tab_group<R>(&mut self, index: Option<isize>, f: impl FnOnce(&mut Self) -> R) -> R {
+    pub(crate) fn with_tab_group<R>(&mut self, index: Option<isize>, f: impl FnOnce(&mut Self) -> R) -> R {
         if let Some(index) = index {
             self.next_frame.tab_stops.begin_group(index);
             let result = f(self);
@@ -2604,7 +2604,7 @@ impl Window {
     ///
     /// A measure function that leaves results in its state for the element to paint must say so
     /// with [`MeasureState::RESETS`].
-    pub fn request_retained_measured_layout<S, F>(
+    pub(crate) fn request_retained_measured_layout<S, F>(
         &mut self,
         style: Style,
         retain: impl FnOnce(&S) -> bool,
@@ -2631,7 +2631,7 @@ impl Window {
     /// After calling it, you can request the bounds of the given layout node id or any descendant.
     ///
     /// This method should only be called as part of the prepaint phase of element drawing.
-    pub fn compute_layout(&mut self, layout_id: LayoutId, available_space: Size<AvailableSpace>, cx: &mut App) {
+    pub(crate) fn compute_layout(&mut self, layout_id: LayoutId, available_space: Size<AvailableSpace>, cx: &mut App) {
         let mut layout_engine = self.layout_engine.take().expect("compute_layout is not reentrant");
         layout_engine.compute_layout(layout_id, available_space, self, cx);
         self.layout_engine = Some(layout_engine);
@@ -2671,7 +2671,7 @@ impl Window {
     /// Set a hitbox which will act as a control area of the platform window.
     ///
     /// This method should only be called as part of the paint phase of element drawing.
-    pub fn insert_window_control_hitbox(&mut self, area: WindowControlArea, hitbox: Hitbox) {
+    pub(crate) fn insert_window_control_hitbox(&mut self, area: WindowControlArea, hitbox: Hitbox) {
         self.next_frame.window_control_hitboxes.push((area, hitbox));
     }
 
@@ -2717,7 +2717,7 @@ impl Window {
     }
 
     /// Executes the provided function with the specified image cache.
-    pub fn with_image_cache<F, R>(&mut self, image_cache: Option<AnyImageCache>, f: F) -> R
+    pub(crate) fn with_image_cache<F, R>(&mut self, image_cache: Option<AnyImageCache>, f: F) -> R
     where
         F: FnOnce(&mut Self) -> R,
     {
@@ -2791,7 +2791,10 @@ impl Window {
     /// a specific need to register a global listener.
     ///
     /// This method should only be called as part of the paint phase of element drawing.
-    pub fn on_modifiers_changed(&mut self, listener: impl Fn(&ModifiersChangedEvent, &mut Window, &mut App) + 'static) {
+    pub(crate) fn on_modifiers_changed(
+        &mut self,
+        listener: impl Fn(&ModifiersChangedEvent, &mut Window, &mut App) + 'static,
+    ) {
         self.next_frame.dispatch_tree.on_modifiers_changed(Rc::new(
             move |event: &ModifiersChangedEvent, window: &mut Window, cx: &mut App| listener(event, window, cx),
         ));
@@ -3029,12 +3032,12 @@ pub struct ContentMask<P: Clone + Debug + Default + PartialEq> {
 
 impl ContentMask<Pixels> {
     /// Scale the content mask's pixel units by the given scaling factor.
-    pub fn scale(&self, factor: f32) -> ContentMask<ScaledPixels> {
+    pub(crate) fn scale(&self, factor: f32) -> ContentMask<ScaledPixels> {
         ContentMask { bounds: self.bounds.scale(factor) }
     }
 
     /// Intersect the content mask with the given content mask.
-    pub fn intersect(&self, other: &Self) -> Self {
+    fn intersect(&self, other: &Self) -> Self {
         let bounds = self.bounds.intersect(&other.bounds);
         ContentMask { bounds }
     }

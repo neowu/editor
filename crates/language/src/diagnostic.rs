@@ -37,7 +37,7 @@ enum DiagnosticMessageRendering {
 }
 
 impl DiagnosticMessage {
-    pub fn plain(text: impl Into<SharedString>) -> Self {
+    fn plain(text: impl Into<SharedString>) -> Self {
         Self { text: text.into(), rendering: DiagnosticMessageRendering::Plain }
     }
 
@@ -95,7 +95,7 @@ impl DiagnosticMessage {
         self.text == other.text && self.markdown() == other.markdown()
     }
 
-    pub fn to_lsp_message(&self) -> lsp_types::DiagnosticMessage {
+    pub(crate) fn to_lsp_message(&self) -> lsp_types::DiagnosticMessage {
         if let Some((kind, value)) = self.lsp_markup() {
             lsp_types::DiagnosticMessage::MarkupContent(MarkupContent { kind: kind.clone(), value: value.to_owned() })
         } else {

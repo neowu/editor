@@ -31,19 +31,19 @@ use crate::underline_y_offset;
 #[derive(Debug, Clone)]
 pub struct DecorationRun {
     /// The length of the run in utf-8 bytes.
-    pub len: u32,
+    pub(crate) len: u32,
 
     /// The color for this run.
-    pub color: Hsla,
+    pub(crate) color: Hsla,
 
     /// The background color for this run.
-    pub background_color: Option<Hsla>,
+    pub(crate) background_color: Option<Hsla>,
 
     /// The underline style for this run.
-    pub underline: Option<UnderlineStyle>,
+    pub(crate) underline: Option<UnderlineStyle>,
 
     /// The strikethrough style for this run.
-    pub strikethrough: Option<StrikethroughStyle>,
+    pub(crate) strikethrough: Option<StrikethroughStyle>,
 }
 
 /// A line of text that has been shaped and decorated.
@@ -320,31 +320,31 @@ impl LineLayout {
 
 /// A line of text that has been shaped, decorated, and wrapped by the text layout system.
 #[derive(Default, Debug, Deref, DerefMut)]
-pub struct WrappedLine {
+pub(crate) struct WrappedLine {
     #[deref]
     #[deref_mut]
     pub(crate) layout: Arc<WrappedLineLayout>,
     /// The text that was shaped for this line.
-    pub text: SharedString,
+    pub(crate) text: SharedString,
     pub(crate) decoration_runs: Vec<DecorationRun>,
 }
 
 impl WrappedLine {
     /// The length of the underlying, unwrapped layout, in utf-8 bytes.
     #[allow(clippy::len_without_is_empty)]
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.layout.len()
     }
 
     /// Paint this line of text to the window.
-    pub fn paint(
+    pub(crate) fn paint(
         &self,
         origin: Point<Pixels>,
         line_height: Pixels,
         align: TextAlign,
         bounds: Option<Bounds<Pixels>>,
         window: &mut Window,
-        cx: &mut App,
+        cx: &App,
     ) -> Result<()> {
         let align_width = match bounds {
             Some(bounds) => Some(bounds.size.width),
@@ -379,14 +379,14 @@ impl WrappedLine {
     }
 
     /// Paint the background of line of text to the window.
-    pub fn paint_background(
+    pub(crate) fn paint_background(
         &self,
         origin: Point<Pixels>,
         line_height: Pixels,
         align: TextAlign,
         bounds: Option<Bounds<Pixels>>,
         window: &mut Window,
-        cx: &mut App,
+        cx: &App,
     ) -> Result<()> {
         let align_width = match bounds {
             Some(bounds) => Some(bounds.size.width),

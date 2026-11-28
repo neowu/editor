@@ -82,15 +82,14 @@ use crate::notifications::show_error_toast;
 use crate::worktree_service;
 use crate::worktree_service::RemoteBranchName;
 use crate::worktree_service::WorktreeCreateTarget;
-use crate::worktree_service::worktree_create_targets;
 
 actions!(
     worktree_picker,
     [
         /// Deletes the selected git worktree.
-        DeleteWorktree,
+        pub DeleteWorktree,
         /// Force deletes the selected git worktree.
-        ForceDeleteWorktree
+        pub ForceDeleteWorktree
     ]
 );
 
@@ -322,6 +321,28 @@ struct WorktreePickerDelegate {
     modifiers: Modifiers,
     hovered_delete_index: Option<usize>,
     deleting_worktree_paths: FxHashSet<PathBuf>,
+}
+
+/// Determines which "create new worktree" options to surface for the given
+/// repository state: prefer the remote default branch when it differs from the
+/// current branch, and otherwise offer the current branch.
+fn worktree_create_targets(
+    has_multiple_repositories: bool,
+    default_branch: Option<RemoteBranchName>,
+    current_branch_name: Option<&str>,
+) -> Vec<WorktreeCreateTarget> {
+    if has_multiple_repositories {
+        return vec![WorktreeCreateTarget::CurrentBranch];
+    }
+    let Some(default_branch) = default_branch else {
+        return vec![WorktreeCreateTarget::CurrentBranch];
+    };
+    let is_different = current_branch_name.is_none_or(|current| current != default_branch.branch_name);
+    let mut targets = vec![WorktreeCreateTarget::DefaultBranch(default_branch)];
+    if is_different {
+        targets.push(WorktreeCreateTarget::CurrentBranch);
+    }
+    targets
 }
 
 fn worktree_name_anchor<'a>(

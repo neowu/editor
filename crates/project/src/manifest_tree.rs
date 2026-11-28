@@ -4,7 +4,7 @@
 //! This then is used to provide those locations to language servers.
 
 mod manifest_store;
-pub mod path_trie;
+mod path_trie;
 mod server_tree;
 
 use std::borrow::Borrow as _;
@@ -72,14 +72,14 @@ impl WorktreeRoots {
     }
 }
 
-pub struct ManifestTree {
+pub(crate) struct ManifestTree {
     root_points: FxHashMap<WorktreeId, Entity<WorktreeRoots>>,
     worktree_store: Entity<WorktreeStore>,
     _subscriptions: [Subscription; 1],
 }
 
 impl ManifestTree {
-    pub fn new(worktree_store: Entity<WorktreeStore>, cx: &mut App) -> Entity<Self> {
+    pub(crate) fn new(worktree_store: Entity<WorktreeStore>, cx: &mut App) -> Entity<Self> {
         cx.new(|cx| Self {
             root_points: FxHashMap::default(),
             _subscriptions: [cx.subscribe(&worktree_store, Self::on_worktree_store_event)],
@@ -87,7 +87,7 @@ impl ManifestTree {
         })
     }
 
-    pub(crate) fn root_for_path(
+    fn root_for_path(
         &mut self,
         ProjectPath { worktree_id, path }: &ProjectPath,
         manifest_name: &ManifestName,
@@ -152,7 +152,7 @@ impl ManifestTree {
         marked_path.filter(|_| current_presence.eq(&LabelPresence::Present))
     }
 
-    pub(crate) fn root_for_path_or_worktree_root(
+    fn root_for_path_or_worktree_root(
         &mut self,
         project_path: &ProjectPath,
         manifest_name: Option<&ManifestName>,
@@ -167,7 +167,7 @@ impl ManifestTree {
     }
 
     fn on_worktree_store_event(&mut self, _: Entity<WorktreeStore>, evt: &WorktreeStoreEvent, _: &mut Context<Self>) {
-        if let WorktreeStoreEvent::WorktreeRemoved(_, worktree_id) = evt {
+        if let WorktreeStoreEvent::Removed(_, worktree_id) = evt {
             self.root_points.remove(worktree_id);
         }
     }

@@ -46,16 +46,14 @@ use crate::px;
 use crate::size;
 use crate::transparent_black;
 use crate::util::ceil_to_device_pixel;
-use crate::util::floor_to_device_pixel;
 use crate::util::round_half_toward_zero;
-use crate::util::round_half_toward_zero_f64;
 use crate::util::round_stroke_to_device_pixel;
 use crate::util::round_to_device_pixel;
 
 impl Window {
     /// Rounds a logical value to the nearest device pixel.
     #[inline]
-    pub fn pixel_snap(&self, value: Pixels) -> Pixels {
+    pub(crate) fn pixel_snap(&self, value: Pixels) -> Pixels {
         px(round_to_device_pixel(value.0, self.scale_factor()) / self.scale_factor())
     }
 
@@ -74,7 +72,7 @@ impl Window {
 
     /// Snaps a point's coordinates to the nearest device pixel.
     #[inline]
-    pub fn pixel_snap_point(&self, position: Point<Pixels>) -> Point<Pixels> {
+    pub(crate) fn pixel_snap_point(&self, position: Point<Pixels>) -> Point<Pixels> {
         position.map(|c| self.pixel_snap(c))
     }
 
@@ -249,7 +247,7 @@ impl Window {
     /// Paint the inset shadows from `shadows` into the scene at the current z-index. Should
     /// be called after the element's background so the shadow layers on top of the fill.
     /// Drop shadows are skipped; paint those with [`Self::paint_drop_shadows`] before the background.
-    pub fn paint_inset_shadows(
+    pub(crate) fn paint_inset_shadows(
         &mut self,
         bounds: Bounds<Pixels>,
         corner_radii: Corners<Pixels>,
@@ -406,7 +404,7 @@ impl Window {
     /// Paint a strikethrough into the scene for the next frame at the current z-index.
     ///
     /// This method should only be called as part of the paint phase of element drawing.
-    pub fn paint_strikethrough(&mut self, origin: Point<Pixels>, width: Pixels, style: &StrikethroughStyle) {
+    pub(crate) fn paint_strikethrough(&mut self, origin: Point<Pixels>, width: Pixels, style: &StrikethroughStyle) {
         let scale_factor = self.scale_factor();
         let height = style.thickness;
         let bounds = Bounds {
@@ -434,7 +432,7 @@ impl Window {
     /// This method is only useful if you need to paint a single glyph that has already been shaped.
     ///
     /// This method should only be called as part of the paint phase of element drawing.
-    pub fn paint_glyph(
+    pub(crate) fn paint_glyph(
         &mut self,
         origin: Point<Pixels>,
         font_id: FontId,
@@ -502,7 +500,7 @@ impl Window {
     /// This method is only useful if you need to paint a single emoji that has already been shaped.
     ///
     /// This method should only be called as part of the paint phase of element drawing.
-    pub fn paint_emoji(
+    pub(crate) fn paint_emoji(
         &mut self,
         origin: Point<Pixels>,
         font_id: FontId,
@@ -619,7 +617,7 @@ impl Window {
     ///
     /// The visible region rendered is `bounds.intersect(&image_bounds)`, with `corner_radii`
     /// applied to `bounds`.
-    pub fn paint_image(
+    pub(crate) fn paint_image(
         &mut self,
         bounds: Bounds<Pixels>,
         image_bounds: Bounds<Pixels>,
@@ -723,15 +721,15 @@ pub struct PaintQuad {
     /// The bounds of the quad within the window.
     pub bounds: Bounds<Pixels>,
     /// The radii of the quad's corners.
-    pub corner_radii: Corners<Pixels>,
+    corner_radii: Corners<Pixels>,
     /// The background color of the quad.
-    pub background: Background,
+    background: Background,
     /// The widths of the quad's borders.
     pub border_widths: Edges<Pixels>,
     /// The color of the quad's borders.
     pub border_color: Hsla,
     /// The style of the quad's borders.
-    pub border_style: BorderStyle,
+    border_style: BorderStyle,
 }
 
 impl PaintQuad {
@@ -801,6 +799,16 @@ pub fn outline(
         border_color: border_color.into(),
         border_style,
     }
+}
+
+#[inline]
+fn round_half_toward_zero_f64(value: f64) -> f64 {
+    (value.abs() - 0.5).ceil().copysign(value)
+}
+
+#[inline]
+fn floor_to_device_pixel(logical: f32, scale_factor: f32) -> f32 {
+    (logical * scale_factor).floor()
 }
 
 fn cover_bounds(bounds: Bounds<Pixels>, scale_factor: f32) -> Bounds<ScaledPixels> {

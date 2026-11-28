@@ -32,7 +32,7 @@ impl Autoscroll {
     }
 
     /// scrolls the minimal amount to fit the newest cursor.
-    pub const fn newest() -> Self {
+    pub(crate) const fn newest() -> Self {
         Self::Strategy(AutoscrollStrategy::Newest, None)
     }
 
@@ -49,7 +49,7 @@ impl Autoscroll {
 
     /// Scrolls so that the newest cursor is the given offset (in display rows)
     /// from the top of the viewport.
-    pub const fn top_relative(offset: ScrollOffset) -> Self {
+    pub(crate) const fn top_relative(offset: ScrollOffset) -> Self {
         Self::Strategy(AutoscrollStrategy::TopRelative(offset), None)
     }
 
@@ -92,6 +92,7 @@ impl AutoscrollStrategy {
         match self {
             AutoscrollStrategy::Center => AutoscrollStrategy::Top,
             AutoscrollStrategy::Top => AutoscrollStrategy::Bottom,
+            // lint: expect(wildcard_match) only some variants matter here
             _ => AutoscrollStrategy::Center,
         }
     }
@@ -278,7 +279,7 @@ impl Editor {
         em_advance: Pixels,
         layouts: &[LineWithInvisibles],
         autoscroll_request: Option<(Autoscroll, bool)>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Option<gpui::Point<ScrollOffset>> {
         let (_, local) = autoscroll_request?;

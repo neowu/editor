@@ -163,6 +163,7 @@ const fn vertical(dir: Option<Dir>) -> bool {
 fn get<'v>(value: &'v Value, key: &str) -> Option<&'v Value> {
     match value {
         Value::Object(entries) => entries.iter().find(|(own, _)| own == key).map(|(_, v)| v),
+        // lint: expect(wildcard_match) only a few variants of `Value` matter here
         _ => None,
     }
 }
@@ -878,6 +879,7 @@ pub(crate) fn render(db: &StateDb, config: &Value, options: &Options) -> Rendere
         let out = match view.kind {
             K::Composite => &mut clusters,
             K::Note => &mut notes_out,
+            // lint: expect(wildcard_match) only a few variants of `K` matter here
             _ => &mut nodes_out,
         };
         out.push_str(&open);

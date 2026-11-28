@@ -50,7 +50,7 @@ use crate::decode_webp_image;
 use crate::px;
 
 /// The delay before showing the loading state.
-pub(super) const LOADING_DELAY: Duration = Duration::from_millis(200);
+const LOADING_DELAY: Duration = Duration::from_millis(200);
 
 /// A type alias to the resource loader that the `img()` element uses.
 ///
@@ -334,6 +334,7 @@ impl Element for Img {
                                     let height_px = abs_length.to_pixels(window.rem_size());
                                     Length::Definite(px(image_size.width.0 * height_px.0 / image_size.height.0).into())
                                 }
+                                // lint: expect(wildcard_match) only some variants matter here
                                 _ => Length::Definite(image_size.width.into()),
                             };
                         }
@@ -344,6 +345,7 @@ impl Element for Img {
                                     let width_px = abs_length.to_pixels(window.rem_size());
                                     Length::Definite(px(image_size.height.0 * width_px.0 / image_size.width.0).into())
                                 }
+                                // lint: expect(wildcard_match) only some variants matter here
                                 _ => Length::Definite(image_size.height.into()),
                             };
                         }
@@ -508,7 +510,7 @@ impl ImageSource {
     }
 
     /// Remove this image source from the asset system.
-    pub fn remove_asset(&self, cx: &mut App) {
+    pub(crate) fn remove_asset(&self, cx: &mut App) {
         match self {
             ImageSource::Resource(resource) => {
                 cx.remove_asset::<ImgResourceLoader>(resource);

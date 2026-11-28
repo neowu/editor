@@ -9,7 +9,7 @@ always value performance / efficiency / simplicity over strictly correctness / d
 - Keep comments minimal and focused on intent or non-obvious behaviour
 - Prefer straightforward code over unnecessary encapsulation and abstraction
 - Format Rust code with `cargo +nightly fmt --all`
-- Fix all warnings reported by `cargo lint`
+- Leave no warning from `cargo lint`: fix, or if the rule does not fit, mark it with `#[expect()]` or `// lint: expect()`
 
 # spec
 

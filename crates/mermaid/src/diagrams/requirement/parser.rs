@@ -118,6 +118,7 @@ impl<'s> Parser<'s, '_> {
                 db.set_acc_description(trim(self.text()));
                 self.i += 1;
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => return Ok(false),
         }
         Ok(true)
@@ -167,6 +168,7 @@ impl<'s> Parser<'s, '_> {
                 self.expect(T::StructStart)?;
             }
             T::StructStart => self.i += 1,
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => {
                 return Err(self.fail(T::StructStart, T::StructStart, &[T::StyleSeparator]));
             }
@@ -201,6 +203,7 @@ impl<'s> Parser<'s, '_> {
             let value = match t {
                 T::Risk => self.keyword(T::LowRisk, T::HighRisk)?,
                 T::Verifymthd => self.keyword(T::VerifyAnalysis, T::VerifyTest)?,
+                // lint: expect(wildcard_match) only a few variants of `T` matter here
                 _ => self.string()?,
             };
             fields.push((t, value));
@@ -213,6 +216,7 @@ impl<'s> Parser<'s, '_> {
                 T::Risk => db.set_new_req_risk(value),
                 T::Verifymthd => db.set_new_req_verify_method(value),
                 T::Type => db.set_new_element_type(value),
+                // lint: expect(wildcard_match) only a few variants of `T` matter here
                 _ => db.set_new_element_doc_ref(value),
             }
         }
@@ -255,6 +259,7 @@ pub(crate) fn parse_requirement(src: &str, db: &mut RequirementDb) -> Result<(),
                 T::DirectionTb => "TB",
                 T::DirectionBt => "BT",
                 T::DirectionRl => "RL",
+                // lint: expect(wildcard_match) only a few variants of `T` matter here
                 _ => "LR",
             });
         } else if (T::Requirement..=T::DesignConstraint).contains(&t) {

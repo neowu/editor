@@ -190,9 +190,9 @@ pub(crate) enum Statement {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct SeqDb {
     /// The accessible description.
-    pub(crate) acc_descr: Option<String>,
+    acc_descr: Option<String>,
     /// The accessible title.
-    pub(crate) acc_title: Option<String>,
+    acc_title: Option<String>,
     active: BTreeMap<String, i64>,
     /// Participants, in insertion order.
     pub(crate) actors: Vec<SeqActor>,
@@ -209,7 +209,7 @@ pub(crate) struct SeqDb {
     /// Messages, notes, and markers, in order.
     pub(crate) messages: Vec<SeqMessage>,
     /// Notes, in order.
-    pub(crate) notes: Vec<SeqNote>,
+    notes: Vec<SeqNote>,
     prev_actor: Option<String>,
     sequence_wrap: bool,
     /// The title.

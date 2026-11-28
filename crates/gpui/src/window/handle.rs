@@ -45,7 +45,7 @@ impl From<u64> for WindowId {
 pub struct WindowHandle<V> {
     #[deref]
     #[deref_mut]
-    pub(crate) any_handle: AnyWindowHandle,
+    any_handle: AnyWindowHandle,
     state_type: PhantomData<fn(V) -> V>,
 }
 
@@ -58,7 +58,7 @@ impl<V> Debug for WindowHandle<V> {
 impl<V: 'static + Render> WindowHandle<V> {
     /// Creates a new handle from a window ID.
     /// This does not check if the root type of the window is `V`.
-    pub fn new(id: WindowId) -> Self {
+    pub(crate) fn new(id: WindowId) -> Self {
         WindowHandle {
             any_handle: AnyWindowHandle {
                 id,

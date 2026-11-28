@@ -11,7 +11,7 @@ pub(crate) struct TimelinePeriod {
     /// The events, in source order.
     pub(crate) events: Vec<String>,
     /// Name of the section in force when the period was declared, empty before the first one.
-    pub(crate) section: String,
+    section: String,
     /// Index into `sections` of that section, -1 before the first one.
     pub(crate) section_index: i64,
     /// The period's text.
@@ -22,9 +22,9 @@ pub(crate) struct TimelinePeriod {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TimelineDb {
     /// The accessible description.
-    pub(crate) acc_descr: Option<String>,
+    acc_descr: Option<String>,
     /// The accessible title.
-    pub(crate) acc_title: Option<String>,
+    acc_title: Option<String>,
     current_section: String,
     /// `LR` or `TD`.
     pub(crate) direction: &'static str,
@@ -52,7 +52,7 @@ impl Default for TimelineDb {
 
 /// `text.replace(/\n\s+/g, '\n')`: each line break followed by whitespace, line breaks included,
 /// becomes one line break.
-pub(crate) fn collapse_breaks(text: &str) -> String {
+fn collapse_breaks(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
     while let Some(c) = chars.next() {

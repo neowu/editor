@@ -32,11 +32,11 @@ use crate::prelude::px;
 #[derive(Debug, Clone)]
 pub struct IndentGuideColors {
     /// The color of the indent guide when it's neither active nor hovered.
-    pub default: Hsla,
+    default: Hsla,
     /// The color of the indent guide when it's hovered.
-    pub hover: Hsla,
+    hover: Hsla,
     /// The color of the indent guide when it's active.
-    pub active: Hsla,
+    active: Hsla,
 }
 
 impl IndentGuideColors {

@@ -193,6 +193,7 @@ pub(crate) fn parse_xychart(src: &str, db: &mut XyChartDb) -> Result<(), Error> 
                 let value = p.text_at(p.i - 1);
                 db.set_acc_description(trim(value));
             }
+            // lint: expect(wildcard_match) only a few variants of `T` matter here
             _ => {
                 p.i -= 1;
                 return Err(p.fail(

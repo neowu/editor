@@ -118,9 +118,17 @@ use crate::git_graph::OpenAtCommit;
 use crate::git_panel::GitPanel;
 use crate::revision_semantics::RevisionSemanticsProvider;
 
-actions!(git, [ApplyCurrentStash, PopCurrentStash, DropCurrentStash, OpenFileAtHead,]);
+actions!(
+    git,
+    [
+        pub ApplyCurrentStash,
+        pub PopCurrentStash,
+        pub DropCurrentStash,
+        OpenFileAtHead,
+    ]
+);
 
-pub fn init(workspace_actions: &mut WorkspaceActions) {
+pub(crate) fn init(workspace_actions: &mut WorkspaceActions) {
     workspace_actions.register_action(|workspace, _: &ApplyCurrentStash, window, cx| {
         CommitView::apply_stash(workspace, window, cx);
     });
@@ -132,7 +140,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions) {
     });
 }
 
-pub struct CommitView {
+pub(crate) struct CommitView {
     commit: CommitDetails,
     editor: Entity<SplittableEditor>,
     details: Entity<CommitDetailsPanel>,
@@ -314,25 +322,25 @@ impl Addon for CommitDiffAddon {
 const FILE_NAMESPACE_SORT_PREFIX: u64 = 1;
 
 impl CommitView {
-    pub fn open(
+    pub(crate) fn open(
         commit_sha: String,
         repo: WeakEntity<Repository>,
         workspace: WeakEntity<Workspace>,
         stash: Option<usize>,
         file_filter: Option<RepoPath>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut App,
     ) {
         Self::open_with_options(commit_sha, repo, workspace, stash, file_filter, false, None, None, window, cx);
     }
 
     /// Opens the commit view scrolled to `reveal_file` when given, at the top otherwise.
-    pub fn open_revealing(
+    pub(crate) fn open_revealing(
         commit_sha: String,
         repo: WeakEntity<Repository>,
         workspace: WeakEntity<Workspace>,
         reveal_file: Option<RepoPath>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut App,
     ) {
         match reveal_file {
@@ -343,13 +351,13 @@ impl CommitView {
 
     /// Opens the commit view and scrolls to `repo_path` as soon as its diff is
     /// built. `commit_diff` is the commit's already loaded diff, if any.
-    pub fn open_at_file(
+    pub(crate) fn open_at_file(
         commit_sha: String,
         repo: WeakEntity<Repository>,
         workspace: WeakEntity<Workspace>,
         repo_path: RepoPath,
         commit_diff: Option<Arc<CommitDiff>>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut App,
     ) {
         let initial_file = Some(InitialFile::Scroll(repo_path));
@@ -369,13 +377,13 @@ impl CommitView {
 
     /// Opens the commit view and `repo_path`'s revision tab as soon as its
     /// diff is built. `commit_diff` is the commit's already loaded diff, if any.
-    pub fn open_revision(
+    pub(crate) fn open_revision(
         commit_sha: String,
         repo: WeakEntity<Repository>,
         workspace: WeakEntity<Workspace>,
         repo_path: RepoPath,
         commit_diff: Option<Arc<CommitDiff>>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut App,
     ) {
         let initial_file = Some(InitialFile::Revision(repo_path));

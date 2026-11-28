@@ -49,7 +49,6 @@ use worktree::WorktreeId;
 use super::LanguageServerState;
 use super::LocalLspStore;
 use super::LspStore;
-use super::rust_analyzer_ext;
 use crate::ProjectPath;
 use crate::ProjectTransaction;
 use crate::lsp_command::file_path_to_lsp_url;
@@ -201,7 +200,13 @@ impl LanguageServerWatchedPaths {
     }
 }
 
-pub fn glob_literal_prefix(glob: &Path) -> PathBuf {
+/// Whether a worktree change is a Rust source edit rust-analyzer won't re-check on its own.
+/// Open buffers are covered by their reload; ignored paths (`target/`) are flycheck's own output.
+fn disk_change_needs_flycheck(path: &RelPath, change: PathChange, is_ignored: bool, has_open_buffer: bool) -> bool {
+    !matches!(change, PathChange::Loaded) && !is_ignored && !has_open_buffer && path.extension() == Some("rs")
+}
+
+fn glob_literal_prefix(glob: &Path) -> PathBuf {
     glob.components()
         .take_while(|component| match component {
             path::Component::Normal(part) => !part.to_string_lossy().contains(['*', '?', '{', '}']),
@@ -583,7 +588,7 @@ impl LspStore {
             let worktree = worktree_handle.read(cx);
             let buffer_store = self.buffer_store.read(cx);
             changes.iter().any(|(path, _, change)| {
-                rust_analyzer_ext::disk_change_needs_flycheck(
+                disk_change_needs_flycheck(
                     path,
                     *change,
                     worktree.entry_for_path(path).is_some_and(|entry| entry.is_ignored),
@@ -604,6 +609,31 @@ impl LspStore {
                 self.request_workspace_config_refresh();
                 break;
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use util::rel_path::RelPath;
+    use worktree::PathChange;
+
+    use super::disk_change_needs_flycheck;
+
+    #[test]
+    fn disk_change_needs_flycheck_only_for_unopened_tracked_rust_files() {
+        let rust = RelPath::new_test("crates/a/src/lib.rs");
+        for change in [PathChange::Added, PathChange::Removed, PathChange::Updated, PathChange::AddedOrUpdated] {
+            assert!(disk_change_needs_flycheck(&rust, change, false, false));
+        }
+        // The initial scan is not a change.
+        assert!(!disk_change_needs_flycheck(&rust, PathChange::Loaded, false, false));
+        // Flycheck's own output must not re-trigger it.
+        assert!(!disk_change_needs_flycheck(&rust, PathChange::Updated, true, false));
+        // An open buffer triggers through its reload, and a manual save through `didSave`.
+        assert!(!disk_change_needs_flycheck(&rust, PathChange::Updated, false, true));
+        for other in ["Cargo.toml", "README.md", "src/rs", "Makefile"] {
+            assert!(!disk_change_needs_flycheck(&RelPath::new_test(other), PathChange::Updated, false, false));
         }
     }
 }

@@ -38,23 +38,23 @@ pub struct LspDocumentLink {
     pub range: Range<Anchor>,
     pub target: Option<SharedString>,
     pub tooltip: Option<SharedString>,
-    pub data: Option<serde_json::Value>,
-    pub resolved: bool,
+    pub(crate) data: Option<serde_json::Value>,
+    pub(crate) resolved: bool,
 }
 
 pub type BufferDocumentLinks = FxHashMap<LanguageServerId, FxHashMap<DocumentLinkId, LspDocumentLink>>;
 
-pub(super) type DocumentLinksTask = Shared<Task<Result<Option<BufferDocumentLinks>, Arc<anyhow::Error>>>>;
+type DocumentLinksTask = Shared<Task<Result<Option<BufferDocumentLinks>, Arc<anyhow::Error>>>>;
 
 pub(super) type DocumentLinkResolveTask = Shared<Task<Option<(DocumentLinkId, LspDocumentLink)>>>;
 
 #[derive(Debug, Default)]
 pub(super) struct DocumentLinksData {
-    pub(super) links: BufferDocumentLinks,
+    links: BufferDocumentLinks,
     fetched_servers: FxHashSet<LanguageServerId>,
-    pub(super) next_id: u64,
+    next_id: u64,
     links_update: Option<RunningFetch<DocumentLinksTask>>,
-    pub(super) link_resolves: FxHashMap<(LanguageServerId, DocumentLinkId), DocumentLinkResolveTask>,
+    link_resolves: FxHashMap<(LanguageServerId, DocumentLinkId), DocumentLinkResolveTask>,
 }
 
 impl DocumentLinksData {
@@ -225,7 +225,7 @@ impl LspStore {
 
     #[allow(clippy::type_complexity)]
     fn fetch_document_links_for_buffer(
-        &mut self,
+        &self,
         buffer: &Entity<Buffer>,
         for_servers: Option<FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,

@@ -69,8 +69,8 @@ impl NSStringExt for id {
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 struct NSRange {
-    pub location: NSUInteger,
-    pub length: NSUInteger,
+    location: NSUInteger,
+    length: NSUInteger,
 }
 
 impl NSRange {

@@ -28,18 +28,18 @@ pub(crate) struct StateDb {
     /// The accessible title.
     pub(crate) acc_title: Option<String>,
     /// Class definitions, in insertion order.
-    pub(crate) classes: Vec<StateClassDef>,
+    classes: Vec<StateClassDef>,
     /// The nodes and edges that are drawn.
     pub(crate) graph: StateGraph,
     /// Transitions of the root document.
-    pub(crate) relations: Vec<StateRelation>,
+    relations: Vec<StateRelation>,
     /// The parsed document.
-    pub(crate) root_doc: Vec<Stmt>,
+    root_doc: Vec<Stmt>,
     /// For each state, the root statement whose body Pele's model shares with it. Pele records the
     /// body itself, which nothing reads after the graph is built.
-    pub(crate) state_docs: Vec<Option<usize>>,
+    state_docs: Vec<Option<usize>>,
     /// States of the root document, in insertion order.
-    pub(crate) states: Vec<StateStmt>,
+    states: Vec<StateStmt>,
     /// The front matter title.
     pub(crate) title: Option<String>,
 
@@ -229,6 +229,7 @@ impl StateDb {
                     state.doc = Some(Doc(mem::take(&mut current)));
                     regions.push(Stmt::State(state));
                 }
+                // lint: expect(wildcard_match) only a few variants of `Stmt` matter here
                 item => current.push(item),
             }
         }

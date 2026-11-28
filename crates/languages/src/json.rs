@@ -32,7 +32,7 @@ use crate::LanguageDef;
 use crate::PackageJsonData;
 use crate::npx;
 
-pub(crate) struct JsonTaskProvider {
+struct JsonTaskProvider {
     fs: Arc<Fs>,
 }
 
@@ -77,12 +77,12 @@ pub fn composer_script_task(cx: &RunContext, script: String) -> SpawnInTerminal 
     )
 }
 
-pub(crate) struct JsonLspAdapter {
+struct JsonLspAdapter {
     languages: Arc<LanguageRegistry>,
 }
 
 impl JsonLspAdapter {
-    pub(crate) const fn new(languages: Arc<LanguageRegistry>) -> Self {
+    const fn new(languages: Arc<LanguageRegistry>) -> Self {
         Self { languages }
     }
 }

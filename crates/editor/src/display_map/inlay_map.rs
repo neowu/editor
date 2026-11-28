@@ -55,16 +55,16 @@ use crate::inlays::InlayContent;
 /// Decides where the [`Inlay`]s should be displayed.
 ///
 /// See the [`display_map` module documentation](crate::display_map) for more information.
-pub struct InlayMap {
+pub(crate) struct InlayMap {
     snapshot: InlaySnapshot,
     inlays: Vec<Inlay>,
 }
 
 #[derive(Clone)]
 pub struct InlaySnapshot {
-    pub buffer: MultiBufferSnapshot,
+    pub(crate) buffer: MultiBufferSnapshot,
     transforms: SumTree<Transform>,
-    pub version: usize,
+    pub(crate) version: usize,
 }
 
 impl Deref for InlaySnapshot {
@@ -123,7 +123,7 @@ impl sum_tree::ContextLessSummary for TransformSummary {
 pub(super) type InlayEdit = Edit<InlayOffset>;
 
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
-pub struct InlayOffset(pub MultiBufferOffset);
+pub(crate) struct InlayOffset(pub(crate) MultiBufferOffset);
 
 impl Add for InlayOffset {
     type Output = Self;
@@ -187,7 +187,7 @@ impl<'a> sum_tree::Dimension<'a, TransformSummary> for InlayOffset {
 }
 
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
-pub struct InlayPoint(pub Point);
+pub(crate) struct InlayPoint(pub(crate) Point);
 
 impl Add for InlayPoint {
     type Output = Self;
@@ -236,7 +236,7 @@ impl<'a> sum_tree::Dimension<'a, TransformSummary> for Point {
 }
 
 #[derive(Clone)]
-pub struct InlayBufferRows<'a> {
+pub(crate) struct InlayBufferRows<'a> {
     transforms: Cursor<'a, 'static, Transform, Dimensions<InlayPoint, Point>>,
     buffer_rows: MultiBufferRows<'a>,
     inlay_row: u32,
@@ -259,9 +259,9 @@ pub(crate) struct InlayChunks<'a> {
 
 #[derive(Clone)]
 pub(crate) struct InlayChunk<'a> {
-    pub chunk: Chunk<'a>,
+    pub(crate) chunk: Chunk<'a>,
     /// Whether the inlay should be customly rendered.
-    pub renderer: Option<ChunkRenderer>,
+    pub(crate) renderer: Option<ChunkRenderer>,
 }
 
 impl InlayChunks<'_> {
@@ -454,7 +454,7 @@ impl<'a> Iterator for InlayChunks<'a> {
 }
 
 impl InlayBufferRows<'_> {
-    pub fn seek(&mut self, row: u32) {
+    pub(crate) fn seek(&mut self, row: u32) {
         let inlay_point = InlayPoint::new(row, 0);
         self.transforms.seek(&inlay_point, Bias::Left);
 
@@ -496,17 +496,17 @@ impl Iterator for InlayBufferRows<'_> {
 }
 
 impl InlayPoint {
-    pub const fn new(row: u32, column: u32) -> Self {
+    const fn new(row: u32, column: u32) -> Self {
         Self(Point::new(row, column))
     }
 
-    pub const fn row(self) -> u32 {
+    pub(crate) const fn row(self) -> u32 {
         self.0.row
     }
 }
 
 impl InlayMap {
-    pub fn new(buffer: MultiBufferSnapshot) -> (Self, InlaySnapshot) {
+    pub(crate) fn new(buffer: MultiBufferSnapshot) -> (Self, InlaySnapshot) {
         let version = 0;
         let snapshot = InlaySnapshot {
             transforms: SumTree::from_iter(iter::once(Transform::Isomorphic(buffer.text_summary())), ()),
@@ -517,7 +517,7 @@ impl InlayMap {
         (Self { snapshot: snapshot.clone(), inlays: Vec::new() }, snapshot)
     }
 
-    pub fn sync(
+    pub(crate) fn sync(
         &mut self,
         buffer_snapshot: MultiBufferSnapshot,
         mut buffer_edits: Vec<Edit<MultiBufferOffset>>,
@@ -651,7 +651,7 @@ impl InlayMap {
         }
     }
 
-    pub fn splice(&mut self, to_remove: &[InlayId], to_insert: Vec<Inlay>) -> (InlaySnapshot, Vec<InlayEdit>) {
+    pub(crate) fn splice(&mut self, to_remove: &[InlayId], to_insert: Vec<Inlay>) -> (InlaySnapshot, Vec<InlayEdit>) {
         let snapshot = &mut self.snapshot;
         let mut edits = BTreeSet::new();
 
@@ -688,13 +688,13 @@ impl InlayMap {
         (snapshot, edits)
     }
 
-    pub fn current_inlays(&self) -> slice::Iter<'_, Inlay> {
+    pub(crate) fn current_inlays(&self) -> slice::Iter<'_, Inlay> {
         self.inlays.iter()
     }
 }
 
 impl InlaySnapshot {
-    pub fn to_point(&self, offset: InlayOffset) -> InlayPoint {
+    pub(crate) fn to_point(&self, offset: InlayOffset) -> InlayPoint {
         let (start, _, item) =
             self.transforms.find::<Dimensions<InlayOffset, InlayPoint, MultiBufferOffset>, _>((), &offset, Bias::Right);
         let overshoot = offset.0 - start.0.0;
@@ -714,15 +714,15 @@ impl InlaySnapshot {
         }
     }
 
-    pub fn len(&self) -> InlayOffset {
+    pub(crate) fn len(&self) -> InlayOffset {
         InlayOffset(self.transforms.summary().output.len)
     }
 
-    pub fn max_point(&self) -> InlayPoint {
+    fn max_point(&self) -> InlayPoint {
         InlayPoint(self.transforms.summary().output.lines)
     }
 
-    pub fn to_offset(&self, point: InlayPoint) -> InlayOffset {
+    pub(crate) fn to_offset(&self, point: InlayPoint) -> InlayOffset {
         let (start, _, item) =
             self.transforms.find::<Dimensions<InlayPoint, InlayOffset, Point>, _>((), &point, Bias::Right);
         let overshoot = point.0 - start.0.0;
@@ -742,7 +742,7 @@ impl InlaySnapshot {
         }
     }
 
-    pub fn to_buffer_point(&self, point: InlayPoint) -> Point {
+    pub(crate) fn to_buffer_point(&self, point: InlayPoint) -> Point {
         let (start, _, item) = self.transforms.find::<Dimensions<InlayPoint, Point>, _>((), &point, Bias::Right);
         match item {
             Some(Transform::Isomorphic(_)) => {
@@ -754,7 +754,7 @@ impl InlaySnapshot {
         }
     }
 
-    pub fn to_buffer_offset(&self, offset: InlayOffset) -> MultiBufferOffset {
+    pub(crate) fn to_buffer_offset(&self, offset: InlayOffset) -> MultiBufferOffset {
         let (start, _, item) =
             self.transforms.find::<Dimensions<InlayOffset, MultiBufferOffset>, _>((), &offset, Bias::Right);
         match item {
@@ -767,7 +767,7 @@ impl InlaySnapshot {
         }
     }
 
-    pub fn to_inlay_offset(&self, offset: MultiBufferOffset) -> InlayOffset {
+    pub(crate) fn to_inlay_offset(&self, offset: MultiBufferOffset) -> InlayOffset {
         let mut cursor = self.transforms.cursor::<Dimensions<MultiBufferOffset, InlayOffset>>(());
         cursor.seek(&offset, Bias::Left);
         loop {
@@ -799,23 +799,23 @@ impl InlaySnapshot {
         }
     }
 
-    pub fn to_inlay_point(&self, point: Point) -> InlayPoint {
+    pub(crate) fn to_inlay_point(&self, point: Point) -> InlayPoint {
         self.inlay_point_cursor().map(point, Bias::Left)
     }
 
-    pub fn buffer_offset_to_inlay_point_cursor(&self) -> BufferOffsetToInlayPointCursor<'_> {
+    pub(crate) fn buffer_offset_to_inlay_point_cursor(&self) -> BufferOffsetToInlayPointCursor<'_> {
         BufferOffsetToInlayPointCursor {
             snapshot: self,
             cursor: self.transforms.cursor::<Dimensions<MultiBufferOffset, InlayPoint>>(()),
         }
     }
 
-    pub fn inlay_point_cursor(&self) -> InlayPointCursor<'_> {
+    pub(crate) fn inlay_point_cursor(&self) -> InlayPointCursor<'_> {
         let cursor = self.transforms.cursor::<Dimensions<Point, InlayPoint>>(());
         InlayPointCursor { cursor, transforms: &self.transforms }
     }
 
-    pub fn clip_point(&self, mut point: InlayPoint, mut bias: Bias) -> InlayPoint {
+    pub(crate) fn clip_point(&self, mut point: InlayPoint, mut bias: Bias) -> InlayPoint {
         let mut cursor = self.transforms.cursor::<Dimensions<InlayPoint, Point>>(());
         cursor.seek(&point, Bias::Left);
         loop {
@@ -905,7 +905,7 @@ impl InlaySnapshot {
         }
     }
 
-    pub fn inlay_bias_at_point(&self, point: InlayPoint) -> Option<Bias> {
+    pub(crate) fn inlay_bias_at_point(&self, point: InlayPoint) -> Option<Bias> {
         let mut cursor = self.transforms.cursor::<Dimensions<InlayPoint, Point>>(());
         cursor.seek(&point, Bias::Left);
         match cursor.item() {
@@ -914,11 +914,11 @@ impl InlaySnapshot {
         }
     }
 
-    pub fn text_summary(&self) -> MBTextSummary {
+    pub(crate) fn text_summary(&self) -> MBTextSummary {
         self.transforms.summary().output
     }
 
-    pub fn text_summary_for_range(&self, range: Range<InlayOffset>) -> MBTextSummary {
+    pub(crate) fn text_summary_for_range(&self, range: Range<InlayOffset>) -> MBTextSummary {
         let mut summary = MBTextSummary::default();
 
         let mut cursor = self.transforms.cursor::<Dimensions<InlayOffset, MultiBufferOffset>>(());
@@ -963,7 +963,7 @@ impl InlaySnapshot {
         summary
     }
 
-    pub fn row_infos(&self, row: u32) -> InlayBufferRows<'_> {
+    pub(crate) fn row_infos(&self, row: u32) -> InlayBufferRows<'_> {
         let mut cursor = self.transforms.cursor::<Dimensions<InlayPoint, Point>>(());
         let inlay_point = InlayPoint::new(row, 0);
         cursor.seek(&inlay_point, Bias::Left);
@@ -990,7 +990,7 @@ impl InlaySnapshot {
         }
     }
 
-    pub fn line_len(&self, row: u32) -> u32 {
+    fn line_len(&self, row: u32) -> u32 {
         let line_start = self.to_offset(InlayPoint::new(row, 0)).0;
         let line_end = if row >= self.max_point().row() {
             self.len().0
@@ -1059,13 +1059,13 @@ impl InlaySnapshot {
     }
 }
 
-pub struct InlayPointCursor<'transforms> {
+pub(crate) struct InlayPointCursor<'transforms> {
     cursor: Cursor<'transforms, 'static, Transform, Dimensions<Point, InlayPoint>>,
     transforms: &'transforms SumTree<Transform>,
 }
 
 impl InlayPointCursor<'_> {
-    pub fn map(&mut self, point: Point, bias: Bias) -> InlayPoint {
+    pub(crate) fn map(&mut self, point: Point, bias: Bias) -> InlayPoint {
         let cursor = &mut self.cursor;
         if cursor.did_seek() {
             cursor.seek_forward(&point, Bias::Left);
@@ -1110,18 +1110,18 @@ impl InlayPointCursor<'_> {
 /// [`InlaySnapshot::buffer_offset_to_inlay_ranges`] composed with
 /// [`InlaySnapshot::to_point`]. Because the cursor only seeks forward, callers
 /// must provide ranges with non-decreasing offsets.
-pub struct BufferOffsetToInlayPointCursor<'a> {
+pub(crate) struct BufferOffsetToInlayPointCursor<'a> {
     snapshot: &'a InlaySnapshot,
     cursor: Cursor<'a, 'static, Transform, Dimensions<MultiBufferOffset, InlayPoint>>,
 }
 
 impl BufferOffsetToInlayPointCursor<'_> {
     /// Resets the cursor to the start so it can seek backward again.
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.cursor.reset();
     }
 
-    pub fn map(&mut self, range: Range<MultiBufferOffset>) -> SmallVec<[Range<InlayPoint>; 1]> {
+    pub(crate) fn map(&mut self, range: Range<MultiBufferOffset>) -> SmallVec<[Range<InlayPoint>; 1]> {
         let buffer = &self.snapshot.buffer;
         let cursor = &mut self.cursor;
         if cursor.did_seek() {

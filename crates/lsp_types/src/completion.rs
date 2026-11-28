@@ -28,7 +28,7 @@ use crate::WorkDoneProgressParams;
 pub struct InsertTextFormat(i32);
 lsp_enum! {
 impl InsertTextFormat {
-    pub const PLAIN_TEXT: InsertTextFormat = InsertTextFormat(1);
+    const PLAIN_TEXT: InsertTextFormat = InsertTextFormat(1);
     pub const SNIPPET: InsertTextFormat = InsertTextFormat(2);
 }
 }
@@ -195,7 +195,7 @@ pub struct CompletionItemKindCapability {
     /// the completion items kinds from `Text` to `Reference` as defined in
     /// the initial version of the protocol.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_set: Option<Vec<CompletionItemKind>>,
+    value_set: Option<Vec<CompletionItemKind>>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
@@ -386,29 +386,29 @@ pub struct CompletionOptions {
     ///
     /// @since 3.2.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub all_commit_characters: Option<Vec<String>>,
+    all_commit_characters: Option<Vec<String>>,
 
     #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
+    work_done_progress_options: WorkDoneProgressOptions,
 
     /// The server supports the following `CompletionItem` specific
     /// capabilities.
     ///
     /// @since 3.17.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub completion_item: Option<CompletionOptionsCompletionItem>,
+    completion_item: Option<CompletionOptionsCompletionItem>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CompletionOptionsCompletionItem {
+struct CompletionOptionsCompletionItem {
     /// The server has support for completion item label
     /// details (see also `CompletionItemLabelDetails`) when receiving
     /// a completion item in a resolve call.
     ///
     /// @since 3.17.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub label_details_support: Option<bool>,
+    label_details_support: Option<bool>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
