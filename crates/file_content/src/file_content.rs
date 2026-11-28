@@ -12,7 +12,6 @@ use chardetng::Utf8Detection;
 use encoding_rs::CoderResult;
 use encoding_rs::Decoder;
 use encoding_rs::Encoding;
-use encoding_rs::UTF_8;
 use encoding_rs::UTF_16BE;
 use encoding_rs::UTF_16LE;
 
@@ -20,18 +19,6 @@ use encoding_rs::UTF_16LE;
 pub const FILE_ANALYSIS_BYTES: usize = 1024;
 
 const DECODING_BLOCK_BYTES: usize = 64 * 1024;
-
-/// Text produced by [`decode_text`], with what is needed to write it back via [`encode_text`].
-pub struct DecodedText {
-    /// The decoded UTF-8 text.
-    pub text: String,
-    /// The encoding the bytes were decoded from.
-    // lint: expect(excess_visibility) read by tests only; kept to verify detection
-    pub encoding: &'static Encoding,
-    /// Whether the bytes started with a byte order mark.
-    // lint: expect(excess_visibility) read by tests only; kept to verify detection
-    pub has_bom: bool,
-}
 
 pub fn read_byte_header(reader: &mut dyn Read) -> io::Result<(Vec<u8>, bool)> {
     let mut header = vec![0; FILE_ANALYSIS_BYTES];
@@ -61,21 +48,21 @@ pub fn decode_byte_header(prefix: &[u8]) -> (Option<&'static Encoding>, ByteCont
 
 /// Decodes a whole file into UTF-8, detecting its encoding.
 /// Fails when the bytes are classified as [`ByteContent::Binary`].
-pub fn decode_text(bytes: Vec<u8>) -> Result<DecodedText> {
+pub fn decode_text(bytes: Vec<u8>) -> Result<String> {
     let (bom_encoding, byte_content) = decode_byte_header(&bytes);
     if let Some(encoding) = bom_encoding {
         let (text, _) = encoding.decode_with_bom_removal(&bytes);
-        return Ok(DecodedText { text: text.into_owned(), encoding, has_bom: true });
+        return Ok(text.into_owned());
     }
 
     if let Some(encoding) = byte_content.encoding() {
         let (text, _, _) = encoding.decode(&bytes);
-        return Ok(DecodedText { text: text.into_owned(), encoding, has_bom: false });
+        return Ok(text.into_owned());
     }
     anyhow::ensure!(byte_content != ByteContent::Binary, "Binary files cannot be decoded into text");
 
     match String::from_utf8(bytes) {
-        Ok(text) if !text.contains('\x1b') => Ok(DecodedText { text, encoding: UTF_8, has_bom: false }),
+        Ok(text) if !text.contains('\x1b') => Ok(text),
         Ok(text) => Ok(decode_with_detected_encoding(text.into_bytes())),
         Err(error) => Ok(decode_with_detected_encoding(error.into_bytes())),
     }
@@ -103,42 +90,6 @@ pub async fn detect_encoding(reader: &mut (dyn Read + Send)) -> io::Result<&'sta
     }
 }
 
-/// Inverse of [`decode_text`]: encodes UTF-8 text into `encoding`, prepending a BOM when asked.
-pub fn encode_text(text: String, encoding: &'static Encoding, has_bom: bool) -> Vec<u8> {
-    if encoding == UTF_8 && !has_bom {
-        return text.into_bytes();
-    }
-
-    // encoding_rs follows the WHATWG standard and encodes UTF-16 labels as UTF-8.
-    if encoding == UTF_16BE {
-        let mut bytes = Vec::with_capacity(text.len() * 2 + 2);
-        if has_bom {
-            bytes.extend_from_slice(&[0xFE, 0xFF]);
-        }
-        bytes.extend(text.encode_utf16().flat_map(u16::to_be_bytes));
-        return bytes;
-    }
-
-    if encoding == UTF_16LE {
-        let mut bytes = Vec::with_capacity(text.len() * 2 + 2);
-        if has_bom {
-            bytes.extend_from_slice(&[0xFF, 0xFE]);
-        }
-        bytes.extend(text.encode_utf16().flat_map(u16::to_le_bytes));
-        return bytes;
-    }
-
-    let (encoded, _, _) = encoding.encode(&text);
-    if has_bom && encoding == UTF_8 {
-        let mut bytes = Vec::with_capacity(encoded.len() + 3);
-        bytes.extend_from_slice(&[0xEF, 0xBB, 0xBF]);
-        bytes.extend_from_slice(&encoded);
-        bytes
-    } else {
-        encoded.into_owned()
-    }
-}
-
 /// A [`Read`] adapter that transcodes its source into UTF-8 block by block, with bounded memory.
 pub struct DecodingReader<'a> {
     inner: &'a mut (dyn Read + Send),
@@ -159,10 +110,6 @@ impl<'a> DecodingReader<'a> {
             output_position: 0,
             finished: false,
         }
-    }
-
-    pub fn encoding(&self) -> &'static Encoding {
-        self.decoder.encoding()
     }
 
     fn fill_output(&mut self) -> io::Result<()> {
@@ -309,12 +256,12 @@ fn decode_block(decoder: &mut Decoder, block: &[u8], last: bool, output: &mut Ve
     Ok(())
 }
 
-fn decode_with_detected_encoding(bytes: Vec<u8>) -> DecodedText {
+fn decode_with_detected_encoding(bytes: Vec<u8>) -> String {
     let mut detector = EncodingDetector::new(Iso2022JpDetection::Allow);
     detector.feed(&bytes, true);
     let encoding = detector.guess(None, Utf8Detection::Allow);
     let (text, _, _) = encoding.decode(&bytes);
-    DecodedText { text: text.into_owned(), encoding, has_bom: false }
+    text.into_owned()
 }
 
 const KNOWN_BINARY_HEADERS: &[&[u8]] = &[
@@ -477,22 +424,19 @@ mod tests {
     fn decode_text_detects_iso_2022_jp() {
         let (bytes, _, _) = ISO_2022_JP.encode(JAPANESE);
         let decoded = decode_text(bytes.into_owned()).unwrap();
-        assert_eq!(decoded.encoding, ISO_2022_JP);
-        assert_eq!(decoded.text, JAPANESE);
+        assert_eq!(decoded, JAPANESE);
     }
 
     #[test]
     fn decode_with_detected_encoding_detects_shift_jis() {
         let (bytes, _, _) = SHIFT_JIS.encode(JAPANESE);
         let decoded = decode_with_detected_encoding(bytes.into_owned());
-        assert_eq!(decoded.encoding, SHIFT_JIS);
-        assert_eq!(decoded.text, JAPANESE);
+        assert_eq!(decoded, JAPANESE);
     }
 
     #[test]
     fn decode_with_detected_encoding_allows_utf8() {
         let decoded = decode_with_detected_encoding(JAPANESE.as_bytes().to_vec());
-        assert_eq!(decoded.encoding, UTF_8);
-        assert_eq!(decoded.text, JAPANESE);
+        assert_eq!(decoded, JAPANESE);
     }
 }

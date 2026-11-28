@@ -37,12 +37,10 @@ use anyhow::Context as _;
 use anyhow::Result;
 use async_channel::Sender;
 use async_macos::yield_now;
-use encoding_rs::Encoding;
 use file_content::ByteContent;
 use file_content::DecodingReader;
 use file_content::decode_byte_header;
 use file_content::detect_encoding;
-use file_content::encode_text;
 use file_content::read_byte_header;
 use fs::Fs;
 use fs::MTime;
@@ -151,8 +149,6 @@ pub struct LoadedFile {
     pub file: Arc<File>,
     pub text: Rope,
     pub line_ending: LineEnding,
-    pub encoding: &'static Encoding,
-    pub has_bom: bool,
     pub is_writable: bool,
 }
 
@@ -999,7 +995,7 @@ impl Worktree {
             {
                 anyhow::bail!("File is too large to load");
             }
-            let (text, line_ending, encoding, has_bom) = decode_file_text_to_rope(fs.as_ref(), &abs_path).await?;
+            let (text, line_ending) = decode_file_text_to_rope(fs.as_ref(), &abs_path).await?;
             let is_writable = metadata.is_some_and(|metadata| metadata.is_writable);
 
             let worktree = this.upgrade().context("worktree was dropped")?;
@@ -1019,7 +1015,7 @@ impl Worktree {
                 })
             };
 
-            Ok(LoadedFile { file, text, line_ending, encoding, has_bom, is_writable })
+            Ok(LoadedFile { file, text, line_ending, is_writable })
         })
     }
 
@@ -1090,8 +1086,6 @@ impl Worktree {
         path: Arc<RelPath>,
         text: Rope,
         line_ending: LineEnding,
-        encoding: &'static Encoding,
-        has_bom: bool,
         cx: &Context<Worktree>,
     ) -> Task<Result<Arc<File>>> {
         let fs = Arc::clone(&self.fs);
@@ -1100,28 +1094,7 @@ impl Worktree {
         let write = cx.background_spawn({
             let fs = Arc::clone(&fs);
             let abs_path = abs_path.clone();
-            async move {
-                // For UTF-8, use the optimized `fs.save` which writes Rope chunks directly to disk
-                // without allocating a contiguous string.
-                if encoding == encoding_rs::UTF_8 && !has_bom {
-                    return fs.save(&abs_path, &text, line_ending).await;
-                }
-
-                // For legacy encodings (e.g. Shift-JIS), we fall back to converting the entire Rope
-                // to a String/Bytes in memory before writing.
-                //
-                // Note: This is inefficient for very large files compared to the streaming approach above,
-                // but supporting streaming writes for arbitrary encodings would require a significant
-                // refactor of the `fs` crate to expose a Writer interface.
-                let text_string = text.to_string();
-                let normalized_text = match line_ending {
-                    LineEnding::Unix => text_string,
-                    LineEnding::Windows => text_string.replace('\n', "\r\n"),
-                };
-
-                let bytes = encode_text(normalized_text, encoding, has_bom);
-                fs.write(&abs_path, &bytes).await
-            }
+            async move { fs.save(&abs_path, &text, line_ending).await }
         });
 
         cx.spawn(async move |this, cx| {
@@ -4788,7 +4761,7 @@ const STREAM_BLOCK_BYTES: usize = 1024 * 1024;
 /// Reads and decodes a file straight into a [`Rope`].
 /// The returned rope has already had its line endings normalized, the
 /// [`LineEnding`] detected before normalizing is returned alongside it.
-async fn decode_file_text_to_rope(fs: &Fs, abs_path: &Path) -> Result<(Rope, LineEnding, &'static Encoding, bool)> {
+async fn decode_file_text_to_rope(fs: &Fs, abs_path: &Path) -> Result<(Rope, LineEnding)> {
     let mut file = fs.open_sync(abs_path).with_context(|| format!("opening file {abs_path:?}"))?;
 
     let (prefix, reached_eof) =
@@ -4798,9 +4771,9 @@ async fn decode_file_text_to_rope(fs: &Fs, abs_path: &Path) -> Result<(Rope, Lin
 
     if bom_encoding.is_none()
         && byte_content == ByteContent::Unknown
-        && let Some((rope, line_ending)) = stream_utf8_into_rope(&mut file, prefix, reached_eof, abs_path, true).await?
+        && let Some(decoded) = stream_utf8_into_rope(&mut file, prefix, reached_eof, abs_path, true).await?
     {
-        return Ok((rope, line_ending, encoding_rs::UTF_8, false));
+        return Ok(decoded);
     }
 
     file.rewind()?;
@@ -4812,10 +4785,9 @@ async fn decode_file_text_to_rope(fs: &Fs, abs_path: &Path) -> Result<(Rope, Lin
         encoding
     };
     let mut reader = DecodingReader::new(&mut file, encoding);
-    let (rope, line_ending) = stream_utf8_into_rope(&mut reader, Vec::new(), false, abs_path, false)
+    stream_utf8_into_rope(&mut reader, Vec::new(), false, abs_path, false)
         .await?
-        .with_context(|| format!("decoding the file {abs_path:?}"))?;
-    Ok((rope, line_ending, reader.encoding(), bom_encoding.is_some()))
+        .with_context(|| format!("decoding the file {abs_path:?}"))
 }
 
 /// Streams a presumed-UTF-8 file into a [`Rope`], normalizing line endings as it
@@ -4974,5 +4946,86 @@ mod rebase_state_dir_tests {
         assert!(is_rebase_state_dir(Path::new("rebase-apply")));
         assert!(!is_rebase_state_dir(Path::new("rebase-merge/done")));
         assert!(!is_rebase_state_dir(Path::new("objects")));
+    }
+}
+
+#[cfg(test)]
+mod decode_tests {
+    use std::thread;
+
+    use gpui::PlatformDispatcher;
+    use gpui::RunnableVariant;
+    use gpui::block_on;
+
+    use super::*;
+
+    struct ThreadDispatcher;
+
+    impl PlatformDispatcher for ThreadDispatcher {
+        fn is_main_thread(&self) -> bool {
+            false
+        }
+
+        fn dispatch(&self, runnable: RunnableVariant, _: Priority) {
+            thread::spawn(move || runnable.run());
+        }
+
+        fn dispatch_on_main_thread(&self, runnable: RunnableVariant) {
+            thread::spawn(move || runnable.run());
+        }
+
+        fn dispatch_after(&self, duration: Duration, runnable: RunnableVariant) {
+            thread::spawn(move || {
+                thread::sleep(duration);
+                runnable.run();
+            });
+        }
+    }
+
+    /// Loads `bytes` as a file, saves the decoded text back and returns what landed on disk.
+    fn load_then_save(name: &str, bytes: &[u8]) -> (String, LineEnding, Vec<u8>) {
+        let fs = Fs::new(BackgroundExecutor::new(Arc::new(ThreadDispatcher)));
+        let path = std::env::temp_dir().join(format!("worktree_decode_{name}_{}", std::process::id()));
+        std::fs::write(&path, bytes).unwrap();
+        let (rope, line_ending) = block_on(decode_file_text_to_rope(&fs, &path)).unwrap();
+        block_on(fs.save(&path, &rope, line_ending)).unwrap();
+        let saved = std::fs::read(&path).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        (rope.to_string(), line_ending, saved)
+    }
+
+    #[test]
+    fn decode_file_text_to_rope_keeps_plain_utf8() {
+        let (text, line_ending, saved) = load_then_save("utf8", "héllo\nwörld\n".as_bytes());
+        assert_eq!(text, "héllo\nwörld\n");
+        assert_eq!(line_ending, LineEnding::Unix);
+        assert_eq!(saved, "héllo\nwörld\n".as_bytes());
+    }
+
+    #[test]
+    fn utf8_bom_is_dropped_on_save() {
+        let (text, _, saved) = load_then_save("utf8_bom", b"\xEF\xBB\xBFhello\n");
+        assert_eq!(text, "hello\n");
+        assert_eq!(saved, b"hello\n");
+    }
+
+    #[test]
+    fn utf16_is_saved_as_utf8() {
+        let mut bytes = vec![0xFF, 0xFE];
+        bytes.extend("héllo\r\nwörld\r\n".encode_utf16().flat_map(u16::to_le_bytes));
+        let (text, line_ending, saved) = load_then_save("utf16", &bytes);
+        assert_eq!(text, "héllo\nwörld\n");
+        assert_eq!(line_ending, LineEnding::Windows);
+        assert_eq!(saved, "héllo\r\nwörld\r\n".as_bytes());
+    }
+
+    #[test]
+    fn decode_file_text_to_rope_rejects_binary() {
+        let fs = Fs::new(BackgroundExecutor::new(Arc::new(ThreadDispatcher)));
+        let path = std::env::temp_dir().join(format!("worktree_decode_binary_{}", std::process::id()));
+        std::fs::write(&path, b"\x89PNG\r\n\x1a\n\0\0\0\0").unwrap();
+        let result = block_on(decode_file_text_to_rope(&fs, &path));
+        std::fs::remove_file(&path).unwrap();
+        result.unwrap_err();
     }
 }

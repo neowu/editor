@@ -238,7 +238,6 @@ fn main() {
             wrap_div_with_search_actions: buffer_search::register_pane_search_actions,
         });
         terminal_view::init(&mut workspace_actions, cx);
-        encoding_selector::init(&mut workspace_actions);
         language_selector::init(&mut workspace_actions);
         lsp_command_selector::init(&mut workspace_actions);
         language_tools::init(&mut workspace_actions, cx);

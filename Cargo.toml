@@ -20,7 +20,6 @@ control = { path = "crates/control" }
 derive_refineable = { path = "crates/refineable/derive_refineable" }
 diagnostics = { path = "crates/diagnostics" }
 editor = { path = "crates/editor" }
-encoding_selector = { path = "crates/encoding_selector" }
 file_content = { path = "crates/file_content" }
 file_icons = { path = "crates/file_icons" }
 finder = { path = "crates/finder" }

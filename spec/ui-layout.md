@@ -276,8 +276,7 @@ See `theme.md`.
   - Window: native macOS fullscreen. Text uses the platform's default
     rendering mode.
   - Status bar: shown only in Editor mode (and not while zoomed), with the language and
-    cursor position buttons; the encoding button only for non-UTF-8 or
-    UTF-8-with-BOM buffers.
+    cursor position buttons.
   - Preview tabs are always on (`TogglePreviewTab` always works). A single
     click in the project panel, opening from a multibuffer, and single-file
     code navigation open preview tabs, and code navigation replaces the
@@ -333,7 +332,7 @@ See `theme.md`.
 - Status bar buttons that open a pane item (project search, project
   diagnostics, Git History's graph) turn accent while that item is the active
   tab (`status_item_color`), and so do those that open a modal (cursor
-  position, language, encoding) while it is open. Diagnostics keeps its error/warning icon colours
+  position, language) while it is open. Diagnostics keeps its error/warning icon colours
   and its counts stay default (the icons already carry colour); only its check
   icon takes the accent.
 - Docks always have a fixed size in pixels (width for left/right, height for

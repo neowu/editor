@@ -20,7 +20,6 @@ command_palette.workspace = true
 control.workspace = true
 diagnostics.workspace = true
 editor.workspace = true
-encoding_selector.workspace = true
 finder.workspace = true
 fs.workspace = true
 futures.workspace = true

@@ -190,7 +190,6 @@ pub(crate) fn initialize_workspace(workspace_actions: &mut WorkspaceActions, cx:
         let search_button = cx.new(|_| SearchButton::new());
         let diagnostic_summary = cx.new(|cx| DiagnosticIndicator::new(workspace, cx));
         let activity_indicator = activity_indicator::ActivityIndicator::new(workspace, window, cx);
-        let active_buffer_encoding = cx.new(|_| encoding_selector::ActiveBufferEncoding::new(workspace));
         let active_buffer_language = cx.new(|_| language_selector::ActiveBufferLanguage::new(workspace));
         let image_info = cx.new(|_cx| ImageInfo::new(workspace));
 
@@ -202,7 +201,6 @@ pub(crate) fn initialize_workspace(workspace_actions: &mut WorkspaceActions, cx:
             status_bar.add_left_item(lsp_button, window, cx);
             status_bar.add_left_item(diagnostic_summary, window, cx);
             status_bar.add_left_item(activity_indicator, window, cx);
-            status_bar.add_right_item(active_buffer_encoding, window, cx);
             status_bar.add_right_item(active_buffer_language, window, cx);
             status_bar.add_right_item(cursor_position, window, cx);
             status_bar.add_right_item(image_info, window, cx);

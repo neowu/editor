@@ -27,9 +27,7 @@ use std::vec;
 use anyhow::Result;
 use async_macos::yield_now;
 pub use bracket_ranges::BracketMatch;
-use encoding_rs::Encoding;
-use file_content::ByteContent;
-use file_content::decode_byte_header;
+use file_content::decode_text;
 use fs::MTime;
 use futures::channel::oneshot;
 use gpui::App;
@@ -176,9 +174,6 @@ pub struct Buffer {
     tree_sitter_data: Arc<TreeSitterData>,
     fallback_highlighter: Option<Arc<FallbackHighlighter>>,
     fallback_syntax_override: Option<&'static str>,
-    encoding: &'static Encoding,
-    has_bom: bool,
-    reload_with_encoding_txns: FxHashMap<TransactionId, (&'static Encoding, bool)>,
 }
 
 #[derive(Debug)]
@@ -653,9 +648,6 @@ impl Buffer {
             changed_buffer_sets: Vec::default(),
             _subscriptions: Vec::new(),
             resolved_settings: None,
-            encoding: encoding_rs::UTF_8,
-            has_bom: false,
-            reload_with_encoding_txns: FxHashMap::default(),
         };
         this.resolved_settings = Some(this.compute_resolved_settings(cx));
         this.refresh_fallback_highlighter(cx);
@@ -736,26 +728,6 @@ impl Buffer {
     /// The mtime of the buffer's file when the buffer was last saved or reloaded from disk.
     pub const fn saved_mtime(&self) -> Option<MTime> {
         self.saved_mtime
-    }
-
-    /// Returns the character encoding of the buffer's file.
-    pub const fn encoding(&self) -> &'static Encoding {
-        self.encoding
-    }
-
-    /// Sets the character encoding of the buffer.
-    pub const fn set_encoding(&mut self, encoding: &'static Encoding) {
-        self.encoding = encoding;
-    }
-
-    /// Returns whether the buffer has a Byte Order Mark.
-    pub const fn has_bom(&self) -> bool {
-        self.has_bom
-    }
-
-    /// Sets whether the buffer has a Byte Order Mark.
-    pub const fn set_has_bom(&mut self, has_bom: bool) {
-        self.has_bom = has_bom;
     }
 
     /// Assign a language to the buffer.
@@ -858,81 +830,26 @@ impl Buffer {
 
     /// Reloads the contents of the buffer from disk.
     pub fn reload(&mut self, cx: &Context<Self>) -> oneshot::Receiver<Option<Transaction>> {
-        self.reload_impl(None, cx)
-    }
-
-    /// Reloads the contents of the buffer from disk using the specified encoding.
-    ///
-    /// This bypasses automatic encoding detection heuristics (like BOM checks) for non-Unicode encodings,
-    /// allowing users to force a specific interpretation of the bytes.
-    pub fn reload_with_encoding(
-        &mut self,
-        encoding: &'static Encoding,
-        cx: &Context<Self>,
-    ) -> oneshot::Receiver<Option<Transaction>> {
-        self.reload_impl(Some(encoding), cx)
-    }
-
-    fn reload_impl(
-        &mut self,
-        force_encoding: Option<&'static Encoding>,
-        cx: &Context<Self>,
-    ) -> oneshot::Receiver<Option<Transaction>> {
         let (tx, rx) = oneshot::channel();
         let prev_version = self.text.version();
 
         self.reload_task = Some(cx.spawn(async move |this, cx| {
-            let Some((new_mtime, load_bytes_task, current_encoding)) = this.update(cx, |this, cx| {
+            let Some((new_mtime, load_bytes_task)) = this.update(cx, |this, cx| {
                 let file = this.file.as_ref()?.as_local()?;
-                Some((file.disk_state().mtime(), file.load_bytes(cx), this.encoding))
+                Some((file.disk_state().mtime(), file.load_bytes(cx)))
             })?
             else {
                 return Ok(());
             };
 
-            let target_encoding = force_encoding.unwrap_or(current_encoding);
-
-            let bytes = load_bytes_task.await?;
-
-            anyhow::ensure!(decode_byte_header(&bytes).1 != ByteContent::Binary, "Binary files are not supported");
-
-            let is_unicode = target_encoding == encoding_rs::UTF_8
-                || target_encoding == encoding_rs::UTF_16LE
-                || target_encoding == encoding_rs::UTF_16BE;
-
-            let (new_text, has_bom, encoding_used) = if force_encoding.is_some() && !is_unicode {
-                let (cow, _had_errors) = target_encoding.decode_without_bom_handling(&bytes);
-                (cow.into_owned(), false, target_encoding)
-            } else {
-                let (cow, used_enc, _had_errors) = target_encoding.decode(&bytes);
-
-                let actual_has_bom = if used_enc == encoding_rs::UTF_8 {
-                    bytes.starts_with(&[0xEF, 0xBB, 0xBF])
-                } else if used_enc == encoding_rs::UTF_16LE {
-                    bytes.starts_with(&[0xFF, 0xFE])
-                } else if used_enc == encoding_rs::UTF_16BE {
-                    bytes.starts_with(&[0xFE, 0xFF])
-                } else {
-                    false
-                };
-                (cow.into_owned(), actual_has_bom, used_enc)
-            };
+            let new_text = decode_text(load_bytes_task.await?)?;
 
             let diff = this.update(cx, |this, cx| this.diff(new_text, cx))?.await;
             this.update(cx, |this, cx| {
                 if this.version() == diff.base_version {
                     this.finalize_last_transaction();
-                    let old_encoding = this.encoding;
-                    let old_has_bom = this.has_bom;
                     this.apply_diff(diff, cx);
-                    this.encoding = encoding_used;
-                    this.has_bom = has_bom;
                     let transaction = this.finalize_last_transaction().cloned();
-                    if let Some(ref txn) = transaction
-                        && (old_encoding != encoding_used || old_has_bom != has_bom)
-                    {
-                        this.reload_with_encoding_txns.insert(txn.id, (old_encoding, old_has_bom));
-                    }
                     tx.send(transaction).ok();
                     this.has_conflict = false;
                     this.did_reload(this.version(), this.line_ending(), new_mtime, cx);
@@ -2067,7 +1984,6 @@ impl Buffer {
 
         if let Some(transaction_id) = self.text.undo() {
             self.did_edit(&old_version, was_dirty, cx);
-            self.restore_encoding_for_transaction(transaction_id, was_dirty);
             Some(transaction_id)
         } else {
             None
@@ -2104,24 +2020,9 @@ impl Buffer {
 
         if let Some(transaction_id) = self.text.redo() {
             self.did_edit(&old_version, was_dirty, cx);
-            self.restore_encoding_for_transaction(transaction_id, was_dirty);
             Some(transaction_id)
         } else {
             None
-        }
-    }
-
-    fn restore_encoding_for_transaction(&mut self, transaction_id: TransactionId, was_dirty: bool) {
-        if let Some((old_encoding, old_has_bom)) = self.reload_with_encoding_txns.get(&transaction_id) {
-            let current_encoding = self.encoding;
-            let current_has_bom = self.has_bom;
-            self.encoding = *old_encoding;
-            self.has_bom = *old_has_bom;
-            if !was_dirty {
-                self.saved_version = self.version.clone();
-                self.has_unsaved_edits.set((self.saved_version.clone(), false));
-            }
-            self.reload_with_encoding_txns.insert(transaction_id, (current_encoding, current_has_bom));
         }
     }
 

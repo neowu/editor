@@ -22,7 +22,6 @@ use crate::lsp_store::missing_servers_to_query;
 use crate::lsp_store::next_lsp_fetch_id;
 
 #[derive(Debug, Default, Clone)]
-// lint: expect(excess_visibility) named by a more visible signature; rustc private_interfaces rejects narrowing
 pub struct DocumentColors {
     pub colors: FxHashSet<DocumentColor>,
 }

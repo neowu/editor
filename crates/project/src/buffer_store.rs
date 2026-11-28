@@ -83,8 +83,6 @@ impl LocalBufferStore {
 
         let text = buffer.as_rope().clone();
         let line_ending = buffer.line_ending();
-        let encoding = buffer.encoding();
-        let has_bom = buffer.has_bom();
         let version = buffer.version();
         let _buffer_id = buffer.buffer_id();
         let file = buffer.file().cloned();
@@ -92,8 +90,7 @@ impl LocalBufferStore {
             has_changed_file = true;
         }
 
-        let save =
-            worktree.update(cx, |worktree, cx| worktree.write_file(path, text, line_ending, encoding, has_bom, cx));
+        let save = worktree.update(cx, |worktree, cx| worktree.write_file(path, text, line_ending, cx));
 
         cx.spawn(async move |_this, cx| {
             let new_file = save.await?;
@@ -307,8 +304,6 @@ impl LocalBufferStore {
                         // Bulk loads (project search, multi-file diffs) mostly never get
                         // displayed; editors start the parse for the buffers they draw.
                         buffer.defer_parsing();
-                        buffer.set_encoding(loaded.encoding);
-                        buffer.set_has_bom(loaded.has_bom);
                         buffer
                     })
                 }

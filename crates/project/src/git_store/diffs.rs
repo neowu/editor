@@ -750,21 +750,9 @@ impl GitStore {
         let Some((repo, path)) = self.repository_and_path_for_buffer_id(buffer_id, cx) else {
             return;
         };
-        let (encoding, has_bom) =
-            self.buffer_store.read(cx).get(buffer_id).map_or((encoding_rs::UTF_8, false), |buffer| {
-                let buffer = buffer.read(cx);
-                (buffer.encoding(), buffer.has_bom())
-            });
         let recv = repo.update(cx, |repo, cx| {
             log::debug!("hunks changed for {}", path.as_unix_str());
-            repo.spawn_set_index_text_job(
-                path,
-                new_index_text,
-                encoding,
-                has_bom,
-                Some(hunk_staging_operation_count),
-                cx,
-            )
+            repo.spawn_set_index_text_job(path, new_index_text, Some(hunk_staging_operation_count), cx)
         });
         cx.spawn(async move |this, cx| {
             if let Ok(Err(error)) = cx.background_spawn(recv).await {

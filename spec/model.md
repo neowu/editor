@@ -93,6 +93,10 @@ each an entity with its own event enum:
 - Everything is local: `Project::local` builds the stores. A buffer's
   `language::File` has a disk path (`as_local`) only for worktree files;
   git-backed files (index text, commit blobs) have none.
+- Text is UTF-8 only once loaded: a file in any detected encoding (BOM,
+  UTF-16, legacy code pages) is decoded on load, and every write (save, index
+  text) is UTF-8 without a BOM. Nothing records the original encoding, so
+  saving a non-UTF-8 file converts it; there is no way to pick the encoding.
 - A model a view shows (a `Buffer`, an `ImageItem`) implements
   `project::ProjectItem` (`try_open` from a `ProjectPath`). The model is shared:
   one `Buffer` per file however many views read it.

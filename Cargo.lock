@@ -701,7 +701,6 @@ dependencies = [
  "control",
  "diagnostics",
  "editor",
- "encoding_selector",
  "finder",
  "fs",
  "futures",
@@ -823,21 +822,6 @@ dependencies = [
  "rustversion",
  "scopeguard",
  "simdutf8",
-]
-
-[[package]]
-name = "encoding_selector"
-version = "0.1.0"
-dependencies = [
- "editor",
- "encoding_rs",
- "fuzzy",
- "gpui",
- "language",
- "picker",
- "ui",
- "util",
- "workspace",
 ]
 
 [[package]]
@@ -1812,7 +1796,6 @@ dependencies = [
  "async-trait",
  "async_macos",
  "clock",
- "encoding_rs",
  "file_content",
  "fs",
  "futures",
@@ -1994,7 +1977,7 @@ dependencies = [
 [[package]]
 name = "lint"
 version = "0.13.0"
-source = "git+https://github.com/neowu/core_rs_workspace.git#7c72867ca450e8789271a358b27d3f174a518f9b"
+source = "git+https://github.com/neowu/core_rs_workspace.git#ea9e3e9e250c4e3a72da284828167fd99fd79e0c"
 dependencies = [
  "proc-macro2",
  "semver",
@@ -4529,7 +4512,6 @@ dependencies = [
  "async-channel",
  "async-lock",
  "async_macos",
- "encoding_rs",
  "file_content",
  "fs",
  "futures",

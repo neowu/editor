@@ -50,7 +50,6 @@ use diff_base_load::DiffBaseLoad;
 use diff_base_load::DiffBaseLoadKind;
 use diff_base_load::load_revision_groups;
 use file_content::decode_text;
-use file_content::encode_text;
 use fs::Fs;
 use fs::RemoveOptions;
 use futures::FutureExt as _;
@@ -181,7 +180,7 @@ struct ParkedRepository {
 }
 
 fn decode_git_text(bytes: Vec<u8>) -> Result<String> {
-    let text = decode_text(bytes)?.text;
+    let text = decode_text(bytes)?;
     anyhow::ensure!(!is_binary_content(text.as_bytes()), "Binary files are not supported");
     Ok(text)
 }
@@ -2486,8 +2485,6 @@ impl Repository {
         &mut self,
         path: RepoPath,
         content: Option<String>,
-        encoding: &'static encoding_rs::Encoding,
-        has_bom: bool,
         hunk_staging_operation_count: Option<usize>,
         cx: &Context<Self>,
     ) -> oneshot::Receiver<Result<()>> {
@@ -2504,7 +2501,7 @@ impl Repository {
                     Ok(None) => false,
                     Err(_err) => false,
                 };
-                let content = content.map(|content| encode_text(content, encoding, has_bom));
+                let content = content.map(String::into_bytes);
                 backend.set_index_text(path.clone(), content, Arc::clone(&environment), executable).await?;
             }
             log::debug!("finish updating index text for buffer {}", path.as_unix_str());
