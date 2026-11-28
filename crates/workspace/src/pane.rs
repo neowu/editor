@@ -286,29 +286,47 @@ pub enum SplitMode {
     EmptyPane,
 }
 
-macro_rules! split_structs {
-    ($($name:ident => $doc:literal),* $(,)?) => {
-        $(
-            #[doc = $doc]
-            #[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
-            #[action(namespace = pane)]
-            pub struct $name {
-                pub mode: SplitMode,
-            }
-        )*
-    };
+/// Splits the pane to the left.
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
+#[action(namespace = pane)]
+pub struct SplitLeft {
+    mode: SplitMode,
 }
 
-split_structs!(
-    SplitLeft => "Splits the pane to the left.",
-    SplitRight => "Splits the pane to the right.",
-    SplitUp => "Splits the pane upward.",
-    SplitDown => "Splits the pane downward.",
-    // lint: expect(excess_visibility) visibility is written by the `split_structs!` macro
-    SplitHorizontal => "Splits the pane horizontally.",
-    // lint: expect(excess_visibility) visibility is written by the `split_structs!` macro
-    SplitVertical => "Splits the pane vertically."
-);
+/// Splits the pane to the right.
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
+#[action(namespace = pane)]
+pub struct SplitRight {
+    mode: SplitMode,
+}
+
+/// Splits the pane upward.
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
+#[action(namespace = pane)]
+pub struct SplitUp {
+    mode: SplitMode,
+}
+
+/// Splits the pane downward.
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
+#[action(namespace = pane)]
+pub struct SplitDown {
+    mode: SplitMode,
+}
+
+/// Splits the pane horizontally.
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
+#[action(namespace = pane)]
+struct SplitHorizontal {
+    mode: SplitMode,
+}
+
+/// Splits the pane vertically.
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
+#[action(namespace = pane)]
+struct SplitVertical {
+    mode: SplitMode,
+}
 
 /// Activates the previous item in the pane.
 #[derive(Clone, PartialEq, Eq, Debug, Action)]
